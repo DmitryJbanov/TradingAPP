@@ -42,3 +42,7 @@
 ## Pine Script
 
 `references/nadaraya-watson-original.pine` — исходная стратегия пользователя. Реестр индикаторов содержит её название, но не исполняет код. Для переноса потребуется причинное гауссово сглаживание, MAE envelope, прогрев окна, сигнал crossover/crossunder и отдельная модель strategy orders/SL/TP. Подробный план в EXTENDING.md. Pine runtime не встроен.
+
+## VMC Cipher B
+
+`references/vmc2-original.pine` перенесён в TypeScript. [Документация переноса](INDICATOR_VMC.md) описывает MTF и особенности источника. Для Sommi/MACD используются те же API свечей, дополнительные интервалы 30m/2h/8h/12h. Новых зависимостей, сервисов, ключей и переменных окружения не требуется. Внешние alertcondition не отправляются.

@@ -1,5 +1,16 @@
 export type Category = "crypto" | "stocks" | "indices" | "forex";
 export type Timeframe = "15m" | "1h" | "4h" | "1d";
+export type CandleInterval = Timeframe | "30m" | "2h" | "8h" | "12h";
+export const candleIntervals: Record<CandleInterval, number> = {
+  "15m": 900,
+  "30m": 1800,
+  "1h": 3600,
+  "2h": 7200,
+  "4h": 14400,
+  "8h": 28800,
+  "12h": 43200,
+  "1d": 86400,
+};
 export type Source = "live" | "demo" | "stale";
 export interface Instrument {
   symbol: string;

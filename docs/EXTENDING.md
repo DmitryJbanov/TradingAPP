@@ -10,15 +10,17 @@
 
 ## 2. Индикаторы
 
-Контракт `IndicatorDefinition` содержит definition id, имя, описание, implemented и будущую функцию compute. `IndicatorInstance` — сериализуемые параметры конкретного экземпляра; chart API object здесь не хранится.
+Контракт `IndicatorDefinition` содержит definition id, имя, описание, implemented и функцию compute. `IndicatorInstance` — сериализуемые параметры конкретного экземпляра; chart API object здесь не хранится.
 
 Порядок реализации:
 
 1. Написать чистый вычислитель Candle[] → series data. Явно определить warm-up, NaN/пропуски и поведение текущей свечи.
 2. Добавить compute в registry и поставить implemented=true только после проверок на известных данных.
 3. Вынести chart rendering адаптер: создаёт series/primitive для instance, обновляет её при изменении свечей и удаляет при отключении/удалении.
-4. Состояние enabled управляет series visibility; period/color обновляют вычисление/отрисовку.
+4. Состояние enabled управляет жизненным циклом series; параметры и стиль экземпляра обновляют вычисление/отрисовку.
 5. Для тяжёлых расчётов использовать Web Worker, token версии запроса и отмену результата при смене symbol/interval.
+
+VMC Cipher B уже реализует этот путь: чистая математика, сериализуемые params/style/timeframes, MTF-hook и custom series. Используйте его как пример; подробности в [INDICATOR_VMC.md](INDICATOR_VMC.md).
 
 ### Nadaraya–Watson из приложенного файла
 

@@ -1796,3 +1796,95 @@ h1 {
     animation: none !important;
   }
 }
+
+/* Indicator settings extend the existing terminal theme. */
+.vmc-settings-dialog {
+  background: var(--card);
+  overflow: auto;
+  width: min(720px, calc(100vw - 24px));
+  max-width: 720px !important;
+  max-height: 92dvh;
+  gap: 16px;
+}
+.vmc-settings-scroll {
+  max-height: 58dvh;
+  overflow-y: auto;
+  padding: 4px 8px 12px 0;
+}
+.vmc-group {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 14px 0;
+  margin: 0;
+  min-width: 0;
+}
+.vmc-group legend {
+  font-weight: 650;
+  font-size: 14px;
+  padding-top: 12px;
+}
+.vmc-field {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  font-size: 14px;
+}
+.vmc-field > span:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.vmc-field input[type="number"] {
+  width: 108px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--background);
+  color: var(--foreground);
+}
+.vmc-field input[type="color"] {
+  width: 56px;
+  height: 30px;
+  cursor: pointer;
+}
+.vmc-field input[type="range"] {
+  width: 100px;
+}
+.vmc-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+.vmc-settings-actions > span {
+  flex: 1;
+}
+.vmc-readouts {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font:
+    12px ui-monospace,
+    monospace;
+}
+.vmc-readouts > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 4px 0;
+}
+.vmc-readouts strong {
+  font-weight: 500;
+}
+@media (max-width: 600px) {
+  .vmc-settings-dialog {
+    padding: 16px;
+  }
+  .vmc-field {
+    gap: 8px;
+  }
+  .vmc-field > span:first-child {
+    max-width: 60%;
+  }
+}

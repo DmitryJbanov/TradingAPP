@@ -62,6 +62,10 @@ import { Choice } from "./controls";
 import { Sessions } from "./sessions";
 import { MarketChart, defaultPalette, type ChartPalette } from "./chart";
 
+import { useVmc } from "../hooks/use-vmc";
+import { VmcSettingsDialog } from "./vmc-settings-dialog";
+import { vmcDefaults, vmcStyleDefaults } from "../indicators/vmc-settings";
+
 function Change({ value }: { value: number }) {
   return (
     <span className={value >= 0 ? "positive" : "negative"}>
@@ -903,6 +907,8 @@ function PairWorkspace({
     [manager, setManager] = useState(false),
     [reset, setReset] = useState(0),
     [indicatorSearch, setIndicatorSearch] = useState("");
+  const [indicatorRefresh, setIndicatorRefresh] = useState(0);
+  const [settingsId, setSettingsId] = useState<string | null>(null);
   const [allIndicators, setAllIndicators] = useStored<
     Record<string, IndicatorInstance[]>
   >("vector.indicators.v1", {});
@@ -911,6 +917,12 @@ function PairWorkspace({
     "/api/candles?symbol=" + encodeURIComponent(symbol) + "&interval=" + tf,
     15000,
   );
+  const vmc = useVmc(symbol, tf, resource.data, indicators, indicatorRefresh);
+  const editingIndicator = indicators.find((i) => i.id === settingsId);
+  function openIndicatorSettings(id: string) {
+    setManager(false);
+    setSettingsId(id);
+  }
   const q = rows.find((x) => x.symbol === symbol),
     item = catalog.find((x) => x.symbol === symbol);
   const bars = resource.data?.data ?? [],
@@ -1029,7 +1041,10 @@ function PairWorkspace({
               <button
                 className="button"
                 disabled={resource.loading}
-                onClick={() => resource.refresh(true)}
+                onClick={async () => {
+                  await resource.refresh(true);
+                  setIndicatorRefresh((v) => v + 1);
+                }}
               >
                 <RefreshCw
                   size={15}
@@ -1060,6 +1075,7 @@ function PairWorkspace({
               timeframe={tf}
               palette={palette}
               resetKey={reset}
+              vmcPanes={vmc.panes}
             />
             {!bars.length && (
               <div className="chart-loading">
@@ -1069,6 +1085,16 @@ function PairWorkspace({
               </div>
             )}
           </div>
+          {vmc.loading && (
+            <div className="notice" role="status">
+              Загрузка таймфреймов индикатора…
+            </div>
+          )}
+          {!vmc.loading && vmc.warnings.length > 0 && (
+            <div className="notice" role="status">
+              {vmc.warnings.join(" ")}
+            </div>
+          )}
           <div className="chart-status">
             <span>
               {resource.loading
@@ -1083,14 +1109,28 @@ function PairWorkspace({
               {indicators.map((i) => (
                 <button
                   key={i.id}
-                  onClick={() => setManager(true)}
+                  onClick={() =>
+                    i.definitionId === "vmc"
+                      ? openIndicatorSettings(i.id)
+                      : setManager(true)
+                  }
                   style={{ opacity: i.enabled ? 1 : 0.5 }}
                 >
                   <span style={{ background: i.color }} />
                   {
                     indicatorRegistry.find((x) => x.id === i.definitionId)?.name
                   }{" "}
-                  ({i.period})<small>ожидает расчёта</small>
+                  {i.definitionId === "vmc" ? (
+                    <small>
+                      {vmc.panes.some((p) => p.id === i.id)
+                        ? "настройки ⚙"
+                        : "скрыт · настройки ⚙"}
+                    </small>
+                  ) : (
+                    <>
+                      ({i.period})<small>ожидает расчёта</small>
+                    </>
+                  )}
                 </button>
               ))}
             </div>
@@ -1154,8 +1194,8 @@ function PairWorkspace({
           <DialogHeader>
             <DialogTitle>Индикаторы</DialogTitle>
             <DialogDescription>
-              Настройте состав для {symbol}. Расчёты и отрисовка будут добавлены
-              позже.
+              Настройте состав для {symbol}. VMC Cipher B доступен для расчёта;
+              остальные индикаторы пока в разработке.
             </DialogDescription>
           </DialogHeader>
           <label className="search-field">
@@ -1190,9 +1230,21 @@ function PairWorkspace({
                           definitionId: d.id,
                           enabled: true,
                           period:
-                            d.id === "nwe" ? 200 : d.id === "rsi" ? 14 : 20,
+                            d.id === "vmc"
+                              ? 9
+                              : d.id === "nwe"
+                                ? 200
+                                : d.id === "rsi"
+                                  ? 14
+                                  : 20,
                           color: "#99a5ff",
-                          paneId: "main",
+                          paneId: d.id === "vmc" ? "oscillator" : "main",
+                          ...(d.id === "vmc"
+                            ? {
+                                params: { ...vmcDefaults },
+                                style: { ...vmcStyleDefaults },
+                              }
+                            : {}),
                         },
                       ])
                     }
@@ -1249,47 +1301,67 @@ function PairWorkspace({
                     <Trash2 size={15} />
                   </button>
                 </div>
-                <div className="instance-options">
-                  <label>
-                    Период
-                    <input
-                      type="number"
-                      min="1"
-                      max="500"
-                      value={i.period}
-                      onChange={(e) =>
-                        changeIndicators(
-                          indicators.map((x) =>
-                            x.id === i.id
-                              ? {
-                                  ...x,
-                                  period: Math.max(
-                                    1,
-                                    Math.min(500, Number(e.target.value) || 1),
-                                  ),
-                                }
-                              : x,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                  <label>
-                    Цвет
-                    <input
-                      type="color"
-                      value={i.color}
-                      onChange={(e) =>
-                        changeIndicators(
-                          indicators.map((x) =>
-                            x.id === i.id ? { ...x, color: e.target.value } : x,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                  <span className="muted">Расчёт не подключён</span>
-                </div>
+                {i.definitionId === "vmc" ? (
+                  <div className="instance-options">
+                    <button
+                      className="button"
+                      onClick={() => openIndicatorSettings(i.id)}
+                    >
+                      <Settings2 size={16} />
+                      Настройки
+                    </button>
+                    <span className="muted">
+                      Отдельная панель · расчёт подключён
+                    </span>
+                  </div>
+                ) : (
+                  <div className="instance-options">
+                    <label>
+                      Период
+                      <input
+                        type="number"
+                        min="1"
+                        max="500"
+                        value={i.period}
+                        onChange={(e) =>
+                          changeIndicators(
+                            indicators.map((x) =>
+                              x.id === i.id
+                                ? {
+                                    ...x,
+                                    period: Math.max(
+                                      1,
+                                      Math.min(
+                                        500,
+                                        Number(e.target.value) || 1,
+                                      ),
+                                    ),
+                                  }
+                                : x,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                    <label>
+                      Цвет
+                      <input
+                        type="color"
+                        value={i.color}
+                        onChange={(e) =>
+                          changeIndicators(
+                            indicators.map((x) =>
+                              x.id === i.id
+                                ? { ...x, color: e.target.value }
+                                : x,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                    <span className="muted">Расчёт не подключён</span>
+                  </div>
+                )}
               </div>
             ))}
             {!indicators.length && (
@@ -1300,6 +1372,18 @@ function PairWorkspace({
           </div>
         </DialogContent>
       </Dialog>
+      {editingIndicator && (
+        <VmcSettingsDialog
+          key={editingIndicator.id}
+          instance={editingIndicator}
+          onClose={() => setSettingsId(null)}
+          onApply={(next) =>
+            changeIndicators(
+              indicators.map((i) => (i.id === next.id ? next : i)),
+            )
+          }
+        />
+      )}
     </main>
   );
 }

@@ -5,4 +5,4 @@
 - Vite / Vinext / Lucide / Radix UI / Tailwind CSS — условия соответствующих пакетов; точные версии зафиксированы в package-lock.json.
 - Каталог Shadcn используется как доступные UI primitives.
 - Binance и Twelve Data — поставщики данных, не авторы этого приложения. Их доступность, условия использования и права на данные определяются отдельно.
-- Pine Script в references/ предоставлен пользователем и сохранён для дальнейшей работы; стратегия не исполняется приложением.
+- Pine Script в references/ предоставлен пользователем. Nadaraya–Watson остаётся исходником для дальнейшей работы; VMC Cipher B перенесён в TypeScript. Комментарии исходника VuManChu сохраняют благодарности dynausmaux, falconCoin, LazyBear, RicardoSantos, LucemAnb, andreholanda73 и TradingView. Pine runtime не включён.

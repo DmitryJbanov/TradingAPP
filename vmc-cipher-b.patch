@@ -1,0 +1,4358 @@
+diff --git a/README.md b/README.md
+index d4c6b52b0ca9812a9eea52516353c7bfc47c7328..a987a8099fd560e58fa3f8e06cb0a591bf4a4b0a 100644
+--- a/README.md
++++ b/README.md
+@@ -77,7 +77,7 @@ npm run start:standalone
+ 
+ ### Менеджер индикаторов
+ 
+-Реализованы каталог, поиск, добавление экземпляров, порядок, переключатель видимости, период, цвет, удаление и сохранение отдельно для каждого инструмента. **В этой версии расчётов индикаторов и торговых сигналов нет.** Интерфейс явно показывает «Расчёт не подключён». Переключатель сохраняет желаемую видимость будущего расчёта.
++Реализованы каталог, поиск, добавление экземпляров, порядок, видимость, удаление и сохранение отдельно для каждого инструмента. **VMC Cipher B · VuManChu** рассчитывается по приложенному `vmc2.txt` и рисуется в отдельной панели: WaveTrend, MFI, RSI, Stoch RSI, Schaff, дивергенции, Buy/Sell/Gold и Sommi. Настройки включают вкладки «Аргументы», «Стиль», «Видимость», применение, отмену и сброс. Все 84 исходных параметра доступны. [Расчёт, параметры и особенности переноса](docs/INDICATOR_VMC.md). Nadaraya–Watson, SMA и RSI как отдельные индикаторы остаются заготовками; встроенный в VMC RSI работает.
+ 
+ Приложенный `test.txt` сохранён без изменения логики в `references/nadaraya-watson-original.pine`. Это стратегия Pine Script, а не браузерный JavaScript. Её исполнение и перенос в TypeScript пока не выполнялись.
+ 
+@@ -113,6 +113,8 @@ npm run start:standalone
+ - [HTTP API и контракты данных](docs/API.md)
+ - [Интеграции и источники](docs/INTEGRATIONS.md)
+ - [Расширение: индикаторы, панели, рисование](docs/EXTENDING.md)
++- [VMC Cipher B: формулы, параметры, MTF и ограничения](docs/INDICATOR_VMC.md)
++- [Применение обновления через .patch](docs/APPLY_VMC_PATCH.md)
+ - [Развёртывание и эксплуатация](docs/OPERATIONS.md)
+ - [Проверки и ограничения](docs/VALIDATION.md)
+ - [Лицензии сторонних компонентов](THIRD_PARTY_NOTICES.md)
+@@ -131,4 +133,4 @@ npm run build:standalone
+ 
+ ## Границы первой версии
+ 
+-Нет исполнения Pine Script, индикаторных расчётов, рисования, Фибоначчи, нескольких графиков на одном экране, WebSocket tick-stream, выставления ордеров, аккаунтов или постоянной БД. Для будущих панелей, рисунков и индикаторов определены сериализуемые контракты и точки расширения. Ни одна из этих будущих функций не представлена как уже работающая.
++Нет универсального исполнения Pine Script, рисования, Фибоначчи, нескольких независимых ценовых графиков на одном экране, WebSocket tick-stream, выставления ордеров, аккаунтов или постоянной БД. Для будущих панелей, рисунков и индикаторов определены сериализуемые контракты и точки расширения. Ни одна из этих будущих функций не представлена как уже работающая.
+diff --git a/THIRD_PARTY_NOTICES.md b/THIRD_PARTY_NOTICES.md
+index 5d17c8442b0d23cbf8bc766305e3ae6f6af1aa5e..3edbc32e179ade12bec45b7ec7db928e755f607c 100644
+--- a/THIRD_PARTY_NOTICES.md
++++ b/THIRD_PARTY_NOTICES.md
+@@ -5,4 +5,4 @@
+ - Vite / Vinext / Lucide / Radix UI / Tailwind CSS — условия соответствующих пакетов; точные версии зафиксированы в package-lock.json.
+ - Каталог Shadcn используется как доступные UI primitives.
+ - Binance и Twelve Data — поставщики данных, не авторы этого приложения. Их доступность, условия использования и права на данные определяются отдельно.
+-- Pine Script в references/ предоставлен пользователем и сохранён для дальнейшей работы; стратегия не исполняется приложением.
++- Pine Script в references/ предоставлен пользователем. Nadaraya–Watson остаётся исходником для дальнейшей работы; VMC Cipher B перенесён в TypeScript. Комментарии исходника VuManChu сохраняют благодарности dynausmaux, falconCoin, LazyBear, RicardoSantos, LucemAnb, andreholanda73 и TradingView. Pine runtime не включён.
+diff --git a/app/globals.css b/app/globals.css
+index 044f407d8f1d3dfaf5dd748acd9f1b7683a0c61c..642c967399dfba719d8a376e5176c15a08d04a62 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -1796,3 +1796,95 @@ h1 {
+     animation: none !important;
+   }
+ }
++
++/* Indicator settings extend the existing terminal theme. */
++.vmc-settings-dialog {
++  background: var(--card);
++  overflow: auto;
++  width: min(720px, calc(100vw - 24px));
++  max-width: 720px !important;
++  max-height: 92dvh;
++  gap: 16px;
++}
++.vmc-settings-scroll {
++  max-height: 58dvh;
++  overflow-y: auto;
++  padding: 4px 8px 12px 0;
++}
++.vmc-group {
++  border: 0;
++  border-bottom: 1px solid var(--border);
++  padding: 14px 0;
++  margin: 0;
++  min-width: 0;
++}
++.vmc-group legend {
++  font-weight: 650;
++  font-size: 14px;
++  padding-top: 12px;
++}
++.vmc-field {
++  display: flex;
++  gap: 12px;
++  align-items: center;
++  justify-content: space-between;
++  min-height: 42px;
++  font-size: 14px;
++}
++.vmc-field > span:first-child {
++  flex: 1;
++  min-width: 0;
++}
++.vmc-field input[type="number"] {
++  width: 108px;
++  border: 1px solid var(--border);
++  border-radius: 6px;
++  padding: 6px 8px;
++  background: var(--background);
++  color: var(--foreground);
++}
++.vmc-field input[type="color"] {
++  width: 56px;
++  height: 30px;
++  cursor: pointer;
++}
++.vmc-field input[type="range"] {
++  width: 100px;
++}
++.vmc-settings-actions {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 8px;
++  border-top: 1px solid var(--border);
++  padding-top: 14px;
++}
++.vmc-settings-actions > span {
++  flex: 1;
++}
++.vmc-readouts {
++  padding: 10px 14px;
++  border-top: 1px solid var(--border);
++  font:
++    12px ui-monospace,
++    monospace;
++}
++.vmc-readouts > div {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 12px;
++  margin: 4px 0;
++}
++.vmc-readouts strong {
++  font-weight: 500;
++}
++@media (max-width: 600px) {
++  .vmc-settings-dialog {
++    padding: 16px;
++  }
++  .vmc-field {
++    gap: 8px;
++  }
++  .vmc-field > span:first-child {
++    max-width: 60%;
++  }
++}
+diff --git a/docs/API.md b/docs/API.md
+index 1b4ca74fff626ea43717f2d74d50e44acfc14deb..e5fdc47ab3a36347342d4476c9e9cc11f5de9228 100644
+--- a/docs/API.md
++++ b/docs/API.md
+@@ -40,11 +40,12 @@ Volume: Binance quoteVolume в USDT; Twelve Data volume × close — оценк
+ 
+ ## `GET /api/candles?symbol=BTCUSDT&interval=1h`
+ 
+-| Поле     | Значения                            |
+-| -------- | ----------------------------------- |
+-| symbol   | Символ из каталога; default BTCUSDT |
+-| interval | 15m, 1h, 4h, 1d; default 1h         |
+-| refresh  | 1 для обхода TTL                    |
++| Поле     | Значения                                      |
++| -------- | --------------------------------------------- |
++| symbol   | Символ из каталога; default BTCUSDT           |
++| interval | 15m, 30m, 1h, 2h, 4h, 8h, 12h, 1d; default 1h |
++| refresh  | 1 для обхода TTL                              |
++| demo     | 1 для явного запроса DEMO                     |
+ 
+ ```json
+ {
+@@ -108,3 +109,7 @@ curl -fsS 'http://localhost:3000/api/candles?symbol=BTCUSDT&interval=4h'
+ curl -fsS 'http://localhost:3000/api/markets?refresh=1'
+ curl -fsS http://localhost:3000/api/logs
+ ```
++
++## Дополнение VMC
++
++`GET /api/candles` принимает `interval=15m|30m|1h|2h|4h|8h|12h|1d`. `demo=1` явно запрашивает согласованные синтетические данные, даже при DATA_MODE=auto; используется для дополнительных таймфреймов, когда основной график находится в DEMO. `refresh=1` по-прежнему обходит TTL. Размер ответа — до 400 свечей. Неизвестные интервалы отклоняются с 400. `computeVmc` выполняется в клиенте; отдельного endpoint для индикатора нет.
+diff --git a/docs/APPLY_VMC_PATCH.md b/docs/APPLY_VMC_PATCH.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..70c19a92461ec794c3f8e3d20d24c703db0677e7
+--- /dev/null
++++ b/docs/APPLY_VMC_PATCH.md
+@@ -0,0 +1,57 @@
++# Как применить vmc-cipher-b.patch
++
++Патч рассчитан на исходную поставку `vector-market-terminal`, коммит `8f3d4697e9f985e646b970616ebf1567138776eb`. Он изменяет исходники и документацию, добавляет VMC Cipher B и его тесты. `package.json`, lockfile и переменные окружения не меняются. GitHub или GitLab не нужны для применения файла, нужен установленный Git.
++
++## Windows / PowerShell
++
++1. Сохраните текущие изменения в Git или сделайте резервную копию проекта.
++2. Остановите запущенный сервер (`Ctrl+C`). Скопируйте `vmc-cipher-b.patch` в корень проекта — там, где находятся `package.json`, `src` и `app`.
++3. Откройте PowerShell в этой папке и выполните **проверку**:
++
++```powershell
++git apply --check .\vmc-cipher-b.patch
++```
++
++Успешная проверка ничего не печатает и не изменяет файлы. Если есть `patch does not apply`, `No such file` или `already exists`, не выполняйте следующую команду. Убедитесь, что выбрана правильная папка. Если код уже изменялся после исходной поставки, передайте текст ошибки и актуальные файлы: патч нужно адаптировать. Параметры принудительного применения и `--reject` не требуются.
++
++4. После успешной проверки примените:
++
++```powershell
++git apply .\vmc-cipher-b.patch
++```
++
++5. Если зависимости ещё не установлены, выполните `npm ci`. Затем проверьте, пересоберите и запустите:
++
++```powershell
++npm run typecheck
++npm run test:core
++npm run build:standalone
++npm run start:standalone
++```
++
++Каждую следующую команду выполняйте после успешного завершения предыдущей. Нужен Node.js 22.13 или новее, как в исходном проекте. Откройте [локальное приложение](http://localhost:3000). Если был задан другой PORT, используйте его. Просто перезапустить старую `release/server.mjs` недостаточно: **build:standalone обязателен**, потому что патч содержит исходники, а не готовый release.
++
++Откройте пару → **Индикаторы** → **VMC Cipher B · VuManChu** → **+**. Для настройки нажмите **Настройки** у экземпляра либо его название под графиком.
++
++## Git Bash / Linux / macOS
++
++Команды те же; путь к патчу можно записать `./vmc-cipher-b.patch`. При запуске через Docker после применения выполните `docker compose up --build -d`, чтобы пересобрать образ.
++
++## Откат
++
++Если после применения эти файлы ещё не редактировались:
++
++```powershell
++git apply -R --check .\vmc-cipher-b.patch
++git apply -R .\vmc-cipher-b.patch
++npm run build:standalone
++```
++
++При ошибке проверки обратного патча остановитесь и используйте сохранённый Git-коммит/копию для выборочного восстановления. Патч не отправляет изменения в удалённый репозиторий и не публикует сайт. Чтобы поделиться обновлением в своём репозитории, отдельно просмотрите diff, создайте commit и push обычным способом.
++
++## Документация
++
++- [VMC: формулы, параметры, особенности исходника и MTF](INDICATOR_VMC.md)
++- [Архитектура](ARCHITECTURE.md)
++- [Карта кода](CODE.md)
++- [Проверки](VALIDATION.md)
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 01822acdb6638f38b0531ea35eceddc6e9219c3f..166f32e98fada85e7a84ec65d1eaefdea98cb13e 100644
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -63,3 +63,7 @@ Backend не зависит от React и не рендерит графики.
+ ## Масштабирование эксплуатации
+ 
+ Standalone рассчитан на один процесс для персонального терминала. В нескольких экземплярах и в Workers кеш, uptime, статусы и журналы не являются общими. Для нагрузки потребуется общий Redis/KV, rate limiter, поток котировок и централизованные логи. В этой версии такой инфраструктуры нет.
++
++## Панели индикатора VMC
++
++`PairWorkspace → useVmc → computeVmc → MarketChart → VmcRenderer`. Чистый вычислитель расположен в `src/indicators`, MTF-запросы — в hook, визуальное представление — в custom series. Каждому включённому экземпляру VMC соответствует отдельная native-панель в том же Lightweight Chart с общей временной шкалой. Отключение или удаление освобождает series, изменение порядка переносит панель. Независимые ценовые графики с разными symbol остаются будущим расширением. Подробности: [INDICATOR_VMC.md](INDICATOR_VMC.md).
+diff --git a/docs/CODE.md b/docs/CODE.md
+index 32f589010351e5418d3a9e9ebc7fa80c745ded96..a569b4f9fa086fcb7638116ad546d189a942eb67 100644
+--- a/docs/CODE.md
++++ b/docs/CODE.md
+@@ -7,7 +7,7 @@
+ | `src/domain/market.ts`         | Общие DTO, допустимые таймфреймы, форматирование, формула процента           |
+ | `src/domain/catalog.ts`        | Каталог и метаданные инструментов                                            |
+ | `src/domain/demo.ts`           | Генерация маркированных синтетических OHLC, согласованных между таймфреймами |
+-| `src/domain/workspace.ts`      | Контракты panes, drawings, индикаторов и реестр будущих расчётов             |
++| `src/domain/workspace.ts`      | Контракты panes, drawings, индикаторов и реестр доступных и будущих расчётов |
+ | `src/server/market-service.ts` | Получение котировок/свечей, кеш, журнал, HTTP handler                        |
+ | `src/hooks/use-resource.ts`    | Polling, отмена устаревших запросов, localStorage                            |
+ | `src/components/terminal.tsx`  | Главная страница, Backend, PairWorkspace, настройки и менеджер               |
+@@ -34,7 +34,7 @@
+ 
+ ### `candles(symbol, timeframe, config, force)`
+ 
+-Возвращает CandleResponse с 400 свечами или доступным количеством от провайдера. При ошибке провайдера возвращает DEMO и warning. Только известные инструменты и четыре перечисленных interval допускаются обработчиком API.
++Возвращает CandleResponse с 400 свечами или доступным количеством от провайдера. При ошибке провайдера возвращает DEMO и warning. Только известные инструменты и интервалы из `candleIntervals` допускаются обработчиком API. Основной UI использует 15m/1h/4h/1d; VMC дополнительно запрашивает 30m/2h/8h/12h.
+ 
+ ### `cached(key, ttl, force, fn)`
+ 
+@@ -68,3 +68,7 @@ Canvas-график не предоставляет полного screen-reader
+ - Новые секреты только через серверный Config/env; не используйте клиентские VITE*/NEXT_PUBLIC* для ключей.
+ - Сохраняйте cleanup для timers, subscriptions, observers и chart instances.
+ - При изменении localStorage schema повышайте версию ключа или добавляйте миграцию.
++
++## VMC Cipher B
++
++Численные функции, renderer, настройки и MTF-hook описаны в [INDICATOR_VMC.md](INDICATOR_VMC.md). Добавлены необязательные `params`, `style`, `timeframes` у IndicatorInstance; старые записи localStorage совместимы.
+diff --git a/docs/EXTENDING.md b/docs/EXTENDING.md
+index 85fb2968b355fbe4abba22e54211522c7ce4cd46..5d246d084cb24af9643b9a726807c988de7b27b8 100644
+--- a/docs/EXTENDING.md
++++ b/docs/EXTENDING.md
+@@ -10,16 +10,18 @@
+ 
+ ## 2. Индикаторы
+ 
+-Контракт `IndicatorDefinition` содержит definition id, имя, описание, implemented и будущую функцию compute. `IndicatorInstance` — сериализуемые параметры конкретного экземпляра; chart API object здесь не хранится.
++Контракт `IndicatorDefinition` содержит definition id, имя, описание, implemented и функцию compute. `IndicatorInstance` — сериализуемые параметры конкретного экземпляра; chart API object здесь не хранится.
+ 
+ Порядок реализации:
+ 
+ 1. Написать чистый вычислитель Candle[] → series data. Явно определить warm-up, NaN/пропуски и поведение текущей свечи.
+ 2. Добавить compute в registry и поставить implemented=true только после проверок на известных данных.
+ 3. Вынести chart rendering адаптер: создаёт series/primitive для instance, обновляет её при изменении свечей и удаляет при отключении/удалении.
+-4. Состояние enabled управляет series visibility; period/color обновляют вычисление/отрисовку.
++4. Состояние enabled управляет жизненным циклом series; параметры и стиль экземпляра обновляют вычисление/отрисовку.
+ 5. Для тяжёлых расчётов использовать Web Worker, token версии запроса и отмену результата при смене symbol/interval.
+ 
++VMC Cipher B уже реализует этот путь: чистая математика, сериализуемые params/style/timeframes, MTF-hook и custom series. Используйте его как пример; подробности в [INDICATOR_VMC.md](INDICATOR_VMC.md).
++
+ ### Nadaraya–Watson из приложенного файла
+ 
+ Сохранить именно causal/non-repaint вариант. На баре t основа использует текущий и предыдущие window−1 значений source с весами exp(−i²/(2h²)); нормализовать на сумму весов. Envelope использует SMA абсолютного отклонения source−basis за window, умноженную на mult. У basis и envelope разные периоды прогрева; не заменять их нулями.
+diff --git a/docs/INDICATOR_VMC.md b/docs/INDICATOR_VMC.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..b40ea1530b92ea4776922f6c3ea4bd5e057a88de
+--- /dev/null
++++ b/docs/INDICATOR_VMC.md
+@@ -0,0 +1,84 @@
++# VMC Cipher B · VuManChu B Divergences
++
++Источник: приложенный пользователем `vmc2.txt`, сохранён как `references/vmc2-original.pine` с исходными комментариями и атрибуцией. Это перенос формул на TypeScript; Pine runtime и платформа TradingView не требуются.
++
++## Использование
++
++Откройте пару → **Индикаторы** → **VMC Cipher B · VuManChu** → **+**. Под ценой появится отдельная панель. Разделитель между панелями можно перетаскивать; шкала времени общая, ценовая шкала осциллятора независимая. Можно добавить несколько экземпляров, менять их порядок, скрывать и удалять.
++
++Кнопка **Настройки** у экземпляра или его название под графиком открывают окно:
++
++- **Аргументы**: все группы входных параметров из Pine, включая источники цены, периоды, уровни, дивергенции, Sommi и MACD. Английские названия сохранены для сопоставления с оригиналом.
++- **Стиль**: все 14 цветовых inputs оригинала, общая непрозрачность, толщина линий, уровни и малые точки пересечений.
++- **Видимость**: отдельно 15m, 1h, 4h и 1d.
++
++**Применить** сохраняет и пересчитывает; **Отмена**, Escape или закрытие окна отбрасывают черновик. **По умолчанию** восстанавливает исходные параметры в черновике. Настройки сохраняются по symbol и instance id в `vector.indicators.v1`; существующие записи без новых полей совместимы. Настройки локальны для браузера.
++
++Кнопка **Обновить** повторно запрашивает свечи и дополнительные таймфреймы индикатора. Под графиком выводятся значения WT1, WT2, Fast WT, MFI, RSI, K, D и Schaff на свече под курсором, либо на последней свече. Прочерк означает отсутствие рассчитанного значения.
++
++## Расчёт
++
++| Компонент        | Формула / правило                                                                                                                                                             |
++| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
++| WaveTrend        | EMA источника за channel; EMA абсолютного отклонения за channel; CI = (source − ESA)/(0.015 × DE); WT1 = EMA(CI, average); WT2 = SMA(WT1, MA length)                          |
++| Fast WT / «VWAP» | WT1 − WT2. Несмотря на название `VWAP` в оригинале, это не объёмно-взвешенная цена                                                                                            |
++| RSI+MFI          | SMA(((close − open)/(high − low)) × multiplier, period) − Y offset. Объём в этой формуле не участвует                                                                         |
++| RSI              | RSI источника через сглаживание Wilder RMA, с начальным SMA                                                                                                                   |
++| Stoch RSI        | Опциональный log(source), RSI, стохастическая нормализация, SMA K, SMA D, опциональное среднее K/D                                                                            |
++| Schaff           | EMA fast − EMA slow; две стохастические нормализации и рекурсивное сглаживание factor                                                                                         |
++| Дивергенции      | Строгие фракталы из пяти баров; сравнение с предыдущим подходящим фракталом, его high/low и значением осциллятора                                                             |
++| Gold             | Условия фактического блока `wtGoldBuy`: WT/RSI bullish divergence, предыдущий минимум относительно osLevel3, восстановление WT минимум на 5, RSI предыдущего WT-минимума < 30 |
++| Sommi Flag       | MFI и WT текущего графика + Fast WT другого таймфрейма                                                                                                                        |
++| Sommi Diamond    | Пересечение WT + направления двух Heikin Ashi свечей других таймфреймов                                                                                                       |
++| MACD-цвета       | MACD 28/42, SMA signal 9 и MFI на выбранном таймфрейме                                                                                                                        |
++
++EMA начинается с первого конечного значения, RMA — с первого полного среднего, SMA использует заданное число доступных наблюдений. `null` соответствует отсутствию значения: деление на ноль, недостаточная история и недоступные данные не заменяются нулевым сигналом. При high=low вклад MFI отсутствует. Нерассчитанные серии не рисуются.
++
++У buy/sell, малых точек, Gold и дивергенций перенесены условия из раздела CALCULATE, а не их не всегда совпадающие описания в комментариях. Например, основной порог Gold использует RSI < 30. Флаг показа второго диапазона WT управляет его линиями, но не исключает его из `buySignalDiv`/`sellSignalDiv`: так написан оригинал.
++
++## Время, подтверждение и перерисовка
++
++Дивергенция становится известна на второй свече справа от экстремума. Линия и большая точка рисуются на экстремуме (`offset=-2`), однако `confirmedAt` и время события указывают бар обнаружения. Это не сигнал, доступный двумя свечами раньше. Время события — timestamp открытия бара обнаружения, а не wall-clock уведомление. Незакрытая свеча может менять значения и сигналы до закрытия.
++
++В приложении можно выбрать один из двух режимов дополнительных таймфреймов:
++
++- **Как в Pine (перерисовка)** — исходное поведение: WT/MACD сопоставляются по закрытию исторической свечи, а Heikin Ashi для Diamond с `lookahead_on` — с её начала. Поэтому Diamond на истории может использовать итог старшей свечи раньше момента его фактической доступности. На текущем баре используется доступное развивающееся значение.
++- **Только закрытые свечи** — в MTF участвуют лишь свечи, закрытые к моменту оценки текущего бара. Исторические Diamond будут отличаться от исходного режима. Это не фиксирует основной незакрытый бар и не отменяет задержку подтверждения дивергенций.
++
++При запросе младшего таймфрейма оригинальный HA-режим выбирает первый подбар, остальные исторические запросы — последний. Сопоставление учитывает время закрытия, не индекс массива. См. [официальное описание `security`, gaps и lookahead в Pine v4](https://www.tradingview.com/pine-script-docs/v4/essential/context-switching-the-security-function/).
++
++## Интеграция и ограничения истории
++
++MTF-параметры доступны для 15, 30, 60, 120, 240, 480, 720 минут и D. Эти интервалы обслуживаются текущими API-адаптерами. Произвольные Pine-разрешения, внешняя серия другого индикатора в качестве `input.source`, недельные и месячные свечи в этом патче не добавлены. Источники: open/high/low/close/hl2/hlc3/ohlc4.
++
++`useVmc` объединяет одинаковые запросы всех активных экземпляров. Отключённые функции не вызывают MTF-запросы. При изменении инструмента, таймфрейма или параметров старый запрос отменяется, а его результат не принимается. Backend-кеш и совместное ожидание одинаковых запросов продолжают работать.
++
++На каждый запрошенный таймфрейм доступно 400 последних свечей. Более короткий таймфрейм покрывает меньшую часть истории основного графика; там, где нет данных, MTF-сигналы отсутствуют и показано пояснение. В начале истории есть прогрев; при периодах до 500 некоторые значения на 400 свечах могут не появиться. Значения рекурсивных EMA/RMA и Heikin Ashi зависят от начала загруженной истории.
++
++DEMO основного графика явно запрашивает DEMO дополнительных свечей. Для реального графика ответ MTF принимается только при совпадении `source` и `provider`. Ошибка или demo fallback дополнительного запроса не подмешиваются в реальный расчёт; базовые компоненты VMC продолжают работать. Доступ к интервалам Twelve Data зависит от ключа/тарифа; реальная интеграция с этим провайдером без ключа не проверена.
++
++## Осознанные исправления и визуальные различия
++
++1. В Pine перепутаны ограничения полей RSI Oversold/Overbought: их defaults 30/60 не входят в заданные min/max. Здесь оба поля допускают 0–100, defaults сохранены.
++2. Оригинал вычисляет MACD-цвета, но не использует их в активных `plot`. Здесь **Show MACD Colors** действительно окрашивает WT1/WT2.
++3. **Not apply OB/OS Limits on Hidden Divergences** показывает линии между неограниченными фракталами. В исходнике цвет вычисляется по ним, но `plot` местами остаётся ограничен другим набором фракталов; здесь переключатель действует последовательно.
++4. Линии дивергенций явно соединяют сопоставленные экстремумы. Заливки, кружки, флажки и ромбы рисуются Canvas в custom series; это не пиксельная копия Pine `plot`/`plotchar`. Уровни показаны пунктиром. Исходные относительные прозрачности заливок сохранены в renderer; пользовательская непрозрачность применяется поверх них.
++
++Побитовое совпадение с TradingView не заявлено: нужен экспорт OHLC и значений оригинала с того же инструмента, источника и начальной истории. Автотесты проверяют вручную рассчитанные векторы и временные инварианты; сверка с пользовательским экспортом TradingView ещё не выполнена.
++
++## Код и расширение
++
++| Файл                                     | Ответственность                                                                     |
++| ---------------------------------------- | ----------------------------------------------------------------------------------- |
++| `src/indicators/vmc-settings.ts`         | Типы, все 84 исходных inputs + режим MTF, defaults, ограничения и нормализация      |
++| `src/indicators/pine-math.ts`            | SMA, EMA, RMA, RSI, стохастик, обработка отсутствующих значений                     |
++| `src/indicators/vmc.ts`                  | Чистый `computeVmc(bars, params, context)` → points/events/warnings; MTF и фракталы |
++| `src/indicators/vmc-renderer.ts`         | Custom series для отдельной панели, волны, заливки, линии и маркеры                 |
++| `src/hooks/use-vmc.ts`                   | Дедупликация MTF-запросов, отмена и проверка происхождения данных                   |
++| `src/components/vmc-settings-dialog.tsx` | Черновик настроек, вкладки, применение/отмена/сброс                                 |
++| `src/components/chart.tsx`               | Жизненный цикл series, порядок и удаление панелей, общий crosshair                  |
++| `tests/vmc.test.ts`                      | Численные примеры, временное выравнивание, фракталы, API и недоступные данные       |
++
++`computeVmc` не обращается к сети, localStorage или chart API и не мутирует свечи. `context.now` измеряется в Unix-секундах, как Candle.time. `context.histories` содержит независимо загруженные OHLC других таймфреймов. `VmcResult.events` — вычисленные сигналы, а не отправленные alerts. Уведомления, ордера и бэктест не включены в патч. События Sommi вычисляются для включённых функций.
++
++Панель реализована через [custom series API Lightweight Charts](https://tradingview.github.io/lightweight-charts/docs/plugins/custom_series), использует [общий механизм panes](https://tradingview.github.io/lightweight-charts/tutorials/how_to/panes). При обновлении данных сохраняется объект series и ручной масштаб; при удалении освобождаются series и её панель. В domain не хранятся объекты Canvas или библиотеки. Это позволяет позднее вынести вычисление в worker и добавить другие renderer-адаптеры.
+diff --git a/docs/INTEGRATIONS.md b/docs/INTEGRATIONS.md
+index c98717c959f51adf550bd071534aaaecb315ee0a..b94aa02e8cdccc8182575e9b8588dce2d5b2e873 100644
+--- a/docs/INTEGRATIONS.md
++++ b/docs/INTEGRATIONS.md
+@@ -42,3 +42,7 @@
+ ## Pine Script
+ 
+ `references/nadaraya-watson-original.pine` — исходная стратегия пользователя. Реестр индикаторов содержит её название, но не исполняет код. Для переноса потребуется причинное гауссово сглаживание, MAE envelope, прогрев окна, сигнал crossover/crossunder и отдельная модель strategy orders/SL/TP. Подробный план в EXTENDING.md. Pine runtime не встроен.
++
++## VMC Cipher B
++
++`references/vmc2-original.pine` перенесён в TypeScript. [Документация переноса](INDICATOR_VMC.md) описывает MTF и особенности источника. Для Sommi/MACD используются те же API свечей, дополнительные интервалы 30m/2h/8h/12h. Новых зависимостей, сервисов, ключей и переменных окружения не требуется. Внешние alertcondition не отправляются.
+diff --git a/docs/VALIDATION.md b/docs/VALIDATION.md
+index ab319fa3474738c5108430238bbcb67da6a9eb56..017fb69fab62d5a171db8a871e51c995cfe022ba 100644
+--- a/docs/VALIDATION.md
++++ b/docs/VALIDATION.md
+@@ -1,16 +1,26 @@
+ # Проверки поставки
+ 
++## Дополнение VMC Cipher B — 7 сентября 2026
++
++Для патча VMC выполнены TypeScript typecheck, 16 автоматических тестов (11 новых и 5 исходных), standalone build, Node HTTP smoke и hosted Worker build. В том числе проверены вручную рассчитанные векторы WT, MFI, RSI, Schaff; обработка `na`; соответствие набора из 84 inputs исходнику; регулярная/скрытая дивергенция и задержка подтверждения; HTF/LTF merge, lookahead и закрытые свечи; Heikin Ashi; отсутствие MTF-истории; новые API-интервалы. Custom renderer вызывается с тестовым Canvas-контекстом: проверяются отсутствие исключений и неконечных координат на данных с прогревом и сигналами.
++
++Патч проверяется на чистой копии исходного коммита с `git apply --check`, применяется, затем содержимое затронутых файлов побайтово сравнивается с результатом разработки. Обратное применение также проверяется. Документация применения находится в [APPLY_VMC_PATCH.md](APPLY_VMC_PATCH.md).
++
++Браузерные проверки окна настроек и перетаскивания панелей не выполнялись. Сверка с экспортом значений TradingView не выполнена, численное совпадение с его историей не заявлено. Особенности переноса и ограничения истории описаны в [INDICATOR_VMC.md](INDICATOR_VMC.md). Патч не публиковался на существующий сайт. Standalone bundle после VMC: около 566 KB JS без gzip, 178 KB gzip; предупреждение о размере bundle не блокирует сборку.
++
++## Исходная поставка
++
+ Проверки выполнены 6 сентября 2026 UTC.
+ 
+-| Проверка | Результат |
+-|---|---|
+-| `npm run typecheck` | Успешно, TypeScript без ошибок |
+-| `npm run test:core` | 5/5 тестов успешно |
+-| `npm run build:standalone` | Успешно, готовый Node + frontend release |
+-| Hosted Worker build | Успешно, маршруты `/`, `/pair/:symbol`, четыре API |
+-| Node HTTP smoke в DEMO | Успешно: root, direct pair URL, assets, 404, health, 44 котировки, 400 свечей, invalid symbol 400 |
+-| Server rendering hosted HTML | Успешно, root вернул HTTP 200 HTML |
+-| Реальный Binance запрос свечей | Успешно, BTCUSDT 4h, 400 свечей, source=live |
++| Проверка                       | Результат                                                                                         |
++| ------------------------------ | ------------------------------------------------------------------------------------------------- |
++| `npm run typecheck`            | Успешно, TypeScript без ошибок                                                                    |
++| `npm run test:core`            | 5/5 тестов успешно                                                                                |
++| `npm run build:standalone`     | Успешно, готовый Node + frontend release                                                          |
++| Hosted Worker build            | Успешно, маршруты `/`, `/pair/:symbol`, четыре API                                                |
++| Node HTTP smoke в DEMO         | Успешно: root, direct pair URL, assets, 404, health, 44 котировки, 400 свечей, invalid symbol 400 |
++| Server rendering hosted HTML   | Успешно, root вернул HTTP 200 HTML                                                                |
++| Реальный Binance запрос свечей | Успешно, BTCUSDT 4h, 400 свечей, source=live                                                      |
+ 
+ ## Что проверяют core-тесты
+ 
+diff --git a/references/vmc2-original.pine b/references/vmc2-original.pine
+new file mode 100644
+index 0000000000000000000000000000000000000000..93a7ffba69c9a8e89ce7be66f296388e62a1251c
+--- /dev/null
++++ b/references/vmc2-original.pine
+@@ -0,0 +1,523 @@
++//@version=4
++
++//  Thanks to dynausmaux for the code..
++//  Thanks to falconCoin for https://www.tradingview.com/script/KVfgBvDd-Market-Cipher-B-Free-version-with-Buy-and-sell/ inspired me to start this.
++//  Thanks to LazyBear for WaveTrend Oscillator https://www.tradingview.com/script/2KE8wTuF-Indicator-WaveTrend-Oscillator-WT/
++//  Thanks to RicardoSantos for https://www.tradingview.com/script/3oeDh0Yq-RS-Price-Divergence-Detector-V2/
++//  Thanks to LucemAnb for Plain Stochastic Divergence https://www.tradingview.com/script/FCUgF8ag-Plain-Stochastic-Divergence/
++//  Thanks to andreholanda73 for MFI+RSI Area https://www.tradingview.com/script/UlGZzUAr/
++//  I especially thanks to TradingView for its platform that facilitates development and learning.
++//
++//  CIRCLES & TRIANGLES:
++//    - LITTLE CIRCLE: They appear at all WaveTrend wave crossings.
++//    - GREEN CIRCLE: The wavetrend waves are at the oversold level and have crossed up (bullish).
++//    - RED CIRCLE: The wavetrend waves are at the overbought level and have crossed down (bearish).
++//    - GOLD/ORANGE CIRCLE: When RSI is below 20, WaveTrend waves are below or equal to -80 and have crossed up after good bullish divergence (DONT BUY WHEN GOLD CIRCLE APPEAR).
++//    - None of these circles are certain signs to trade. It is only information that can help you.
++//    - PURPLE TRIANGLE: Appear when a bullish or bearish divergence is formed and WaveTrend waves crosses at overbought and oversold points.
++//
++//  NOTES:
++//    - I am not an expert trader or know how to program pine script as such, in fact it is my first indicator only to study and all the code is copied and modified from other codes that are published in TradingView.
++//    - I am very grateful to the entire TV community that publishes codes so that other newbies like me can learn and present their results. This is an attempt to imitate Market Cipher B.
++//    - Settings by default are for 4h timeframe, divergences are more stronger and accurate. Haven't tested in all timeframes, only 2h and 4h.
++//    - If you get an interesting result in other timeframes I would be very grateful if you would comment your configuration to implement it or at least check it.
++//
++//  CONTRIBUTIONS:
++//    - Tip/Idea: Add higher timeframe analysis for bearish/bullish patterns at the current timeframe.
++//    + Bearish/Bullish FLAG:
++//      - MFI+RSI Area are RED (Below 0).
++//      - Wavetrend waves are above 0 and crosses down.
++//      - VWAP Area are below 0 on higher timeframe.
++//      - This pattern reversed becomes bullish.
++//    - Tip/Idea: Check the last heikinashi candle from 2 higher timeframe
++//    + Bearish/Bullish DIAMOND:
++//      - HT Candle is red
++//      - WT > 0 and crossed down
++
++study(title = 'VuManChu B Divergences', shorttitle = 'VMC Cipher_B_Divergences')
++
++// PARAMETERS {
++
++// WaveTrend
++wtShow = input(true, title = 'Show WaveTrend', type = input.bool, group = 'WaveTrend Settings')
++wtBuyShow = input(true, title = 'Show Buy dots', type = input.bool, group = 'WaveTrend Settings')
++wtGoldShow = input(true, title = 'Show Gold dots', type = input.bool, group = 'WaveTrend Settings')
++wtSellShow = input(true, title = 'Show Sell dots', type = input.bool, group = 'WaveTrend Settings')
++wtDivShow = input(true, title = 'Show Div. dots', type = input.bool, group = 'WaveTrend Settings')
++vwapShow = input(true, title = 'Show Fast WT', type = input.bool, group = 'WaveTrend Settings')
++wtChannelLen = input(9, title = 'WT Channel Length', type = input.integer, group = 'WaveTrend Settings')
++wtAverageLen = input(12, title = 'WT Average Length', type = input.integer, group = 'WaveTrend Settings')
++wtMASource = input(hlc3, title = 'WT MA Source', type = input.source, group = 'WaveTrend Settings')
++wtMALen = input(3, title = 'WT MA Length', type = input.integer, group = 'WaveTrend Settings')
++
++// WaveTrend Overbought & Oversold lines
++obLevel = input(53, title = 'WT Overbought Level 1', type = input.integer, group = 'WaveTrend Settings')
++obLevel2 = input(60, title = 'WT Overbought Level 2', type = input.integer, group = 'WaveTrend Settings')
++obLevel3 = input(100, title = 'WT Overbought Level 3', type = input.integer, group = 'WaveTrend Settings')
++osLevel = input(-53, title = 'WT Oversold Level 1', type = input.integer, group = 'WaveTrend Settings')
++osLevel2 = input(-60, title = 'WT Oversold Level 2', type = input.integer, group = 'WaveTrend Settings')
++osLevel3 = input(-75, title = 'WT Oversold Level 3', type = input.integer, group = 'WaveTrend Settings')
++
++// Divergence WT
++wtShowDiv = input(true, title = 'Show WT Regular Divergences', type = input.bool, group = 'WaveTrend Settings')
++wtShowHiddenDiv = input(false, title = 'Show WT Hidden Divergences', type = input.bool, group = 'WaveTrend Settings')
++showHiddenDiv_nl = input(true, title = 'Not apply OB/OS Limits on Hidden Divergences', type = input.bool, group = 'WaveTrend Settings')
++wtDivOBLevel = input(45, title = 'WT Bearish Divergence min', type = input.integer, group = 'WaveTrend Settings')
++wtDivOSLevel = input(-65, title = 'WT Bullish Divergence min', type = input.integer, group = 'WaveTrend Settings')
++
++// Divergence extra range
++wtDivOBLevel_addshow = input(true, title = 'Show 2nd WT Regular Divergences', type = input.bool, group = 'WaveTrend Settings')
++wtDivOBLevel_add = input(15, title = 'WT 2nd Bearish Divergence', type = input.integer, group = 'WaveTrend Settings')
++wtDivOSLevel_add = input(-40, title = 'WT 2nd Bullish Divergence 15 min', type = input.integer, group = 'WaveTrend Settings')
++
++// RSI+MFI
++rsiMFIShow = input(true, title = 'Show MFI', type = input.bool, group = 'MFI Settings')
++rsiMFIperiod = input(60,title = 'MFI Period', type = input.integer, group = 'MFI Settings')
++rsiMFIMultiplier = input(150, title = 'MFI Area multiplier', type = input.float, group = 'MFI Settings')
++rsiMFIPosY = input(2.5, title = 'MFI Area Y Pos', type = input.float, group = 'MFI Settings')
++
++// RSI
++rsiShow = input(true, title = 'Show RSI', type = input.bool, group = 'RSI Settings')
++rsiSRC = input(close, title = 'RSI Source', type = input.source, group = 'RSI Settings')
++rsiLen = input(14, title = 'RSI Length', type = input.integer, group = 'RSI Settings')
++rsiOversold = input(30, title = 'RSI Oversold', minval = 50, maxval = 100, type = input.integer, group = 'RSI Settings')
++rsiOverbought = input(60, title = 'RSI Overbought', minval = 0, maxval = 50, type = input.integer, group = 'RSI Settings')
++
++// Divergence RSI
++rsiShowDiv = input(false, title = 'Show RSI Regular Divergences', type = input.bool, group = 'RSI Settings')
++rsiShowHiddenDiv = input(false, title = 'Show RSI Hidden Divergences', type = input.bool, group = 'RSI Settings')
++rsiDivOBLevel = input(60, title = 'RSI Bearish Divergence min', type = input.integer, group = 'RSI Settings')
++rsiDivOSLevel = input(30, title = 'RSI Bullish Divergence min', type = input.integer, group = 'RSI Settings')
++
++// RSI Stochastic
++stochShow = input(true, title = 'Show Stochastic RSI', type = input.bool, group = 'Stoch Settings')
++stochUseLog = input(true, title=' Use Log?', type = input.bool, group = 'Stoch Settings')
++stochAvg = input(false, title='Use Average of both K & D', type = input.bool, group = 'Stoch Settings')
++stochSRC = input(close, title = 'Stochastic RSI Source', type = input.source, group = 'Stoch Settings')
++stochLen = input(14, title = 'Stochastic RSI Length', type = input.integer, group = 'Stoch Settings')
++stochRsiLen = input(14, title = 'RSI Length ', type = input.integer, group = 'Stoch Settings')
++stochKSmooth = input(3, title = 'Stochastic RSI K Smooth', type = input.integer, group = 'Stoch Settings')
++stochDSmooth = input(3, title = 'Stochastic RSI D Smooth', type = input.integer, group = 'Stoch Settings')
++
++// Divergence stoch
++stochShowDiv = input(false, title = 'Show Stoch Regular Divergences', type = input.bool, group = 'Stoch Settings')
++stochShowHiddenDiv = input(false, title = 'Show Stoch Hidden Divergences', type = input.bool, group = 'Stoch Settings')
++
++// Schaff Trend Cycle
++tcLine = input(false, title="Show Schaff TC line", type=input.bool, group = 'Schaff Settings')
++tcSRC = input(close, title = 'Schaff TC Source', type = input.source, group = 'Schaff Settings')
++tclength = input(10, title="Schaff TC", type=input.integer, group = 'Schaff Settings')
++tcfastLength = input(23, title="Schaff TC Fast Lenght", type=input.integer, group = 'Schaff Settings')
++tcslowLength = input(50, title="Schaff TC Slow Length", type=input.integer, group = 'Schaff Settings')
++tcfactor = input(0.5, title="Schaff TC Factor", type=input.float, group = 'Schaff Settings')
++
++// Sommi Flag
++sommiFlagShow = input(false, title = 'Show Sommi flag', type = input.bool, group = 'Sommi Settings')
++sommiShowVwap = input(false, title = 'Show Sommi F. Wave', type = input.bool, group = 'Sommi Settings')
++sommiVwapTF = input('720', title = 'Sommi F. Wave timeframe', type = input.string, group = 'Sommi Settings')
++sommiVwapBearLevel = input(0, title = 'F. Wave Bear Level (less than)', type = input.integer, group = 'Sommi Settings')
++sommiVwapBullLevel = input(0, title = 'F. Wave Bull Level (more than)', type = input.integer, group = 'Sommi Settings')
++soomiFlagWTBearLevel = input(0, title = 'WT Bear Level (more than)', type = input.integer, group = 'Sommi Settings')
++soomiFlagWTBullLevel = input(0, title = 'WT Bull Level (less than)', type = input.integer, group = 'Sommi Settings')
++soomiRSIMFIBearLevel = input(0, title = 'Money flow Bear Level (less than)', type = input.integer, group = 'Sommi Settings')
++soomiRSIMFIBullLevel = input(0, title = 'Money flow Bull Level (more than)', type = input.integer, group = 'Sommi Settings')
++
++// Sommi Diamond
++sommiDiamondShow = input(false, title = 'Show Sommi diamond', type = input.bool, group = 'Sommi Settings')
++sommiHTCRes = input('60', title = 'HTF Candle Res. 1', type = input.string, group = 'Sommi Settings')
++sommiHTCRes2 = input('240', title = 'HTF Candle Res. 2', type = input.string, group = 'Sommi Settings')
++soomiDiamondWTBearLevel = input(0, title = 'WT Bear Level (More than)', type = input.integer, group = 'Sommi Settings')
++soomiDiamondWTBullLevel = input(0, title = 'WT Bull Level (Less than)', type = input.integer, group = 'Sommi Settings')
++
++// macd Colors
++macdWTColorsShow = input(false, title = 'Show MACD Colors', type = input.bool, group = 'MACD Settings')
++macdWTColorsTF = input('240', title = 'MACD Colors MACD TF', type = input.string, group = 'MACD Settings')
++
++darkMode = input(false, title = 'Dark mode', type = input.bool, group = 'Mode Settings')
++
++
++// Colors
++colorRed = #ff0000
++colorPurple = #e600e6
++colorGreen = #3fff00
++colorOrange = #e2a400
++colorYellow = #ffe500
++colorWhite = #ffffff
++colorPink = #ff00f0
++colorBluelight = #31c0ff
++colorWT2 = #0d47a1
++colorWT2_ = #131722
++colormacdWT1a = #4caf58
++colormacdWT1b = #af4c4c
++colormacdWT1c = #7ee57e
++colormacdWT1d = #ff3535
++colormacdWT2a = #305630
++colormacdWT2b = #310101
++colormacdWT2c = #132213
++colormacdWT2d = #770000
++
++// } PARAMETERS
++
++// FUNCTIONS {
++
++// Divergences
++f_top_fractal(src) => src[4] < src[2] and src[3] < src[2] and src[2] > src[1] and src[2] > src[0]
++f_bot_fractal(src) => src[4] > src[2] and src[3] > src[2] and src[2] < src[1] and src[2] < src[0]
++f_fractalize(src) => f_top_fractal(src) ? 1 : f_bot_fractal(src) ? -1 : 0
++
++f_findDivs(src, topLimit, botLimit, useLimits) =>
++    fractalTop = f_fractalize(src) > 0 and (useLimits ? src[2] >= topLimit : true) ? src[2] : na
++    fractalBot = f_fractalize(src) < 0 and (useLimits ? src[2] <= botLimit : true) ? src[2] : na
++    highPrev = valuewhen(fractalTop, src[2], 0)[2]
++    highPrice = valuewhen(fractalTop, high[2], 0)[2]
++    lowPrev = valuewhen(fractalBot, src[2], 0)[2]
++    lowPrice = valuewhen(fractalBot, low[2], 0)[2]
++    bearSignal = fractalTop and high[2] > highPrice and src[2] < highPrev
++    bullSignal = fractalBot and low[2] < lowPrice and src[2] > lowPrev
++    bearDivHidden = fractalTop and high[2] < highPrice and src[2] > highPrev
++    bullDivHidden = fractalBot and low[2] > lowPrice and src[2] < lowPrev
++    [fractalTop, fractalBot, lowPrev, bearSignal, bullSignal, bearDivHidden, bullDivHidden]
++
++// RSI+MFI
++f_rsimfi(_period, _multiplier, _tf) => security(syminfo.tickerid, _tf, sma(((close - open) / (high - low)) * _multiplier, _period) - rsiMFIPosY)
++
++// WaveTrend
++f_wavetrend(src, chlen, avg, malen, tf) =>
++    tfsrc = security(syminfo.tickerid, tf, src)
++    esa = ema(tfsrc, chlen)
++    de = ema(abs(tfsrc - esa), chlen)
++    ci = (tfsrc - esa) / (0.015 * de)
++    wt1 = security(syminfo.tickerid, tf, ema(ci, avg))
++    wt2 = security(syminfo.tickerid, tf, sma(wt1, malen))
++    wtVwap = wt1 - wt2
++    wtOversold = wt2 <= osLevel
++    wtOverbought = wt2 >= obLevel
++    wtCross = cross(wt1, wt2)
++    wtCrossUp = wt2 - wt1 <= 0
++    wtCrossDown = wt2 - wt1 >= 0
++    wtCrosslast = cross(wt1[2], wt2[2])
++    wtCrossUplast = wt2[2] - wt1[2] <= 0
++    wtCrossDownlast = wt2[2] - wt1[2] >= 0
++    [wt1, wt2, wtOversold, wtOverbought, wtCross, wtCrossUp, wtCrossDown, wtCrosslast, wtCrossUplast, wtCrossDownlast, wtVwap]
++
++// Schaff Trend Cycle
++f_tc(src, length, fastLength, slowLength) =>
++    ema1 = ema(src, fastLength)
++    ema2 = ema(src, slowLength)
++    macdVal = ema1 - ema2
++    alpha = lowest(macdVal, length)
++    beta = highest(macdVal, length) - alpha
++    gamma = (macdVal - alpha) / beta * 100
++    gamma := beta > 0 ? gamma : nz(gamma[1])
++    delta = gamma
++    delta := na(delta[1]) ? delta : delta[1] + tcfactor * (gamma - delta[1])
++    epsilon = lowest(delta, length)
++    zeta = highest(delta, length) - epsilon
++    eta = (delta - epsilon) / zeta * 100
++    eta := zeta > 0 ? eta : nz(eta[1])
++    stcReturn = eta
++    stcReturn := na(stcReturn[1]) ? stcReturn : stcReturn[1] + tcfactor * (eta - stcReturn[1])
++    stcReturn
++
++// Stochastic RSI
++f_stochrsi(_src, _stochlen, _rsilen, _smoothk, _smoothd, _log, _avg) =>
++    src = _log ? log(_src) : _src
++    rsi = rsi(src, _rsilen)
++    kk = sma(stoch(rsi, rsi, rsi, _stochlen), _smoothk)
++    d1 = sma(kk, _smoothd)
++    avg_1 = avg(kk, d1)
++    k = _avg ? avg_1 : kk
++    [k, d1]
++
++// MACD
++f_macd(src, fastlen, slowlen, sigsmooth, tf) =>
++    fast_ma = security(syminfo.tickerid, tf, ema(src, fastlen))
++    slow_ma = security(syminfo.tickerid, tf, ema(src, slowlen))
++    macd = fast_ma - slow_ma,
++    signal = security(syminfo.tickerid, tf, sma(macd, sigsmooth))
++    hist = macd - signal
++    [macd, signal, hist]
++
++// MACD Colors on WT
++f_macdWTColors(tf) =>
++    hrsimfi = f_rsimfi(rsiMFIperiod, rsiMFIMultiplier, tf)
++    [macd, signal, hist] = f_macd(close, 28, 42, 9, macdWTColorsTF)
++    macdup = macd >= signal
++    macddown = macd <= signal
++    macdWT1Color = macdup ? hrsimfi > 0 ? colormacdWT1c : colormacdWT1a : macddown ? hrsimfi < 0 ? colormacdWT1d : colormacdWT1b : na
++    macdWT2Color = macdup ? hrsimfi < 0 ? colormacdWT2c : colormacdWT2a : macddown ? hrsimfi < 0 ? colormacdWT2d : colormacdWT2b : na
++    [macdWT1Color, macdWT2Color]
++
++// Get higher timeframe candle
++f_getTFCandle(_tf) =>
++    _open  = security(heikinashi(syminfo.tickerid), _tf, open, barmerge.gaps_off, barmerge.lookahead_on)
++    _close = security(heikinashi(syminfo.tickerid), _tf, close, barmerge.gaps_off, barmerge.lookahead_on)
++    _high  = security(heikinashi(syminfo.tickerid), _tf, high, barmerge.gaps_off, barmerge.lookahead_on)
++    _low   = security(heikinashi(syminfo.tickerid), _tf, low, barmerge.gaps_off, barmerge.lookahead_on)
++    hl2   = (_high + _low) / 2.0
++    newBar = change(_open)
++    candleBodyDir = _close > _open
++    [candleBodyDir, newBar]
++
++// Sommi flag
++f_findSommiFlag(tf, wt1, wt2, rsimfi, wtCross, wtCrossUp, wtCrossDown) =>
++    [hwt1, hwt2, hwtOversold, hwtOverbought, hwtCross, hwtCrossUp, hwtCrossDown, hwtCrosslast, hwtCrossUplast, hwtCrossDownlast, hwtVwap] = f_wavetrend(wtMASource, wtChannelLen, wtAverageLen, wtMALen, tf)
++
++    bearPattern = rsimfi < soomiRSIMFIBearLevel and
++                   wt2 > soomiFlagWTBearLevel and
++                   wtCross and
++                   wtCrossDown and
++                   hwtVwap < sommiVwapBearLevel
++
++    bullPattern = rsimfi > soomiRSIMFIBullLevel and
++                   wt2 < soomiFlagWTBullLevel and
++                   wtCross and
++                   wtCrossUp and
++                   hwtVwap > sommiVwapBullLevel
++
++    [bearPattern, bullPattern, hwtVwap]
++
++f_findSommiDiamond(tf, tf2, wt1, wt2, wtCross, wtCrossUp, wtCrossDown) =>
++    [candleBodyDir, newBar] = f_getTFCandle(tf)
++    [candleBodyDir2, newBar2] = f_getTFCandle(tf2)
++    bearPattern = wt2 >= soomiDiamondWTBearLevel and
++                   wtCross and
++                   wtCrossDown and
++                   not candleBodyDir and
++                   not candleBodyDir2
++    bullPattern = wt2 <= soomiDiamondWTBullLevel and
++                   wtCross and
++                   wtCrossUp and
++                   candleBodyDir and
++                   candleBodyDir2
++    [bearPattern, bullPattern]
++
++// } FUNCTIONS
++
++// CALCULATE INDICATORS {
++
++// RSI
++rsi = rsi(rsiSRC, rsiLen)
++rsiobcolor = input(color.new(#e13e3e, 0), 'RSI OverBought', group = 'Color Settings')
++rsioscolor = input(color.new(#3ee145, 0), 'RSI OverSold', group = 'Color Settings')
++rsinacolor = input(color.new(#c33ee1, 0), 'RSI InBetween', group = 'Color Settings')
++rsiColor = rsi <= rsiOversold ? rsioscolor : rsi >= rsiOverbought ? rsiobcolor : rsinacolor
++
++// RSI + MFI Area
++rsiMFI = f_rsimfi(rsiMFIperiod, rsiMFIMultiplier, timeframe.period)
++rsiMFIColorAbove = input(color.new(#3ee145, 0), 'MFI Color > 0', group = 'Color Settings')
++rsiMFIColorBelow = input(color.new(#ff3d2e, 0), 'MFI Color < 0', group = 'Color Settings')
++rsiMFIColor = rsiMFI > 0 ? rsiMFIColorAbove : rsiMFIColorBelow
++
++// Calculates WaveTrend
++[wt1, wt2, wtOversold, wtOverbought, wtCross, wtCrossUp, wtCrossDown, wtCross_last, wtCrossUp_last, wtCrossDown_last, wtVwap] = f_wavetrend(wtMASource, wtChannelLen, wtAverageLen, wtMALen, timeframe.period)
++
++// Stochastic RSI
++[stochK, stochD] = f_stochrsi(stochSRC, stochLen, stochRsiLen, stochKSmooth, stochDSmooth, stochUseLog, stochAvg)
++
++// Schaff Trend Cycle
++tcVal = f_tc(tcSRC, tclength, tcfastLength, tcslowLength)
++
++// Sommi flag
++[sommiBearish, sommiBullish, hvwap] = f_findSommiFlag(sommiVwapTF, wt1, wt2, rsiMFI, wtCross,  wtCrossUp, wtCrossDown)
++
++//Sommi diamond
++[sommiBearishDiamond, sommiBullishDiamond] = f_findSommiDiamond(sommiHTCRes, sommiHTCRes2, wt1, wt2, wtCross, wtCrossUp, wtCrossDown)
++
++// macd colors
++[macdWT1Color, macdWT2Color] = f_macdWTColors(macdWTColorsTF)
++
++// WT Divergences
++[wtFractalTop, wtFractalBot, wtLow_prev, wtBearDiv, wtBullDiv, wtBearDivHidden, wtBullDivHidden] = f_findDivs(wt2, wtDivOBLevel, wtDivOSLevel, true)
++
++[wtFractalTop_add, wtFractalBot_add, wtLow_prev_add, wtBearDiv_add, wtBullDiv_add, wtBearDivHidden_add, wtBullDivHidden_add] =  f_findDivs(wt2, wtDivOBLevel_add, wtDivOSLevel_add, true)
++[wtFractalTop_nl, wtFractalBot_nl, wtLow_prev_nl, wtBearDiv_nl, wtBullDiv_nl, wtBearDivHidden_nl, wtBullDivHidden_nl] =  f_findDivs(wt2, 0, 0, false)
++
++wtBearDivHidden_ = showHiddenDiv_nl ? wtBearDivHidden_nl : wtBearDivHidden
++wtBullDivHidden_ = showHiddenDiv_nl ? wtBullDivHidden_nl : wtBullDivHidden
++
++WTBearDivColorDown = input(color.new(#e60000, 0), 'WT Bear Div', group = 'Color Settings')
++wtBullDivColorUp = input(color.new(#00e676, 0), 'WT Bull Div', group = 'Color Settings')
++
++wtBearDivColor = (wtShowDiv and wtBearDiv) or (wtShowHiddenDiv and wtBearDivHidden_) ? WTBearDivColorDown : na
++wtBullDivColor = (wtShowDiv and wtBullDiv) or (wtShowHiddenDiv and wtBullDivHidden_) ? wtBullDivColorUp : na
++
++wtBearDivColor_add = (wtShowDiv and (wtDivOBLevel_addshow and wtBearDiv_add)) or (wtShowHiddenDiv and (wtDivOBLevel_addshow and wtBearDivHidden_add)) ? WTBearDivColorDown: na
++wtBullDivColor_add = (wtShowDiv and (wtDivOBLevel_addshow and wtBullDiv_add)) or (wtShowHiddenDiv and (wtDivOBLevel_addshow and wtBullDivHidden_add)) ? wtBullDivColorUp : na
++
++// RSI Divergences
++[rsiFractalTop, rsiFractalBot, rsiLow_prev, rsiBearDiv, rsiBullDiv, rsiBearDivHidden, rsiBullDivHidden] = f_findDivs(rsi, rsiDivOBLevel, rsiDivOSLevel, true)
++[rsiFractalTop_nl, rsiFractalBot_nl, rsiLow_prev_nl, rsiBearDiv_nl, rsiBullDiv_nl, rsiBearDivHidden_nl, rsiBullDivHidden_nl] = f_findDivs(rsi, 0, 0, false)
++
++rsiBearDivHidden_ = showHiddenDiv_nl ? rsiBearDivHidden_nl : rsiBearDivHidden
++rsiBullDivHidden_ = showHiddenDiv_nl ? rsiBullDivHidden_nl : rsiBullDivHidden
++
++rsiBearColor = color.new(#e60000, 0) //input(color.new(#e60000, 0), 'RSI Bear Div', group = 'Color Settings')
++rsiBullColor = color.new(#38ff42, 0) //input(color.new(#38ff42, 0), 'RSI Bull Div', group = 'Color Settings')
++
++rsiBearDivColor = (rsiShowDiv and rsiBearDiv) or (rsiShowHiddenDiv and rsiBearDivHidden_) ? rsiBearColor : na
++rsiBullDivColor = (rsiShowDiv and rsiBullDiv) or (rsiShowHiddenDiv and rsiBullDivHidden_) ? rsiBullColor : na
++
++// Stoch Divergences
++[stochFractalTop, stochFractalBot, stochLow_prev, stochBearDiv, stochBullDiv, stochBearDivHidden, stochBullDivHidden] = f_findDivs(stochK, 0, 0, false)
++
++stochbearcolor = color.new(#e60000, 0) //input(color.new(#e60000, 0), 'Stoch Bear Div', group = 'Color Settings')
++stochbullcolor = color.new(#38ff42, 0) //input(color.new(#38ff42, 0), 'Stoch Bull Div', group = 'Color Settings')
++
++stochBearDivColor = (stochShowDiv and stochBearDiv) or (stochShowHiddenDiv and stochBearDivHidden) ? stochbearcolor : na
++stochBullDivColor = (stochShowDiv and stochBullDiv) or (stochShowHiddenDiv and stochBullDivHidden) ? stochbullcolor : na
++
++
++// Small Circles WT Cross
++signalcolorup = input(color.new(#00e676, 0), 'WT Buy Dot', group = 'Color Settings')
++signalcolordown = input(color.new(#ff5252, 0), 'WT Sell Dot', group = 'Color Settings')
++
++signalColor = wt2 - wt1 > 0 ? signalcolordown : signalcolorup
++
++// Buy signal.
++buySignal = wtCross and wtCrossUp and wtOversold
++
++buySignalDiv = (wtShowDiv and wtBullDiv) or
++               (wtShowDiv and wtBullDiv_add) or
++               (stochShowDiv and stochBullDiv) or
++               (rsiShowDiv and rsiBullDiv)
++
++buySignalDiv_color = wtBullDiv ? colorGreen :
++                     wtBullDiv_add ? color.new(colorGreen, 60) :
++                     rsiShowDiv ? colorGreen : na
++
++// Sell signal
++sellSignal = wtCross and wtCrossDown and wtOverbought
++
++sellSignalDiv = (wtShowDiv and wtBearDiv) or
++               (wtShowDiv and wtBearDiv_add) or
++               (stochShowDiv and stochBearDiv) or
++               (rsiShowDiv and rsiBearDiv)
++
++sellSignalDiv_color = wtBearDiv ? colorRed :
++                     wtBearDiv_add ? color.new(colorRed, 60) :
++                     rsiBearDiv ? colorRed : na
++
++// Gold Buy
++lastRsi = valuewhen(wtFractalBot, rsi[2], 0)[2]
++wtGoldBuy = ((wtShowDiv and wtBullDiv) or (rsiShowDiv and rsiBullDiv)) and
++           wtLow_prev <= osLevel3 and
++           wt2 > osLevel3 and
++           wtLow_prev - wt2 <= -5 and
++           lastRsi < 30
++
++// } CALCULATE INDICATORS
++
++
++// DRAW {
++bgcolor(darkMode ? color.new(#000000, 0) : na)
++zLine = plot(0, color = color.new(colorWhite, 50))
++
++//  MFI BAR
++rsiMfiBarTopLine = plot(rsiMFIShow ? -95 : na, title = 'MFI Bar TOP Line', transp = 100)
++rsiMfiBarBottomLine = plot(rsiMFIShow ? -99 : na, title = 'MFI Bar BOTTOM Line', transp = 100)
++fill(rsiMfiBarTopLine, rsiMfiBarBottomLine, title = 'MFI Bar Colors', color = rsiMFIColor, transp = 75)
++
++// WT Areas
++colorWT1blue = input(color.new(#4994ec, 0), "WT1 Fill", group = 'Color Settings')
++colorWT2purple = input(color.new(#1f1559, 0), 'WT2 Fill', group = 'Color Settings')
++plot(wtShow ? wt1 : na, style=plot.style_area, title='WT Wave 1', color=color.new(colorWT1blue, 30))
++
++// plot(wtShow ? wt2 : na, style=plot.style_area, title='WT Wave 2', color=darkMode ? color.new(colorWT2_,25) : color.new(colorWT2purple,25))
++plot(wtShow ? wt2 : na, style=plot.style_area, title='WT Wave 2', color = color.new(colorWT2purple,25))
++
++// VWAP
++VWAPColor = input(color.new(#ffffff, 50), "VWAP", group = 'Color Settings')
++plot(vwapShow ? wtVwap : na, title = 'VWAP', color = VWAPColor, style = plot.style_area, linewidth = 2, transp = 45)
++
++// MFI AREA
++// rsiMFIplot = plot(rsiMFIShow ? rsiMFI : na, title='RSI+MFI Area', color=color.new(rsiMFIColor,90))
++// fill(rsiMFIplot, zLine, color.new(rsiMFIColor,50))
++plot(rsiMFIShow ? rsiMFI : na, style=plot.style_area, title='rsiMFI', color = color.new(rsiMFIColor,50))
++
++
++// WT Div
++
++plot(series = wtFractalTop ? wt2[2] : na, title = 'WT Bearish Divergence', color = wtBearDivColor, linewidth = 2, offset = -2)
++plot(series = wtFractalBot ? wt2[2] : na, title = 'WT Bullish Divergence', color = wtBullDivColor, linewidth = 2, offset = -2)
++
++// WT 2nd Div
++plot(series = wtFractalTop_add ? wt2[2] : na, title = 'WT 2nd Bearish Divergence', color = wtBearDivColor_add, linewidth = 2, offset = -2)
++plot(series = wtFractalBot_add ? wt2[2] : na, title = 'WT 2nd Bullish Divergence', color = wtBullDivColor_add, linewidth = 2, offset = -2)
++
++// RSI
++plot(rsiShow ? rsi : na, title = 'RSI', color = rsiColor, linewidth = 2, transp = 25)
++
++// RSI Div
++plot(series = rsiFractalTop ? rsi[2] : na, title='RSI Bearish Divergence', color = rsiBearDivColor, linewidth = 1, offset = -2)
++plot(series = rsiFractalBot ? rsi[2] : na, title='RSI Bullish Divergence', color = rsiBullDivColor, linewidth = 1, offset = -2)
++
++// Stochastic RSI
++stochkcolor = input(color.new(#21baf3, 70), "Stoch K", group = 'Color Settings')
++stochdcolor = input(color.new(#673ab7, 90), "Stoch D", group = 'Color Settings')
++
++stochKplot = plot(stochShow ? stochK : na, title = 'Stoch K', color = stochkcolor, linewidth = 2)
++stochDplot = plot(stochShow ? stochD : na, title = 'Stoch D', color = stochdcolor, linewidth = 1)
++stochFillColor = stochK >= stochD ? color.new(#21baf3, 95) : color.new(#673ab7, 90)
++fill(stochKplot, stochDplot, title='KD Fill', color=stochFillColor)
++
++// Stoch Div
++plot(series = stochFractalTop ? stochK[2] : na, title='Stoch Bearish Divergence', color = stochBearDivColor, linewidth = 1, offset = -2)
++plot(series = stochFractalBot ? stochK[2] : na, title='Stoch Bullish Divergence', color = stochBullDivColor, linewidth = 1, offset = -2)
++
++// Schaff Trend Cycle
++plot(tcLine ? tcVal : na, color = color.new(#673ab7, 25), linewidth = 2, title = "Schaff Trend Cycle 1")
++plot(tcLine ? tcVal : na, color = color.new(colorWhite, 50), linewidth = 1, title = "Schaff Trend Cycle 2")
++
++
++// Draw Overbought & Oversold lines
++oblvl2color = color.new(#ffffff, 0) //input(color.new(#ffffff, 0), "OB LVL 2", group = 'Color Settings')
++oblvl3color = color.new(#ffffff, 0) //input(color.new(#ffffff, 0), "OB LVL 3", group = 'Color Settings')
++oslvl2color = color.new(#ffffff, 0) //input(color.new(#ffffff, 0), "OS LVL 2", group = 'Color Settings')
++
++//plot(obLevel, title = 'Over Bought Level 1', color = colorWhite, linewidth = 1, style = plot.style_circles, transp = 85)
++plot(obLevel2, title = 'Over Bought Level 2', color = oblvl2color, linewidth = 1, style = plot.style_stepline, transp = 85)
++plot(obLevel3, title = 'Over Bought Level 3', color = oblvl3color, linewidth = 1, style = plot.style_circles, transp = 95)
++
++//plot(osLevel, title = 'Over Sold Level 1', color = colorWhite, linewidth = 1, style = plot.style_circles, transp = 85)
++plot(osLevel2, title = 'Over Sold Level 2', color = oslvl2color, linewidth = 1, style = plot.style_stepline, transp = 85)
++
++// Sommi flag
++plotchar(sommiFlagShow and sommiBearish ? 108 : na, title = 'Sommi bearish flag', char='⚑', color = colorPink, location = location.absolute, size = size.tiny, transp = 0)
++plotchar(sommiFlagShow and sommiBullish ? -108 : na, title = 'Sommi bullish flag', char='⚑', color = colorBluelight, location = location.absolute, size = size.tiny, transp = 0)
++plot(sommiShowVwap ? ema(hvwap, 3) : na, title = 'Sommi higher VWAP', color = colorYellow, linewidth = 2, style = plot.style_line, transp = 55)
++
++// Sommi diamond
++plotchar(sommiDiamondShow and sommiBearishDiamond ? 108 : na, title = 'Sommi bearish diamond', char='◆', color = colorPink, location = location.absolute, size = size.tiny, transp = 0)
++plotchar(sommiDiamondShow and sommiBullishDiamond ? -108 : na, title = 'Sommi bullish diamond', char='◆', color = colorBluelight, location = location.absolute, size = size.tiny, transp = 0)
++
++// Circles
++plot(wtCross ? wt2 : na, title = 'Buy and sell circle', color = signalColor, style = plot.style_circles, linewidth = 3, transp = 15)
++
++plotchar(wtBuyShow and buySignal ? -107 : na, title = 'Buy circle', char='·', color = colorGreen, location = location.absolute, size = size.small, transp = 50)
++plotchar(wtSellShow and sellSignal ? 105 : na , title = 'Sell circle', char='·', color = colorRed, location = location.absolute, size = size.small, transp = 50)
++
++plotchar(wtDivShow and buySignalDiv ? -106 : na, title = 'Divergence buy circle', char='•', color = buySignalDiv_color, location = location.absolute, size = size.small, offset = -2, transp = 15)
++plotchar(wtDivShow and sellSignalDiv ? 106 : na, title = 'Divergence sell circle', char='•', color = sellSignalDiv_color, location = location.absolute, size = size.small, offset = -2, transp = 15)
++
++plotchar(wtGoldBuy and wtGoldShow ? -106 : na, title = 'Gold  buy gold circle', char='•', color = colorOrange, location = location.absolute, size = size.normal, offset = -2, transp = 15)
++
++// } DRAW
++
++
++// ALERTS {
++
++// BUY
++alertcondition(buySignal, 'Buy (Big green circle)', 'Green circle WaveTrend Oversold')
++alertcondition(buySignalDiv, 'Buy (Big green circle + Div)', 'Buy & WT Bullish Divergence & WT Overbought')
++alertcondition(wtGoldBuy, 'GOLD Buy (Big GOLDEN circle)', 'Green & GOLD circle WaveTrend Overbought')
++alertcondition(sommiBullish or sommiBullishDiamond, 'Sommi bullish flag/diamond', 'Blue flag/diamond')
++alertcondition(wtCross and wtCrossUp, 'Buy (Small green dot)', 'Buy small circle')
++
++// SELL
++alertcondition(sommiBearish or sommiBearishDiamond, 'Sommi bearish flag/diamond', 'Purple flag/diamond')
++alertcondition(sellSignal, 'Sell (Big red circle)', 'Red Circle WaveTrend Overbought')
++alertcondition(sellSignalDiv, 'Sell (Big red circle + Div)', 'Buy & WT Bearish Divergence & WT Overbought')
++alertcondition(wtCross and wtCrossDown, 'Sell (Small red dot)', 'Sell small circle')
++
++// } ALERTS
+diff --git a/src/components/chart.tsx b/src/components/chart.tsx
+index 9694e7d8f0467f429037370ea64b9e6c2aedd014..26ba76cb37a505d1c31af08a2a682c4243574151 100644
+--- a/src/components/chart.tsx
++++ b/src/components/chart.tsx
+@@ -17,6 +17,20 @@ import {
+   type Candle,
+   type Timeframe,
+ } from "../domain/market";
++import type { VmcPane } from "../hooks/use-vmc";
++import { VmcRenderer, type VmcChartData } from "../indicators/vmc-renderer";
++import type {
++  CustomSeriesOptions,
++  Time,
++  WhitespaceData,
++} from "lightweight-charts";
++type VmcSeries = ISeriesApi<
++  "Custom",
++  Time,
++  VmcChartData | WhitespaceData<Time>,
++  CustomSeriesOptions
++>;
++
+ export interface ChartPalette {
+   background: string;
+   grid: string;
+@@ -36,17 +50,25 @@ export function MarketChart({
+   palette,
+   timeframe,
+   resetKey,
++  vmcPanes,
+ }: {
+   bars: Candle[];
+   palette: ChartPalette;
+   timeframe: Timeframe;
+   resetKey: number;
++  vmcPanes: VmcPane[];
+ }) {
+   const host = useRef<HTMLDivElement>(null),
+     chart = useRef<IChartApi | null>(null),
+     series = useRef<ISeriesApi<"Candlestick"> | null>(null),
+     volume = useRef<ISeriesApi<"Histogram"> | null>(null),
+     current = useRef(0);
++  const vmcSeries = useRef(
++    new Map<string, { series: VmcSeries; renderer: VmcRenderer }>(),
++  );
++  const [indicatorCursor, setIndicatorCursor] = useState<
++    Record<string, VmcChartData["point"]>
++  >({});
+   const [cursor, setCursor] = useState<{
+     x: number;
+     y: number;
+@@ -127,12 +149,19 @@ export function MarketChart({
+     series.current = s;
+     volume.current = v;
+     c.subscribeCrosshairMove((p) => {
++      const values: Record<string, VmcChartData["point"]> = {};
++      vmcSeries.current.forEach((entry, id) => {
++        const d = p.seriesData.get(entry.series);
++        if (d && "point" in d) values[id] = (d as VmcChartData).point;
++      });
++      setIndicatorCursor(values);
+       if (!p.point || !p.time || p.point.x < 0 || p.point.y < 0) {
+         setCursor(null);
+         setOhlc(null);
+         return;
+       }
+-      const price = s.coordinateToPrice(p.point.y);
++      const price = p.paneIndex === 0 ? s.coordinateToPrice(p.point.y) : null;
++      if (price === null) setCursor(null);
+       if (price !== null)
+         setCursor({
+           x: p.point.x,
+@@ -148,6 +177,7 @@ export function MarketChart({
+       );
+     });
+     return () => {
++      vmcSeries.current.clear();
+       c.remove();
+       chart.current = null;
+       series.current = null;
+@@ -174,7 +204,14 @@ export function MarketChart({
+     });
+   }, [palette]);
+   useEffect(() => {
+-    if (!bars.length) return;
++    if (!bars.length) {
++      series.current?.setData([]);
++      volume.current?.setData([]);
++      current.current = 0;
++      setCursor(null);
++      setOhlc(null);
++      return;
++    }
+     current.current = bars.at(-1)!.close;
+     const p = current.current;
+     const precision = p < 0.01 ? 8 : p < 1 ? 6 : p < 10 ? 4 : 2;
+@@ -195,73 +232,158 @@ export function MarketChart({
+   }, [bars, palette]);
+   useEffect(() => {
+     chart.current?.timeScale().fitContent();
+-    chart.current?.priceScale("right").applyOptions({ autoScale: true });
++    chart.current
++      ?.panes()
++      .forEach((_, index) =>
++        chart.current
++          ?.priceScale("right", index)
++          .applyOptions({ autoScale: true }),
++      );
+   }, [timeframe, resetKey]);
++  useEffect(() => {
++    const c = chart.current;
++    if (!c) return;
++    const hadPanes = vmcSeries.current.size > 0;
++    const ids = new Set(vmcPanes.map((p) => p.id));
++    for (const [id, entry] of vmcSeries.current)
++      if (!ids.has(id)) {
++        c.removeSeries(entry.series);
++        vmcSeries.current.delete(id);
++      }
++    vmcPanes.forEach((pane, index) => {
++      let entry = vmcSeries.current.get(pane.id);
++      if (!entry) {
++        const renderer = new VmcRenderer(
++          pane.params,
++          pane.style,
++          palette.text,
++          index + 1,
++        );
++        const s = c.addCustomSeries(renderer, {}, c.panes().length);
++        entry = { series: s, renderer };
++        vmcSeries.current.set(pane.id, entry);
++        s.priceScale().applyOptions({
++          scaleMargins: { top: 0.12, bottom: 0.08 },
++          autoScale: true,
++        });
++        s.getPane().setStretchFactor(1);
++      }
++      entry.renderer.configure(
++        pane.params,
++        pane.style,
++        palette.text,
++        index + 1,
++      );
++      if (entry.series.getPane().paneIndex() !== index + 1)
++        entry.series.getPane().moveTo(index + 1);
++      entry.series.setData(
++        pane.result.points.map((point, index) => ({
++          time: point.time as UTCTimestamp,
++          point,
++          index,
++        })),
++      );
++    });
++    if (!hadPanes && vmcPanes.length) c.panes()[0]?.setStretchFactor(2.5);
++  }, [vmcPanes, palette]);
+   const b = ohlc ?? bars.at(-1);
+   return (
+-    <div className="chart-container" style={{ background: palette.background }}>
+-      <div className="chart-ohlc" style={{ color: palette.text }}>
+-        {b && (
++    <>
++      <div
++        className="chart-container"
++        style={{
++          background: palette.background,
++          ...(vmcPanes.length ? { height: 560 + vmcPanes.length * 230 } : {}),
++        }}
++      >
++        <div className="chart-ohlc" style={{ color: palette.text }}>
++          {b && (
++            <>
++              O <b>{priceFormat(b.open)}</b> H <b>{priceFormat(b.high)}</b> L{" "}
++              <b>{priceFormat(b.low)}</b> C{" "}
++              <b
++                style={{ color: b.close >= b.open ? palette.up : palette.down }}
++              >
++                {priceFormat(b.close)}
++              </b>
++            </>
++          )}
++        </div>
++        <div
++          className="chart-canvas"
++          ref={host}
++          role="img"
++          aria-label="Свечной график. Перетаскивайте шкалы цены и времени для независимого масштабирования."
++        />
++        {cursor && (
+           <>
+-            O <b>{priceFormat(b.open)}</b> H <b>{priceFormat(b.high)}</b> L{" "}
+-            <b>{priceFormat(b.low)}</b> C{" "}
+-            <b style={{ color: b.close >= b.open ? palette.up : palette.down }}>
+-              {priceFormat(b.close)}
+-            </b>
++            <div
++              className="cursor-percent"
++              style={{
++                left: Math.max(
++                  3,
++                  Math.min(
++                    cursor.x - 42,
++                    (host.current?.clientWidth ?? 500) - 200,
++                  ),
++                ),
++                bottom: 30,
++              }}
++              title="(Текущая цена / цена курсора − 1) × 100"
++            >
++              {cursor.percent === null
++                ? "—"
++                : `${cursor.percent >= 0 ? "+" : ""}${cursor.percent.toFixed(2)}%`}
++            </div>
++            <div
++              className="cursor-price"
++              style={{
++                top: Math.max(
++                  45,
++                  Math.min(
++                    cursor.y + 10,
++                    (host.current?.clientHeight ?? 500) - 90,
++                  ),
++                ),
++                right: 95,
++              }}
++            >
++              Δ к текущей {cursor.percent?.toFixed(2) ?? "—"}%
++            </div>
+           </>
+         )}
++        <a
++          className="chart-attribution"
++          href="https://www.tradingview.com/"
++          target="_blank"
++          rel="noreferrer"
++        >
++          Charts by TradingView
++        </a>
+       </div>
+-      <div
+-        className="chart-canvas"
+-        ref={host}
+-        role="img"
+-        aria-label="Свечной график. Перетаскивайте шкалы цены и времени для независимого масштабирования."
+-      />
+-      {cursor && (
+-        <>
+-          <div
+-            className="cursor-percent"
+-            style={{
+-              left: Math.max(
+-                3,
+-                Math.min(
+-                  cursor.x - 42,
+-                  (host.current?.clientWidth ?? 500) - 200,
+-                ),
+-              ),
+-              bottom: 30,
+-            }}
+-            title="(Текущая цена / цена курсора − 1) × 100"
+-          >
+-            {cursor.percent === null
+-              ? "—"
+-              : `${cursor.percent >= 0 ? "+" : ""}${cursor.percent.toFixed(2)}%`}
+-          </div>
+-          <div
+-            className="cursor-price"
+-            style={{
+-              top: Math.max(
+-                45,
+-                Math.min(
+-                  cursor.y + 10,
+-                  (host.current?.clientHeight ?? 500) - 90,
+-                ),
+-              ),
+-              right: 95,
+-            }}
+-          >
+-            Δ к текущей {cursor.percent?.toFixed(2) ?? "—"}%
+-          </div>
+-        </>
++      {vmcPanes.length > 0 && (
++        <div className="vmc-readouts">
++          {vmcPanes.map((pane, index) => {
++            const point = indicatorCursor[pane.id] ?? pane.result.points.at(-1);
++            return (
++              <div key={pane.id}>
++                <b>VMC #{index + 1}</b>
++                {point &&
++                  Object.entries(point.values)
++                    .filter(
++                      ([key]) => key !== "sommi" || pane.params.sommiShowVwap,
++                    )
++                    .map(([key, v]) => (
++                      <span key={key}>
++                        {key.toUpperCase()}{" "}
++                        <strong>{v?.toFixed(2) ?? "—"}</strong>
++                      </span>
++                    ))}
++              </div>
++            );
++          })}
++        </div>
+       )}
+-      <a
+-        className="chart-attribution"
+-        href="https://www.tradingview.com/"
+-        target="_blank"
+-        rel="noreferrer"
+-      >
+-        Charts by TradingView
+-      </a>
+-    </div>
++    </>
+   );
+ }
+diff --git a/src/components/terminal.tsx b/src/components/terminal.tsx
+index ff5009c3d16c0c90b3257599cb04975937cabb8b..381f7cf7513e67dd154060c3460110d00ad4b6ce 100644
+--- a/src/components/terminal.tsx
++++ b/src/components/terminal.tsx
+@@ -62,6 +62,10 @@ import { Choice } from "./controls";
+ import { Sessions } from "./sessions";
+ import { MarketChart, defaultPalette, type ChartPalette } from "./chart";
+ 
++import { useVmc } from "../hooks/use-vmc";
++import { VmcSettingsDialog } from "./vmc-settings-dialog";
++import { vmcDefaults, vmcStyleDefaults } from "../indicators/vmc-settings";
++
+ function Change({ value }: { value: number }) {
+   return (
+     <span className={value >= 0 ? "positive" : "negative"}>
+@@ -903,6 +907,8 @@ function PairWorkspace({
+     [manager, setManager] = useState(false),
+     [reset, setReset] = useState(0),
+     [indicatorSearch, setIndicatorSearch] = useState("");
++  const [indicatorRefresh, setIndicatorRefresh] = useState(0);
++  const [settingsId, setSettingsId] = useState<string | null>(null);
+   const [allIndicators, setAllIndicators] = useStored<
+     Record<string, IndicatorInstance[]>
+   >("vector.indicators.v1", {});
+@@ -911,6 +917,12 @@ function PairWorkspace({
+     "/api/candles?symbol=" + encodeURIComponent(symbol) + "&interval=" + tf,
+     15000,
+   );
++  const vmc = useVmc(symbol, tf, resource.data, indicators, indicatorRefresh);
++  const editingIndicator = indicators.find((i) => i.id === settingsId);
++  function openIndicatorSettings(id: string) {
++    setManager(false);
++    setSettingsId(id);
++  }
+   const q = rows.find((x) => x.symbol === symbol),
+     item = catalog.find((x) => x.symbol === symbol);
+   const bars = resource.data?.data ?? [],
+@@ -1029,7 +1041,10 @@ function PairWorkspace({
+               <button
+                 className="button"
+                 disabled={resource.loading}
+-                onClick={() => resource.refresh(true)}
++                onClick={async () => {
++                  await resource.refresh(true);
++                  setIndicatorRefresh((v) => v + 1);
++                }}
+               >
+                 <RefreshCw
+                   size={15}
+@@ -1060,6 +1075,7 @@ function PairWorkspace({
+               timeframe={tf}
+               palette={palette}
+               resetKey={reset}
++              vmcPanes={vmc.panes}
+             />
+             {!bars.length && (
+               <div className="chart-loading">
+@@ -1069,6 +1085,16 @@ function PairWorkspace({
+               </div>
+             )}
+           </div>
++          {vmc.loading && (
++            <div className="notice" role="status">
++              Загрузка таймфреймов индикатора…
++            </div>
++          )}
++          {!vmc.loading && vmc.warnings.length > 0 && (
++            <div className="notice" role="status">
++              {vmc.warnings.join(" ")}
++            </div>
++          )}
+           <div className="chart-status">
+             <span>
+               {resource.loading
+@@ -1083,14 +1109,28 @@ function PairWorkspace({
+               {indicators.map((i) => (
+                 <button
+                   key={i.id}
+-                  onClick={() => setManager(true)}
++                  onClick={() =>
++                    i.definitionId === "vmc"
++                      ? openIndicatorSettings(i.id)
++                      : setManager(true)
++                  }
+                   style={{ opacity: i.enabled ? 1 : 0.5 }}
+                 >
+                   <span style={{ background: i.color }} />
+                   {
+                     indicatorRegistry.find((x) => x.id === i.definitionId)?.name
+                   }{" "}
+-                  ({i.period})<small>ожидает расчёта</small>
++                  {i.definitionId === "vmc" ? (
++                    <small>
++                      {vmc.panes.some((p) => p.id === i.id)
++                        ? "настройки ⚙"
++                        : "скрыт · настройки ⚙"}
++                    </small>
++                  ) : (
++                    <>
++                      ({i.period})<small>ожидает расчёта</small>
++                    </>
++                  )}
+                 </button>
+               ))}
+             </div>
+@@ -1154,8 +1194,8 @@ function PairWorkspace({
+           <DialogHeader>
+             <DialogTitle>Индикаторы</DialogTitle>
+             <DialogDescription>
+-              Настройте состав для {symbol}. Расчёты и отрисовка будут добавлены
+-              позже.
++              Настройте состав для {symbol}. VMC Cipher B доступен для расчёта;
++              остальные индикаторы пока в разработке.
+             </DialogDescription>
+           </DialogHeader>
+           <label className="search-field">
+@@ -1190,9 +1230,21 @@ function PairWorkspace({
+                           definitionId: d.id,
+                           enabled: true,
+                           period:
+-                            d.id === "nwe" ? 200 : d.id === "rsi" ? 14 : 20,
++                            d.id === "vmc"
++                              ? 9
++                              : d.id === "nwe"
++                                ? 200
++                                : d.id === "rsi"
++                                  ? 14
++                                  : 20,
+                           color: "#99a5ff",
+-                          paneId: "main",
++                          paneId: d.id === "vmc" ? "oscillator" : "main",
++                          ...(d.id === "vmc"
++                            ? {
++                                params: { ...vmcDefaults },
++                                style: { ...vmcStyleDefaults },
++                              }
++                            : {}),
+                         },
+                       ])
+                     }
+@@ -1249,47 +1301,67 @@ function PairWorkspace({
+                     <Trash2 size={15} />
+                   </button>
+                 </div>
+-                <div className="instance-options">
+-                  <label>
+-                    Период
+-                    <input
+-                      type="number"
+-                      min="1"
+-                      max="500"
+-                      value={i.period}
+-                      onChange={(e) =>
+-                        changeIndicators(
+-                          indicators.map((x) =>
+-                            x.id === i.id
+-                              ? {
+-                                  ...x,
+-                                  period: Math.max(
+-                                    1,
+-                                    Math.min(500, Number(e.target.value) || 1),
+-                                  ),
+-                                }
+-                              : x,
+-                          ),
+-                        )
+-                      }
+-                    />
+-                  </label>
+-                  <label>
+-                    Цвет
+-                    <input
+-                      type="color"
+-                      value={i.color}
+-                      onChange={(e) =>
+-                        changeIndicators(
+-                          indicators.map((x) =>
+-                            x.id === i.id ? { ...x, color: e.target.value } : x,
+-                          ),
+-                        )
+-                      }
+-                    />
+-                  </label>
+-                  <span className="muted">Расчёт не подключён</span>
+-                </div>
++                {i.definitionId === "vmc" ? (
++                  <div className="instance-options">
++                    <button
++                      className="button"
++                      onClick={() => openIndicatorSettings(i.id)}
++                    >
++                      <Settings2 size={16} />
++                      Настройки
++                    </button>
++                    <span className="muted">
++                      Отдельная панель · расчёт подключён
++                    </span>
++                  </div>
++                ) : (
++                  <div className="instance-options">
++                    <label>
++                      Период
++                      <input
++                        type="number"
++                        min="1"
++                        max="500"
++                        value={i.period}
++                        onChange={(e) =>
++                          changeIndicators(
++                            indicators.map((x) =>
++                              x.id === i.id
++                                ? {
++                                    ...x,
++                                    period: Math.max(
++                                      1,
++                                      Math.min(
++                                        500,
++                                        Number(e.target.value) || 1,
++                                      ),
++                                    ),
++                                  }
++                                : x,
++                            ),
++                          )
++                        }
++                      />
++                    </label>
++                    <label>
++                      Цвет
++                      <input
++                        type="color"
++                        value={i.color}
++                        onChange={(e) =>
++                          changeIndicators(
++                            indicators.map((x) =>
++                              x.id === i.id
++                                ? { ...x, color: e.target.value }
++                                : x,
++                            ),
++                          )
++                        }
++                      />
++                    </label>
++                    <span className="muted">Расчёт не подключён</span>
++                  </div>
++                )}
+               </div>
+             ))}
+             {!indicators.length && (
+@@ -1300,6 +1372,18 @@ function PairWorkspace({
+           </div>
+         </DialogContent>
+       </Dialog>
++      {editingIndicator && (
++        <VmcSettingsDialog
++          key={editingIndicator.id}
++          instance={editingIndicator}
++          onClose={() => setSettingsId(null)}
++          onApply={(next) =>
++            changeIndicators(
++              indicators.map((i) => (i.id === next.id ? next : i)),
++            )
++          }
++        />
++      )}
+     </main>
+   );
+ }
+diff --git a/src/components/vmc-settings-dialog.tsx b/src/components/vmc-settings-dialog.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..0f5afaf2d5394901cfb459c87b7d99aa62542cdd
+--- /dev/null
++++ b/src/components/vmc-settings-dialog.tsx
+@@ -0,0 +1,271 @@
++"use client";
++import { useState } from "react";
++import {
++  Dialog,
++  DialogContent,
++  DialogHeader,
++  DialogTitle,
++  DialogDescription,
++} from "@/components/ui/dialog";
++import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
++import { Switch } from "@/components/ui/switch";
++import { Choice } from "./controls";
++import type { IndicatorInstance } from "../domain/workspace";
++import type { Timeframe } from "../domain/market";
++import {
++  vmcFields,
++  vmcDefaults,
++  normalizeVmcParams,
++  normalizeVmcStyle,
++  vmcStyleDefaults,
++  vmcTimeframes,
++  type VmcParams,
++  type VmcStyle,
++} from "../indicators/vmc-settings";
++const allFrames: Timeframe[] = ["15m", "1h", "4h", "1d"];
++/** Mounted with key=instance.id. Edits remain a draft until Apply; Escape discards. */
++export function VmcSettingsDialog({
++  instance,
++  onClose,
++  onApply,
++}: {
++  instance: IndicatorInstance;
++  onClose: () => void;
++  onApply: (next: IndicatorInstance) => void;
++}) {
++  const [params, setParams] = useState(() =>
++    normalizeVmcParams(instance.params),
++  );
++  const [style, setStyle] = useState(() => normalizeVmcStyle(instance.style));
++  const [frames, setFrames] = useState(instance.timeframes ?? allFrames);
++  const [error, setError] = useState("");
++  function field(key: keyof VmcParams, value: unknown) {
++    setParams((p) => ({ ...p, [key]: value }));
++    setError("");
++  }
++  const renderFields = (colors: boolean) =>
++    [
++      ...new Set(
++        vmcFields
++          .filter((f) => (f.kind === "color") === colors)
++          .map((f) => f.group),
++      ),
++    ].map((group) => (
++      <fieldset className="vmc-group" key={group}>
++        <legend>{group}</legend>
++        {vmcFields
++          .filter((f) => f.group === group && (f.kind === "color") === colors)
++          .map((f) => (
++            <label className="vmc-field" key={f.key}>
++              <span>{f.label}</span>
++              {f.kind === "boolean" ? (
++                <Switch
++                  checked={params[f.key] as boolean}
++                  onCheckedChange={(v) => field(f.key, v)}
++                  aria-label={f.label}
++                />
++              ) : f.kind === "number" ? (
++                <input
++                  type="number"
++                  aria-label={f.label}
++                  min={f.min}
++                  max={f.max}
++                  step={f.step}
++                  required
++                  value={params[f.key] as number}
++                  onChange={(e) =>
++                    field(
++                      f.key,
++                      e.target.value === "" ? "" : Number(e.target.value),
++                    )
++                  }
++                />
++              ) : f.kind === "color" ? (
++                <input
++                  type="color"
++                  aria-label={f.label}
++                  value={params[f.key] as string}
++                  onChange={(e) => field(f.key, e.target.value)}
++                />
++              ) : (
++                <Choice
++                  label={f.label}
++                  value={String(params[f.key])}
++                  onChange={(v) => field(f.key, v)}
++                  items={
++                    f.kind === "source"
++                      ? [
++                          "open",
++                          "high",
++                          "low",
++                          "close",
++                          "hl2",
++                          "hlc3",
++                          "ohlc4",
++                        ].map((v) => [v, v])
++                      : f.kind === "mode"
++                        ? [
++                            ["pine", "Как в Pine (перерисовка)"],
++                            ["confirmed", "Только закрытые свечи"],
++                          ]
++                        : Object.entries(vmcTimeframes).map(([v, t]) => [v, t])
++                  }
++                />
++              )}
++            </label>
++          ))}
++      </fieldset>
++    ));
++  function apply() {
++    const bad = vmcFields.find(
++      (f) =>
++        f.kind === "number" &&
++        (typeof params[f.key] !== "number" ||
++          !Number.isFinite(params[f.key]) ||
++          Number(params[f.key]) < f.min! ||
++          Number(params[f.key]) > f.max! ||
++          (f.step === 1 && !Number.isInteger(params[f.key]))),
++    );
++    if (bad) {
++      setError(
++        `${bad.label}: допустимо число от ${bad.min} до ${bad.max}${bad.step === 1 ? " (целое)" : ""}.`,
++      );
++      return;
++    }
++    onApply({
++      ...instance,
++      params: normalizeVmcParams(params),
++      style: normalizeVmcStyle(style),
++      timeframes: frames,
++    });
++    onClose();
++  }
++  return (
++    <Dialog
++      open
++      onOpenChange={(open) => {
++        if (!open) onClose();
++      }}
++    >
++      <DialogContent className="vmc-settings-dialog">
++        <DialogHeader>
++          <DialogTitle>VMC Cipher B · Настройки</DialogTitle>
++          <DialogDescription>
++            Параметры этого экземпляра. Изменения вступают в силу после
++            применения.
++          </DialogDescription>
++        </DialogHeader>
++        <Tabs defaultValue="inputs">
++          <TabsList>
++            <TabsTrigger value="inputs">Аргументы</TabsTrigger>
++            <TabsTrigger value="style">Стиль</TabsTrigger>
++            <TabsTrigger value="visibility">Видимость</TabsTrigger>
++          </TabsList>
++          <div className="vmc-settings-scroll">
++            <TabsContent value="inputs">
++              {renderFields(false)}
++              <p className="muted">
++                Sommi и MACD загружают отдельные свечи выбранных таймфреймов. В
++                режиме Pine исторические Diamond могут перерисовываться.
++              </p>
++            </TabsContent>
++            <TabsContent value="style">
++              {renderFields(true)}
++              <fieldset className="vmc-group">
++                <legend>Отрисовка</legend>
++                <label className="vmc-field">
++                  <span>Толщина линий</span>
++                  <Choice
++                    label="Толщина линий"
++                    value={String(style.lineWidth)}
++                    onChange={(v) =>
++                      setStyle({
++                        ...style,
++                        lineWidth: Number(v) as VmcStyle["lineWidth"],
++                      })
++                    }
++                    items={[
++                      ["1", "1 px"],
++                      ["2", "2 px"],
++                      ["3", "3 px"],
++                    ]}
++                  />
++                </label>
++                <label className="vmc-field">
++                  <span>Непрозрачность, %</span>
++                  <input
++                    type="range"
++                    min="0"
++                    max="100"
++                    value={style.opacity}
++                    onChange={(e) =>
++                      setStyle({ ...style, opacity: Number(e.target.value) })
++                    }
++                  />
++                  <output>{style.opacity}</output>
++                </label>
++                <label className="vmc-field">
++                  <span>Уровни OB / OS</span>
++                  <Switch
++                    checked={style.levels}
++                    onCheckedChange={(v) => setStyle({ ...style, levels: v })}
++                  />
++                </label>
++                <label className="vmc-field">
++                  <span>Малые точки пересечений WT</span>
++                  <Switch
++                    checked={style.crosses}
++                    onCheckedChange={(v) => setStyle({ ...style, crosses: v })}
++                  />
++                </label>
++              </fieldset>
++            </TabsContent>
++            <TabsContent value="visibility">
++              <fieldset className="vmc-group">
++                <legend>Показывать на таймфреймах</legend>
++                {allFrames.map((tf) => (
++                  <label className="vmc-field" key={tf}>
++                    <span>{tf}</span>
++                    <Switch
++                      checked={frames.includes(tf)}
++                      onCheckedChange={(v) =>
++                        setFrames(
++                          v ? [...frames, tf] : frames.filter((x) => x !== tf),
++                        )
++                      }
++                    />
++                  </label>
++                ))}
++              </fieldset>
++            </TabsContent>
++          </div>
++        </Tabs>
++        {error && (
++          <p role="alert" className="negative">
++            {error}
++          </p>
++        )}
++        <div className="vmc-settings-actions">
++          <button
++            className="button"
++            onClick={() => {
++              setParams({ ...vmcDefaults });
++              setStyle({ ...vmcStyleDefaults });
++              setFrames([...allFrames]);
++              setError("");
++            }}
++          >
++            По умолчанию
++          </button>
++          <span />
++          <button className="button" onClick={onClose}>
++            Отмена
++          </button>
++          <button className="button accent-button" onClick={apply}>
++            Применить
++          </button>
++        </div>
++      </DialogContent>
++    </Dialog>
++  );
++}
+diff --git a/src/domain/demo.ts b/src/domain/demo.ts
+index ee2e2f9ab702a6c9fedac2772779c0118cc4f113..2bf7ce097c537a1bd99165b971abec0960cc5c25 100644
+--- a/src/domain/demo.ts
++++ b/src/domain/demo.ts
+@@ -1,9 +1,9 @@
+ import {
+-  intervals,
++  candleIntervals,
+   type Candle,
+   type Quote,
+   type Instrument,
+-  type Timeframe,
++  type CandleInterval,
+ } from "./market";
+ function hash(s: string) {
+   return [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+@@ -11,10 +11,10 @@ function hash(s: string) {
+ /** Fixed 15-minute base process makes all timeframe closes and OHLC aggregates consistent. */
+ export function demoCandles(
+   item: Instrument,
+-  tf: Timeframe,
++  tf: CandleInterval,
+   now = Date.now(),
+ ): Candle[] {
+-  const step = intervals[tf],
++  const step = candleIntervals[tf],
+     end = Math.floor(now / 1000 / step) * step,
+     seed = hash(item.symbol);
+   const currentBase = Math.floor(now / 1000 / 900),
+diff --git a/src/domain/market.ts b/src/domain/market.ts
+index 577b77c1a54857acb5758da6c7ee90784509c2eb..d149e4f5aeff06bf0cb6cbbb72ddc9de1ce48169 100644
+--- a/src/domain/market.ts
++++ b/src/domain/market.ts
+@@ -1,5 +1,16 @@
+ export type Category = "crypto" | "stocks" | "indices" | "forex";
+ export type Timeframe = "15m" | "1h" | "4h" | "1d";
++export type CandleInterval = Timeframe | "30m" | "2h" | "8h" | "12h";
++export const candleIntervals: Record<CandleInterval, number> = {
++  "15m": 900,
++  "30m": 1800,
++  "1h": 3600,
++  "2h": 7200,
++  "4h": 14400,
++  "8h": 28800,
++  "12h": 43200,
++  "1d": 86400,
++};
+ export type Source = "live" | "demo" | "stale";
+ export interface Instrument {
+   symbol: string;
+diff --git a/src/domain/workspace.ts b/src/domain/workspace.ts
+index eac7d43d4b9e1832ca0f277fe8d7a9954287ede5..45854dbc663980a778805ae4eabd58f6162cbda4 100644
+--- a/src/domain/workspace.ts
++++ b/src/domain/workspace.ts
+@@ -1,3 +1,5 @@
++import { computeVmc } from "../indicators/vmc";
++import type { VmcParams, VmcStyle } from "../indicators/vmc-settings";
+ import type { Candle, Timeframe } from "./market";
+ /** Serializable workspace document: each future pane owns its series and drawings. */
+ export interface IndicatorInstance {
+@@ -7,6 +9,9 @@ export interface IndicatorInstance {
+   period: number;
+   color: string;
+   paneId: string;
++  params?: Partial<VmcParams>;
++  style?: Partial<VmcStyle>;
++  timeframes?: Timeframe[];
+ }
+ export interface Drawing {
+   id: string;
+@@ -34,6 +39,14 @@ export interface IndicatorDefinition {
+   compute?: (bars: Candle[], params: Record<string, unknown>) => unknown;
+ }
+ export const indicatorRegistry: IndicatorDefinition[] = [
++  {
++    id: "vmc",
++    name: "VMC Cipher B · VuManChu",
++    description:
++      "WaveTrend, MFI, RSI, Stoch RSI, Schaff, дивергенции и Sommi. Отдельная панель.",
++    implemented: true,
++    compute: computeVmc,
++  },
+   {
+     id: "nwe",
+     name: "Nadaraya–Watson Envelope",
+diff --git a/src/hooks/use-vmc.ts b/src/hooks/use-vmc.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..b859802606986d1465385561287c71edd483956e
+--- /dev/null
++++ b/src/hooks/use-vmc.ts
+@@ -0,0 +1,117 @@
++"use client";
++import { useEffect, useMemo, useState, useRef } from "react";
++import type {
++  CandleInterval,
++  CandleResponse,
++  Timeframe,
++} from "../domain/market";
++import type { IndicatorInstance } from "../domain/workspace";
++import {
++  computeVmc,
++  requiredVmcIntervals,
++  type VmcResult,
++} from "../indicators/vmc";
++import {
++  normalizeVmcParams,
++  normalizeVmcStyle,
++  type VmcParams,
++  type VmcStyle,
++} from "../indicators/vmc-settings";
++export interface VmcPane {
++  id: string;
++  params: VmcParams;
++  style: VmcStyle;
++  result: VmcResult;
++}
++export function useVmc(
++  symbol: string,
++  timeframe: Timeframe,
++  main: CandleResponse | undefined,
++  indicators: IndicatorInstance[],
++  refreshToken = 0,
++) {
++  const lastRefresh = useRef(refreshToken);
++  const signature = JSON.stringify(
++    indicators.filter(
++      (i) =>
++        i.definitionId === "vmc" &&
++        i.enabled &&
++        (!i.timeframes || i.timeframes.includes(timeframe)),
++    ),
++  );
++  const active = useMemo(
++    () =>
++      (JSON.parse(signature) as IndicatorInstance[]).map((i) => ({
++        id: i.id,
++        params: normalizeVmcParams(i.params),
++        style: normalizeVmcStyle(i.style),
++      })),
++    [signature],
++  );
++  const requests = [
++    ...new Set(active.flatMap((i) => requiredVmcIntervals(i.params))),
++  ]
++    .filter((t) => t !== timeframe)
++    .sort()
++    .join(",");
++  const key = `${symbol}:${timeframe}:${main?.source}:${main?.provider}:${main?.asOf}:${requests}:${refreshToken}`;
++  const [state, setState] = useState<{
++    key: string;
++    histories: Partial<Record<CandleInterval, CandleResponse["data"]>>;
++    warnings: string[];
++  }>({ key: "", histories: {}, warnings: [] });
++  useEffect(() => {
++    if (!main || !requests) return;
++    const force = lastRefresh.current !== refreshToken;
++    lastRefresh.current = refreshToken;
++    const abort = new AbortController();
++    const tfs = requests.split(",") as CandleInterval[];
++    void Promise.allSettled(
++      tfs.map(async (tf) => {
++        const response = await fetch(
++          `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${tf}${main.source === "demo" ? "&demo=1" : ""}${force ? "&refresh=1" : ""}`,
++          { signal: abort.signal },
++        );
++        if (!response.ok) throw Error(`${tf}: HTTP ${response.status}`);
++        const data = (await response.json()) as CandleResponse;
++        if (data.source !== main.source || data.provider !== main.provider)
++          throw Error(`${tf}: источник отличается от основного графика`);
++        return { tf, bars: data.data };
++      }),
++    ).then((results) => {
++      if (abort.signal.aborted) return;
++      const histories: Partial<Record<CandleInterval, CandleResponse["data"]>> =
++          {},
++        warnings: string[] = [];
++      results.forEach((r, index) => {
++        if (r.status === "fulfilled") histories[r.value.tf] = r.value.bars;
++        else
++          warnings.push(
++            `${tfs[index]}: дополнительные свечи недоступны; сигналы по ним не показаны.`,
++          );
++      });
++      setState({ key, histories, warnings });
++    });
++    return () => abort.abort();
++  }, [key]);
++  const ready = state.key === key;
++  const panes = useMemo<VmcPane[]>(
++    () =>
++      active.map((i) => ({
++        ...i,
++        result: computeVmc(main?.data ?? [], i.params, {
++          interval: timeframe,
++          histories: ready ? state.histories : {},
++          now: main ? Date.parse(main.asOf) / 1000 : undefined,
++        }),
++      })),
++    [active, main, timeframe, ready, state.histories],
++  );
++  const warnings = [
++    ...new Set([
++      ...(ready ? state.warnings : []),
++      ...panes.flatMap((i) => i.result.warnings),
++    ]),
++  ];
++  return { panes, warnings, loading: !!main && !!requests && !ready };
++}
+diff --git a/src/indicators/pine-math.ts b/src/indicators/pine-math.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..f47fa83a3fda88df4e0a0457dc04a3fb31cccf4f
+--- /dev/null
++++ b/src/indicators/pine-math.ts
+@@ -0,0 +1,76 @@
++/** Pine-style na propagation. EMA seeds at first finite sample; RMA seeds with SMA. */
++export type Values = (number | null)[];
++export const finite = (v: number | null | undefined): v is number =>
++  typeof v === "number" && Number.isFinite(v);
++export function sma(x: Values, length: number): Values {
++  const q: number[] = [];
++  let sum = 0;
++  return x.map((v) => {
++    if (finite(v)) {
++      q.push(v);
++      sum += v;
++      if (q.length > length) sum -= q.shift()!;
++    }
++    return q.length === length ? sum / length : null;
++  });
++}
++export function ema(x: Values, length: number): Values {
++  let state: number | null = null;
++  const alpha = 2 / (length + 1);
++  return x.map((v) => {
++    if (finite(v)) state = state === null ? v : alpha * v + (1 - alpha) * state;
++    return state;
++  });
++}
++export function rma(x: Values, length: number): Values {
++  let state: number | null = null,
++    sum = 0,
++    count = 0;
++  return x.map((v) => {
++    if (finite(v)) {
++      if (state === null) {
++        sum += v;
++        if (++count === length) state = sum / length;
++      } else state = (v + (length - 1) * state) / length;
++    }
++    return state;
++  });
++}
++export function rsi(x: Values, length: number): Values {
++  const changes = x.map((v, i) =>
++    finite(v) && finite(x[i - 1]) ? v - x[i - 1]! : null,
++  );
++  const up = rma(
++    changes.map((v) => (v === null ? null : Math.max(v, 0))),
++    length,
++  );
++  const down = rma(
++    changes.map((v) => (v === null ? null : Math.max(-v, 0))),
++    length,
++  );
++  return up.map((u, i) =>
++    !finite(u) || !finite(down[i])
++      ? null
++      : down[i] === 0
++        ? u === 0
++          ? null
++          : 100
++        : 100 - 100 / (1 + u / down[i]!),
++  );
++}
++export function extrema(
++  x: Values,
++  i: number,
++  length: number,
++): [number, number] | null {
++  const a = x.slice(Math.max(0, i - length + 1), i + 1).filter(finite);
++  return a.length ? [Math.min(...a), Math.max(...a)] : null;
++}
++export function stochastic(x: Values, length: number): Values {
++  return x.map((v, i) => {
++    const r = extrema(x, i, length);
++    return finite(v) && r && r[1] !== r[0]
++      ? (100 * (v - r[0])) / (r[1] - r[0])
++      : null;
++  });
++}
+diff --git a/src/indicators/vmc-renderer.ts b/src/indicators/vmc-renderer.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..4a90b624547ad610e0e46272e3338954c752a954
+--- /dev/null
++++ b/src/indicators/vmc-renderer.ts
+@@ -0,0 +1,294 @@
++import {
++  customSeriesDefaultOptions,
++  type CustomData,
++  type CustomSeriesWhitespaceData,
++  type ICustomSeriesPaneView,
++  type ICustomSeriesPaneRenderer,
++  type PaneRendererCustomData,
++  type Time,
++} from "lightweight-charts";
++import type { VmcPoint, WaveKey } from "./vmc";
++import { finite } from "./pine-math";
++import type { VmcParams, VmcStyle } from "./vmc-settings";
++export interface VmcChartData extends CustomData {
++  point: VmcPoint;
++  index: number;
++}
++interface Plot {
++  key: WaveKey;
++  show: boolean;
++  area?: boolean;
++  opacity: number;
++  color: (p: VmcPoint) => string;
++}
++/** One custom series owns an oscillator pane. The chart owns time/price transforms,
++ * crosshair, axis dragging and pane sizing; this renderer only draws indicator geometry. */
++export class VmcRenderer implements ICustomSeriesPaneView<Time, VmcChartData> {
++  private data: PaneRendererCustomData<Time, VmcChartData> | null = null;
++  constructor(
++    private params: VmcParams,
++    private style: VmcStyle,
++    private text: string,
++    private ordinal: number,
++  ) {}
++  configure(params: VmcParams, style: VmcStyle, text: string, ordinal: number) {
++    this.params = params;
++    this.style = style;
++    this.text = text;
++    this.ordinal = ordinal;
++  }
++  defaultOptions() {
++    return {
++      ...customSeriesDefaultOptions,
++      priceLineVisible: false,
++      lastValueVisible: false,
++      priceFormat: { type: "price" as const, precision: 2, minMove: 0.01 },
++    };
++  }
++  isWhitespace(
++    data: VmcChartData | CustomSeriesWhitespaceData<Time>,
++  ): data is CustomSeriesWhitespaceData<Time> {
++    return !("point" in data);
++  }
++  update(data: PaneRendererCustomData<Time, VmcChartData>) {
++    this.data = data;
++  }
++  private plots(): Plot[] {
++    const p = this.params;
++    return [
++      {
++        key: "wt1",
++        show: p.wtShow,
++        area: true,
++        opacity: 0.7,
++        color: (d) => d.wt1Color,
++      },
++      {
++        key: "wt2",
++        show: p.wtShow,
++        area: true,
++        opacity: 0.75,
++        color: (d) => d.wt2Color,
++      },
++      {
++        key: "fast",
++        show: p.vwapShow,
++        area: true,
++        opacity: 0.55,
++        color: () => p.VWAPColor,
++      },
++      {
++        key: "mfi",
++        show: p.rsiMFIShow,
++        area: true,
++        opacity: 0.5,
++        color: (d) =>
++          d.values.mfi! > 0 ? p.rsiMFIColorAbove : p.rsiMFIColorBelow,
++      },
++      {
++        key: "rsi",
++        show: p.rsiShow,
++        opacity: 0.75,
++        color: (d) =>
++          d.values.rsi! <= p.rsiOversold
++            ? p.rsioscolor
++            : d.values.rsi! >= p.rsiOverbought
++              ? p.rsiobcolor
++              : p.rsinacolor,
++      },
++      { key: "k", show: p.stochShow, opacity: 0.3, color: () => p.stochkcolor },
++      { key: "d", show: p.stochShow, opacity: 0.1, color: () => p.stochdcolor },
++      { key: "schaff", show: p.tcLine, opacity: 0.75, color: () => "#673ab7" },
++      {
++        key: "sommi",
++        show: p.sommiShowVwap,
++        opacity: 0.45,
++        color: () => "#ffe500",
++      },
++    ];
++  }
++  priceValueBuilder(data: VmcChartData): number[] {
++    const values = this.plots()
++      .filter((p) => p.show)
++      .map((p) => data.point.values[p.key])
++      .filter(finite);
++    values.push(
++      0,
++      ...data.point.marks
++        .filter((m) => this.style.crosses || m.size !== 2)
++        .map((m) => m.value),
++    );
++    for (const seg of data.point.segments)
++      values.push(seg.fromValue, seg.toValue);
++    if (this.style.levels)
++      values.push(
++        this.params.obLevel2,
++        this.params.obLevel3,
++        this.params.osLevel2,
++      );
++    if (this.params.rsiMFIShow) values.push(-99);
++    return [
++      Math.max(...values),
++      Math.min(...values),
++      data.point.values.wt2 ?? 0,
++    ];
++  }
++  renderer(): ICustomSeriesPaneRenderer {
++    return {
++      draw: (target, toY) => {
++        const data = this.data;
++        if (!data?.visibleRange) return;
++        target.useMediaCoordinateSpace(({ context: ctx, mediaSize: size }) => {
++          const p = this.params,
++            style = this.style,
++            all = data.bars;
++          const start = Math.max(0, data.visibleRange!.from - 1),
++            end = Math.min(all.length, data.visibleRange!.to + 1),
++            bars = all.slice(start, end);
++          if (!bars.length) return;
++          ctx.save();
++          ctx.beginPath();
++          ctx.rect(0, 0, size.width, size.height);
++          ctx.clip();
++          if (p.darkMode) {
++            ctx.fillStyle = "#000000";
++            ctx.fillRect(0, 0, size.width, size.height);
++          }
++          const y = (v: number) => toY(v) ?? 0;
++          function line(
++            x1: number,
++            v1: number,
++            x2: number,
++            v2: number,
++            color: string,
++            width = style.lineWidth,
++          ) {
++            ctx.strokeStyle = color;
++            ctx.lineWidth = width;
++            ctx.beginPath();
++            ctx.moveTo(x1, y(v1));
++            ctx.lineTo(x2, y(v2));
++            ctx.stroke();
++          }
++          ctx.globalAlpha = (0.4 * style.opacity) / 100;
++          line(0, 0, size.width, 0, this.text, 1);
++          if (style.levels) {
++            ctx.globalAlpha = (0.25 * style.opacity) / 100;
++            ctx.setLineDash([4, 4]);
++            for (const level of [p.obLevel2, p.obLevel3, p.osLevel2])
++              line(0, level, size.width, level, this.text, 1);
++            ctx.setLineDash([]);
++          }
++          for (const plot of this.plots().filter((p) => p.show)) {
++            ctx.globalAlpha = (plot.opacity * style.opacity) / 100;
++            for (let i = 1; i < bars.length; i++) {
++              const prev = bars[i - 1],
++                curr = bars[i],
++                a = prev.originalData.point.values[plot.key],
++                b = curr.originalData.point.values[plot.key];
++              if (!finite(a) || !finite(b)) continue;
++              const color = plot.color(curr.originalData.point);
++              if (plot.area) {
++                ctx.fillStyle = color;
++                ctx.beginPath();
++                ctx.moveTo(prev.x, y(0));
++                ctx.lineTo(prev.x, y(a));
++                ctx.lineTo(curr.x, y(b));
++                ctx.lineTo(curr.x, y(0));
++                ctx.closePath();
++                ctx.fill();
++              } else line(prev.x, a, curr.x, b, color);
++              if (plot.key === "schaff") {
++                ctx.globalAlpha = (0.5 * style.opacity) / 100;
++                line(prev.x, a, curr.x, b, "#ffffff", 1);
++                ctx.globalAlpha = (plot.opacity * style.opacity) / 100;
++              }
++            }
++          }
++          if (p.stochShow) {
++            for (let i = 1; i < bars.length; i++) {
++              const a = bars[i - 1],
++                b = bars[i],
++                v = a.originalData.point.values,
++                w = b.originalData.point.values;
++              if (![v.k, v.d, w.k, w.d].every(finite)) continue;
++              ctx.globalAlpha =
++                ((w.k! >= w.d! ? 0.05 : 0.1) * style.opacity) / 100;
++              ctx.fillStyle = w.k! >= w.d! ? "#21baf3" : "#673ab7";
++              ctx.beginPath();
++              ctx.moveTo(a.x, y(v.k!));
++              ctx.lineTo(b.x, y(w.k!));
++              ctx.lineTo(b.x, y(w.d!));
++              ctx.lineTo(a.x, y(v.d!));
++              ctx.closePath();
++              ctx.fill();
++            }
++          }
++          if (p.rsiMFIShow) {
++            ctx.globalAlpha = (0.25 * style.opacity) / 100;
++            for (const b of bars) {
++              const v = b.originalData.point.values.mfi;
++              if (!finite(v)) continue;
++              ctx.fillStyle = v > 0 ? p.rsiMFIColorAbove : p.rsiMFIColorBelow;
++              ctx.fillRect(
++                b.x - data.barSpacing / 2,
++                y(-95),
++                data.barSpacing + 1,
++                y(-99) - y(-95),
++              );
++            }
++          }
++          ctx.globalAlpha = style.opacity / 100;
++          // All endpoints are considered so a line remains visible when its right pivot is offscreen.
++          const byIndex = new Map(all.map((b) => [b.originalData.index, b]));
++          for (const b of all) {
++            for (const seg of b.originalData.point.segments) {
++              const from = byIndex.get(seg.from);
++              if (from && from.x <= size.width && b.x >= 0)
++                line(from.x, seg.fromValue, b.x, seg.toValue, seg.color);
++            }
++          }
++          for (const b of bars)
++            for (const mark of b.originalData.point.marks) {
++              if (mark.size === 2 && !style.crosses) continue;
++              const x = b.x,
++                v = y(mark.value),
++                r = mark.size;
++              ctx.fillStyle = mark.color;
++              ctx.strokeStyle = mark.color;
++              ctx.lineWidth = 1.5;
++              ctx.beginPath();
++              if (mark.shape === "circle") ctx.arc(x, v, r, 0, Math.PI * 2);
++              else if (mark.shape === "diamond") {
++                ctx.moveTo(x, v - r - 1);
++                ctx.lineTo(x + r + 1, v);
++                ctx.lineTo(x, v + r + 1);
++                ctx.lineTo(x - r - 1, v);
++                ctx.closePath();
++              } else {
++                ctx.moveTo(x - r, v + r);
++                ctx.lineTo(x - r, v - r);
++                ctx.lineTo(x + r, v - r);
++                ctx.lineTo(x + 1, v);
++                ctx.lineTo(x - r, v);
++                ctx.stroke();
++              }
++              ctx.fill();
++            }
++          ctx.globalAlpha = 1;
++          ctx.fillStyle = this.text;
++          ctx.font = "12px ui-monospace, monospace";
++          ctx.fillText(
++            `VMC Cipher B #${this.ordinal} · WT ${p.wtChannelLen}/${p.wtAverageLen}/${p.wtMALen}`,
++            12,
++            18,
++          );
++          ctx.restore();
++        });
++      },
++    };
++  }
++  destroy() {
++    this.data = null;
++  }
++}
+diff --git a/src/indicators/vmc-settings.ts b/src/indicators/vmc-settings.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..ae8fecf83f1c9f6e72a17de53f5022e8b5111f03
+--- /dev/null
++++ b/src/indicators/vmc-settings.ts
+@@ -0,0 +1,909 @@
++/** Input names/defaults from references/vmc2-original.pine. */
++export type PriceSource =
++  | "open"
++  | "high"
++  | "low"
++  | "close"
++  | "hl2"
++  | "hlc3"
++  | "ohlc4";
++export const vmcTimeframes = {
++  "15": "15m",
++  "30": "30m",
++  "60": "1h",
++  "120": "2h",
++  "240": "4h",
++  "480": "8h",
++  "720": "12h",
++  D: "1d",
++} as const;
++export type VmcTimeframe = keyof typeof vmcTimeframes;
++export interface VmcParams {
++  wtShow: boolean;
++  wtBuyShow: boolean;
++  wtGoldShow: boolean;
++  wtSellShow: boolean;
++  wtDivShow: boolean;
++  vwapShow: boolean;
++  wtChannelLen: number;
++  wtAverageLen: number;
++  wtMASource: PriceSource;
++  wtMALen: number;
++  obLevel: number;
++  obLevel2: number;
++  obLevel3: number;
++  osLevel: number;
++  osLevel2: number;
++  osLevel3: number;
++  wtShowDiv: boolean;
++  wtShowHiddenDiv: boolean;
++  showHiddenDiv_nl: boolean;
++  wtDivOBLevel: number;
++  wtDivOSLevel: number;
++  wtDivOBLevel_addshow: boolean;
++  wtDivOBLevel_add: number;
++  wtDivOSLevel_add: number;
++  rsiMFIShow: boolean;
++  rsiMFIperiod: number;
++  rsiMFIMultiplier: number;
++  rsiMFIPosY: number;
++  rsiShow: boolean;
++  rsiSRC: PriceSource;
++  rsiLen: number;
++  rsiOversold: number;
++  rsiOverbought: number;
++  rsiShowDiv: boolean;
++  rsiShowHiddenDiv: boolean;
++  rsiDivOBLevel: number;
++  rsiDivOSLevel: number;
++  stochShow: boolean;
++  stochUseLog: boolean;
++  stochAvg: boolean;
++  stochSRC: PriceSource;
++  stochLen: number;
++  stochRsiLen: number;
++  stochKSmooth: number;
++  stochDSmooth: number;
++  stochShowDiv: boolean;
++  stochShowHiddenDiv: boolean;
++  tcLine: boolean;
++  tcSRC: PriceSource;
++  tclength: number;
++  tcfastLength: number;
++  tcslowLength: number;
++  tcfactor: number;
++  sommiFlagShow: boolean;
++  sommiShowVwap: boolean;
++  sommiVwapTF: VmcTimeframe;
++  sommiVwapBearLevel: number;
++  sommiVwapBullLevel: number;
++  soomiFlagWTBearLevel: number;
++  soomiFlagWTBullLevel: number;
++  soomiRSIMFIBearLevel: number;
++  soomiRSIMFIBullLevel: number;
++  sommiDiamondShow: boolean;
++  sommiHTCRes: VmcTimeframe;
++  sommiHTCRes2: VmcTimeframe;
++  soomiDiamondWTBearLevel: number;
++  soomiDiamondWTBullLevel: number;
++  macdWTColorsShow: boolean;
++  macdWTColorsTF: VmcTimeframe;
++  darkMode: boolean;
++  rsiobcolor: string;
++  rsioscolor: string;
++  rsinacolor: string;
++  rsiMFIColorAbove: string;
++  rsiMFIColorBelow: string;
++  WTBearDivColorDown: string;
++  wtBullDivColorUp: string;
++  signalcolorup: string;
++  signalcolordown: string;
++  colorWT1blue: string;
++  colorWT2purple: string;
++  VWAPColor: string;
++  stochkcolor: string;
++  stochdcolor: string;
++  mtfMode: "pine" | "confirmed";
++}
++export interface InputField {
++  key: keyof VmcParams;
++  label: string;
++  group: string;
++  kind: "boolean" | "number" | "source" | "timeframe" | "color" | "mode";
++  default: string | number | boolean;
++  min?: number;
++  max?: number;
++  step?: number;
++  opacity?: number;
++}
++export const vmcFields: InputField[] = [
++  {
++    key: "wtShow",
++    label: "Show WaveTrend",
++    group: "WaveTrend Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "wtBuyShow",
++    label: "Show Buy dots",
++    group: "WaveTrend Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "wtGoldShow",
++    label: "Show Gold dots",
++    group: "WaveTrend Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "wtSellShow",
++    label: "Show Sell dots",
++    group: "WaveTrend Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "wtDivShow",
++    label: "Show Div. dots",
++    group: "WaveTrend Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "vwapShow",
++    label: "Show Fast WT",
++    group: "WaveTrend Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "wtChannelLen",
++    label: "WT Channel Length",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: 9,
++    step: 1,
++    min: 1,
++    max: 500,
++  },
++  {
++    key: "wtAverageLen",
++    label: "WT Average Length",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: 12,
++    step: 1,
++    min: 1,
++    max: 500,
++  },
++  {
++    key: "wtMASource",
++    label: "WT MA Source",
++    group: "WaveTrend Settings",
++    kind: "source",
++    default: "hlc3",
++  },
++  {
++    key: "wtMALen",
++    label: "WT MA Length",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: 3,
++    step: 1,
++    min: 1,
++    max: 500,
++  },
++  {
++    key: "obLevel",
++    label: "WT Overbought Level 1",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: 53,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "obLevel2",
++    label: "WT Overbought Level 2",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: 60,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "obLevel3",
++    label: "WT Overbought Level 3",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: 100,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "osLevel",
++    label: "WT Oversold Level 1",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: -53,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "osLevel2",
++    label: "WT Oversold Level 2",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: -60,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "osLevel3",
++    label: "WT Oversold Level 3",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: -75,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "wtShowDiv",
++    label: "Show WT Regular Divergences",
++    group: "WaveTrend Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "wtShowHiddenDiv",
++    label: "Show WT Hidden Divergences",
++    group: "WaveTrend Settings",
++    kind: "boolean",
++    default: false,
++  },
++  {
++    key: "showHiddenDiv_nl",
++    label: "Not apply OB/OS Limits on Hidden Divergences",
++    group: "WaveTrend Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "wtDivOBLevel",
++    label: "WT Bearish Divergence min",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: 45,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "wtDivOSLevel",
++    label: "WT Bullish Divergence min",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: -65,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "wtDivOBLevel_addshow",
++    label: "Show 2nd WT Regular Divergences",
++    group: "WaveTrend Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "wtDivOBLevel_add",
++    label: "WT 2nd Bearish Divergence",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: 15,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "wtDivOSLevel_add",
++    label: "WT 2nd Bullish Divergence 15 min",
++    group: "WaveTrend Settings",
++    kind: "number",
++    default: -40,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "rsiMFIShow",
++    label: "Show MFI",
++    group: "MFI Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "rsiMFIperiod",
++    label: "MFI Period",
++    group: "MFI Settings",
++    kind: "number",
++    default: 60,
++    step: 1,
++    min: 1,
++    max: 500,
++  },
++  {
++    key: "rsiMFIMultiplier",
++    label: "MFI Area multiplier",
++    group: "MFI Settings",
++    kind: "number",
++    default: 150,
++    step: 0.1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "rsiMFIPosY",
++    label: "MFI Area Y Pos",
++    group: "MFI Settings",
++    kind: "number",
++    default: 2.5,
++    step: 0.1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "rsiShow",
++    label: "Show RSI",
++    group: "RSI Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "rsiSRC",
++    label: "RSI Source",
++    group: "RSI Settings",
++    kind: "source",
++    default: "close",
++  },
++  {
++    key: "rsiLen",
++    label: "RSI Length",
++    group: "RSI Settings",
++    kind: "number",
++    default: 14,
++    step: 1,
++    min: 1,
++    max: 500,
++  },
++  {
++    key: "rsiOversold",
++    label: "RSI Oversold",
++    group: "RSI Settings",
++    kind: "number",
++    default: 30,
++    step: 1,
++    min: 0,
++    max: 100,
++  },
++  {
++    key: "rsiOverbought",
++    label: "RSI Overbought",
++    group: "RSI Settings",
++    kind: "number",
++    default: 60,
++    step: 1,
++    min: 0,
++    max: 100,
++  },
++  {
++    key: "rsiShowDiv",
++    label: "Show RSI Regular Divergences",
++    group: "RSI Settings",
++    kind: "boolean",
++    default: false,
++  },
++  {
++    key: "rsiShowHiddenDiv",
++    label: "Show RSI Hidden Divergences",
++    group: "RSI Settings",
++    kind: "boolean",
++    default: false,
++  },
++  {
++    key: "rsiDivOBLevel",
++    label: "RSI Bearish Divergence min",
++    group: "RSI Settings",
++    kind: "number",
++    default: 60,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "rsiDivOSLevel",
++    label: "RSI Bullish Divergence min",
++    group: "RSI Settings",
++    kind: "number",
++    default: 30,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "stochShow",
++    label: "Show Stochastic RSI",
++    group: "Stoch Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "stochUseLog",
++    label: "Use Log?",
++    group: "Stoch Settings",
++    kind: "boolean",
++    default: true,
++  },
++  {
++    key: "stochAvg",
++    label: "Use Average of both K & D",
++    group: "Stoch Settings",
++    kind: "boolean",
++    default: false,
++  },
++  {
++    key: "stochSRC",
++    label: "Stochastic RSI Source",
++    group: "Stoch Settings",
++    kind: "source",
++    default: "close",
++  },
++  {
++    key: "stochLen",
++    label: "Stochastic RSI Length",
++    group: "Stoch Settings",
++    kind: "number",
++    default: 14,
++    step: 1,
++    min: 1,
++    max: 500,
++  },
++  {
++    key: "stochRsiLen",
++    label: "RSI Length",
++    group: "Stoch Settings",
++    kind: "number",
++    default: 14,
++    step: 1,
++    min: 1,
++    max: 500,
++  },
++  {
++    key: "stochKSmooth",
++    label: "Stochastic RSI K Smooth",
++    group: "Stoch Settings",
++    kind: "number",
++    default: 3,
++    step: 1,
++    min: 1,
++    max: 500,
++  },
++  {
++    key: "stochDSmooth",
++    label: "Stochastic RSI D Smooth",
++    group: "Stoch Settings",
++    kind: "number",
++    default: 3,
++    step: 1,
++    min: 1,
++    max: 500,
++  },
++  {
++    key: "stochShowDiv",
++    label: "Show Stoch Regular Divergences",
++    group: "Stoch Settings",
++    kind: "boolean",
++    default: false,
++  },
++  {
++    key: "stochShowHiddenDiv",
++    label: "Show Stoch Hidden Divergences",
++    group: "Stoch Settings",
++    kind: "boolean",
++    default: false,
++  },
++  {
++    key: "tcLine",
++    label: "Show Schaff TC line",
++    group: "Schaff Settings",
++    kind: "boolean",
++    default: false,
++  },
++  {
++    key: "tcSRC",
++    label: "Schaff TC Source",
++    group: "Schaff Settings",
++    kind: "source",
++    default: "close",
++  },
++  {
++    key: "tclength",
++    label: "Schaff TC",
++    group: "Schaff Settings",
++    kind: "number",
++    default: 10,
++    step: 1,
++    min: 1,
++    max: 500,
++  },
++  {
++    key: "tcfastLength",
++    label: "Schaff TC Fast Lenght",
++    group: "Schaff Settings",
++    kind: "number",
++    default: 23,
++    step: 1,
++    min: 1,
++    max: 500,
++  },
++  {
++    key: "tcslowLength",
++    label: "Schaff TC Slow Length",
++    group: "Schaff Settings",
++    kind: "number",
++    default: 50,
++    step: 1,
++    min: 1,
++    max: 500,
++  },
++  {
++    key: "tcfactor",
++    label: "Schaff TC Factor",
++    group: "Schaff Settings",
++    kind: "number",
++    default: 0.5,
++    step: 0.05,
++    min: 0,
++    max: 1,
++  },
++  {
++    key: "sommiFlagShow",
++    label: "Show Sommi flag",
++    group: "Sommi Settings",
++    kind: "boolean",
++    default: false,
++  },
++  {
++    key: "sommiShowVwap",
++    label: "Show Sommi F. Wave",
++    group: "Sommi Settings",
++    kind: "boolean",
++    default: false,
++  },
++  {
++    key: "sommiVwapTF",
++    label: "Sommi F. Wave timeframe",
++    group: "Sommi Settings",
++    kind: "timeframe",
++    default: "720",
++  },
++  {
++    key: "sommiVwapBearLevel",
++    label: "F. Wave Bear Level (less than)",
++    group: "Sommi Settings",
++    kind: "number",
++    default: 0,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "sommiVwapBullLevel",
++    label: "F. Wave Bull Level (more than)",
++    group: "Sommi Settings",
++    kind: "number",
++    default: 0,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "soomiFlagWTBearLevel",
++    label: "WT Bear Level (more than)",
++    group: "Sommi Settings",
++    kind: "number",
++    default: 0,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "soomiFlagWTBullLevel",
++    label: "WT Bull Level (less than)",
++    group: "Sommi Settings",
++    kind: "number",
++    default: 0,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "soomiRSIMFIBearLevel",
++    label: "Money flow Bear Level (less than)",
++    group: "Sommi Settings",
++    kind: "number",
++    default: 0,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "soomiRSIMFIBullLevel",
++    label: "Money flow Bull Level (more than)",
++    group: "Sommi Settings",
++    kind: "number",
++    default: 0,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "sommiDiamondShow",
++    label: "Show Sommi diamond",
++    group: "Sommi Settings",
++    kind: "boolean",
++    default: false,
++  },
++  {
++    key: "sommiHTCRes",
++    label: "HTF Candle Res. 1",
++    group: "Sommi Settings",
++    kind: "timeframe",
++    default: "60",
++  },
++  {
++    key: "sommiHTCRes2",
++    label: "HTF Candle Res. 2",
++    group: "Sommi Settings",
++    kind: "timeframe",
++    default: "240",
++  },
++  {
++    key: "soomiDiamondWTBearLevel",
++    label: "WT Bear Level (More than)",
++    group: "Sommi Settings",
++    kind: "number",
++    default: 0,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "soomiDiamondWTBullLevel",
++    label: "WT Bull Level (Less than)",
++    group: "Sommi Settings",
++    kind: "number",
++    default: 0,
++    step: 1,
++    min: -1000,
++    max: 1000,
++  },
++  {
++    key: "macdWTColorsShow",
++    label: "Show MACD Colors",
++    group: "MACD Settings",
++    kind: "boolean",
++    default: false,
++  },
++  {
++    key: "macdWTColorsTF",
++    label: "MACD Colors MACD TF",
++    group: "MACD Settings",
++    kind: "timeframe",
++    default: "240",
++  },
++  {
++    key: "darkMode",
++    label: "Dark mode",
++    group: "Mode Settings",
++    kind: "boolean",
++    default: false,
++  },
++  {
++    key: "rsiobcolor",
++    label: "RSI OverBought",
++    group: "Color Settings",
++    kind: "color",
++    default: "#e13e3e",
++    opacity: 100,
++  },
++  {
++    key: "rsioscolor",
++    label: "RSI OverSold",
++    group: "Color Settings",
++    kind: "color",
++    default: "#3ee145",
++    opacity: 100,
++  },
++  {
++    key: "rsinacolor",
++    label: "RSI InBetween",
++    group: "Color Settings",
++    kind: "color",
++    default: "#c33ee1",
++    opacity: 100,
++  },
++  {
++    key: "rsiMFIColorAbove",
++    label: "MFI Color > 0",
++    group: "Color Settings",
++    kind: "color",
++    default: "#3ee145",
++    opacity: 100,
++  },
++  {
++    key: "rsiMFIColorBelow",
++    label: "MFI Color < 0",
++    group: "Color Settings",
++    kind: "color",
++    default: "#ff3d2e",
++    opacity: 100,
++  },
++  {
++    key: "WTBearDivColorDown",
++    label: "WT Bear Div",
++    group: "Color Settings",
++    kind: "color",
++    default: "#e60000",
++    opacity: 100,
++  },
++  {
++    key: "wtBullDivColorUp",
++    label: "WT Bull Div",
++    group: "Color Settings",
++    kind: "color",
++    default: "#00e676",
++    opacity: 100,
++  },
++  {
++    key: "signalcolorup",
++    label: "WT Buy Dot",
++    group: "Color Settings",
++    kind: "color",
++    default: "#00e676",
++    opacity: 100,
++  },
++  {
++    key: "signalcolordown",
++    label: "WT Sell Dot",
++    group: "Color Settings",
++    kind: "color",
++    default: "#ff5252",
++    opacity: 100,
++  },
++  {
++    key: "colorWT1blue",
++    label: "WT1 Fill",
++    group: "Color Settings",
++    kind: "color",
++    default: "#4994ec",
++    opacity: 100,
++  },
++  {
++    key: "colorWT2purple",
++    label: "WT2 Fill",
++    group: "Color Settings",
++    kind: "color",
++    default: "#1f1559",
++    opacity: 100,
++  },
++  {
++    key: "VWAPColor",
++    label: "VWAP",
++    group: "Color Settings",
++    kind: "color",
++    default: "#ffffff",
++    opacity: 50,
++  },
++  {
++    key: "stochkcolor",
++    label: "Stoch K",
++    group: "Color Settings",
++    kind: "color",
++    default: "#21baf3",
++    opacity: 30,
++  },
++  {
++    key: "stochdcolor",
++    label: "Stoch D",
++    group: "Color Settings",
++    kind: "color",
++    default: "#673ab7",
++    opacity: 10,
++  },
++  {
++    key: "mtfMode",
++    label: "Режим данных других таймфреймов",
++    group: "Sommi Settings",
++    kind: "mode",
++    default: "pine",
++  },
++];
++export const vmcDefaults = Object.fromEntries(
++  vmcFields.map((f) => [f.key, f.default]),
++) as unknown as VmcParams;
++export function normalizeVmcParams(raw: unknown): VmcParams {
++  const input =
++    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
++  const result: Record<string, unknown> = {};
++  for (const f of vmcFields) {
++    const value = input[f.key];
++    let next: unknown = f.default;
++    if (f.kind === "boolean" && typeof value === "boolean") next = value;
++    if (
++      f.kind === "number" &&
++      typeof value === "number" &&
++      Number.isFinite(value)
++    ) {
++      next = Math.min(
++        f.max!,
++        Math.max(f.min!, f.step === 1 ? Math.round(value) : value),
++      );
++    }
++    if (
++      f.kind === "color" &&
++      typeof value === "string" &&
++      /^#[\da-f]{6}$/i.test(value)
++    )
++      next = value;
++    if (
++      f.kind === "source" &&
++      ["open", "high", "low", "close", "hl2", "hlc3", "ohlc4"].includes(
++        String(value),
++      )
++    )
++      next = value;
++    if (
++      f.kind === "timeframe" &&
++      typeof value === "string" &&
++      Object.hasOwn(vmcTimeframes, value)
++    )
++      next = value;
++    if (f.kind === "mode" && (value === "pine" || value === "confirmed"))
++      next = value;
++    result[f.key] = next;
++  }
++  return result as unknown as VmcParams;
++}
++export interface VmcStyle {
++  lineWidth: 1 | 2 | 3;
++  opacity: number;
++  levels: boolean;
++  crosses: boolean;
++}
++export const vmcStyleDefaults: VmcStyle = {
++  lineWidth: 2,
++  opacity: 100,
++  levels: true,
++  crosses: true,
++};
++export function normalizeVmcStyle(raw?: Partial<VmcStyle>): VmcStyle {
++  return {
++    lineWidth: raw?.lineWidth === 1 || raw?.lineWidth === 3 ? raw.lineWidth : 2,
++    opacity:
++      typeof raw?.opacity === "number" && Number.isFinite(raw.opacity)
++        ? Math.min(100, Math.max(0, raw.opacity))
++        : 100,
++    levels: raw?.levels !== false,
++    crosses: raw?.crosses !== false,
++  };
++}
+diff --git a/src/indicators/vmc.ts b/src/indicators/vmc.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..6f4ea9b8f154c21277f56580ab02efcd9a0818d9
+--- /dev/null
++++ b/src/indicators/vmc.ts
+@@ -0,0 +1,616 @@
++import type { Candle, CandleInterval } from "../domain/market";
++import { candleIntervals } from "../domain/market";
++import {
++  ema,
++  sma,
++  rsi,
++  stochastic,
++  extrema,
++  finite,
++  type Values,
++} from "./pine-math";
++import {
++  normalizeVmcParams,
++  vmcTimeframes,
++  type VmcParams,
++  type PriceSource,
++} from "./vmc-settings";
++
++export type WaveKey =
++  | "wt1"
++  | "wt2"
++  | "fast"
++  | "mfi"
++  | "rsi"
++  | "k"
++  | "d"
++  | "schaff"
++  | "sommi";
++export interface VmcMark {
++  value: number;
++  color: string;
++  shape: "circle" | "flag" | "diamond";
++  size: number;
++  label: string;
++  confirmedAt: number;
++}
++export interface VmcSegment {
++  from: number;
++  fromValue: number;
++  toValue: number;
++  color: string;
++  label: string;
++  confirmedAt: number;
++}
++export interface VmcPoint {
++  time: number;
++  values: Record<WaveKey, number | null>;
++  marks: VmcMark[];
++  segments: VmcSegment[];
++  wt1Color: string;
++  wt2Color: string;
++}
++export interface VmcEvent {
++  time: number;
++  pivotTime?: number;
++  name: string;
++}
++export interface VmcResult {
++  points: VmcPoint[];
++  events: VmcEvent[];
++  warnings: string[];
++}
++export interface VmcContext {
++  interval?: CandleInterval;
++  histories?: Partial<Record<CandleInterval, Candle[]>>;
++  now?: number;
++}
++export function source(bars: Candle[], key: PriceSource): Values {
++  return bars.map((b) =>
++    key === "hlc3"
++      ? (b.high + b.low + b.close) / 3
++      : key === "hl2"
++        ? (b.high + b.low) / 2
++        : key === "ohlc4"
++          ? (b.open + b.high + b.low + b.close) / 4
++          : b[key],
++  );
++}
++export function waveTrend(bars: Candle[], p: VmcParams) {
++  const src = source(bars, p.wtMASource),
++    esa = ema(src, p.wtChannelLen);
++  const de = ema(
++    src.map((v, i) =>
++      finite(v) && finite(esa[i]) ? Math.abs(v - esa[i]!) : null,
++    ),
++    p.wtChannelLen,
++  );
++  const ci = src.map((v, i) =>
++    finite(v) && finite(esa[i]) && finite(de[i]) && de[i] !== 0
++      ? (v - esa[i]!) / (0.015 * de[i]!)
++      : null,
++  );
++  const wt1 = ema(ci, p.wtAverageLen),
++    wt2 = sma(wt1, p.wtMALen);
++  return {
++    wt1,
++    wt2,
++    fast: wt1.map((v, i) => (finite(v) && finite(wt2[i]) ? v - wt2[i]! : null)),
++  };
++}
++function moneyFlow(bars: Candle[], p: VmcParams) {
++  return sma(
++    bars.map((b) =>
++      b.high === b.low
++        ? null
++        : ((b.close - b.open) / (b.high - b.low)) * p.rsiMFIMultiplier,
++    ),
++    p.rsiMFIperiod,
++  ).map((v) => (v === null ? null : v - p.rsiMFIPosY));
++}
++export function schaff(src: Values, p: VmcParams): Values {
++  const a = ema(src, p.tcfastLength),
++    b = ema(src, p.tcslowLength);
++  const macd = a.map((v, i) => (finite(v) && finite(b[i]) ? v - b[i]! : null));
++  const delta: Values = [],
++    out: Values = [];
++  let gamma = 0,
++    eta = 0;
++  for (let i = 0; i < src.length; i++) {
++    const r = extrema(macd, i, p.tclength);
++    if (r && r[1] > r[0] && finite(macd[i]))
++      gamma = (100 * (macd[i]! - r[0])) / (r[1] - r[0]);
++    delta.push(
++      i ? delta[i - 1]! + p.tcfactor * (gamma - delta[i - 1]!) : gamma,
++    );
++    const s = extrema(delta, i, p.tclength)!;
++    if (s[1] > s[0]) eta = (100 * (delta[i]! - s[0])) / (s[1] - s[0]);
++    out.push(i ? out[i - 1]! + p.tcfactor * (eta - out[i - 1]!) : eta);
++  }
++  return out;
++}
++interface Pivot {
++  index: number;
++  value: number;
++  price: number;
++}
++export interface Divergence {
++  top: Pivot | null;
++  bottom: Pivot | null;
++  previousTop: Pivot | null;
++  previousBottom: Pivot | null;
++  bear: boolean;
++  bull: boolean;
++  hiddenBear: boolean;
++  hiddenBull: boolean;
++}
++/** Five-bar strict fractals become known two bars after the pivot. valuewhen(...)[2] is preserved. */
++export function divergences(
++  values: Values,
++  bars: Candle[],
++  topLimit: number,
++  bottomLimit: number,
++  limits: boolean,
++): Divergence[] {
++  const tops: (Pivot | null)[] = [],
++    bottoms: (Pivot | null)[] = [];
++  let top: Pivot | null = null,
++    bottom: Pivot | null = null;
++  return values.map((_, i) => {
++    const j = i - 2,
++      v = values[j],
++      others = [values[j - 2], values[j - 1], values[j + 1], values[j + 2]];
++    const valid = finite(v) && others.every(finite);
++    const t =
++      valid && others.every((x) => x! < v!) && (!limits || v! >= topLimit)
++        ? { index: j, value: v!, price: bars[j].high }
++        : null;
++    const b =
++      valid && others.every((x) => x! > v!) && (!limits || v! <= bottomLimit)
++        ? { index: j, value: v!, price: bars[j].low }
++        : null;
++    const pt = tops[i - 2] ?? null,
++      pb = bottoms[i - 2] ?? null;
++    // Pine v4 casts numeric fractals to bool: a zero-valued pivot is false.
++    if (t?.value) top = t;
++    if (b?.value) bottom = b;
++    tops.push(top);
++    bottoms.push(bottom);
++    return {
++      top: t,
++      bottom: b,
++      previousTop: pt,
++      previousBottom: pb,
++      bear: !!(t?.value && pt && t.price > pt.price && t.value < pt.value),
++      bull: !!(b?.value && pb && b.price < pb.price && b.value > pb.value),
++      hiddenBear: !!(
++        t?.value &&
++        pt &&
++        t.price < pt.price &&
++        t.value > pt.value
++      ),
++      hiddenBull: !!(
++        b?.value &&
++        pb &&
++        b.price > pb.price &&
++        b.value < pb.value
++      ),
++    };
++  });
++}
++/** gaps_off merge: historical HTF values appear at close; HA lookahead_on at open.
++ * Lower TF requests sample first intrabar with lookahead_on, last with lookahead_off.
++ * In confirmed mode only candles closed at the chart evaluation time are eligible. */
++export function alignValues(
++  bars: Candle[],
++  chartStep: number,
++  other: Candle[],
++  step: number,
++  values: Values,
++  lookahead: boolean,
++  confirmed: boolean,
++  now: number,
++): Values {
++  let cursor = -1;
++  return bars.map((b) => {
++    const close = Math.min(b.time + chartStep, now);
++    if (step < chartStep && lookahead && !confirmed) {
++      let lo = 0,
++        hi = other.length;
++      while (lo < hi) {
++        const mid = (lo + hi) >>> 1;
++        if (other[mid].time < b.time) lo = mid + 1;
++        else hi = mid;
++      }
++      return other[lo] && other[lo].time < close ? (values[lo] ?? null) : null;
++    }
++    const cutoff = lookahead && !confirmed && step > chartStep ? b.time : close;
++    while (cursor + 1 < other.length) {
++      const o = other[cursor + 1];
++      const eligible =
++        lookahead && !confirmed && step > chartStep
++          ? o.time <= cutoff
++          : o.time + step <= cutoff;
++      if (!eligible) break;
++      cursor++;
++    }
++    // Match the developing value only on the active chart bar; never borrow it on past bars.
++    let k = cursor;
++    if (
++      !confirmed &&
++      b.time <= now &&
++      now < b.time + chartStep &&
++      other[k + 1]?.time <= now
++    )
++      k++;
++    return k >= 0 ? (values[k] ?? null) : null;
++  });
++}
++export function heikinAshiDirection(bars: Candle[]): Values {
++  let open = 0,
++    close = 0;
++  return bars.map((b, i) => {
++    open = i ? (open + close) / 2 : (b.open + b.close) / 2;
++    close = (b.open + b.high + b.low + b.close) / 4;
++    return close > open ? 1 : 0;
++  });
++}
++export function requiredVmcIntervals(p: VmcParams): CandleInterval[] {
++  const a: CandleInterval[] = [];
++  if (p.sommiFlagShow || p.sommiShowVwap) a.push(vmcTimeframes[p.sommiVwapTF]);
++  if (p.sommiDiamondShow)
++    a.push(vmcTimeframes[p.sommiHTCRes], vmcTimeframes[p.sommiHTCRes2]);
++  if (p.macdWTColorsShow) a.push(vmcTimeframes[p.macdWTColorsTF]);
++  return [...new Set(a)];
++}
++export function computeVmc(
++  bars: Candle[],
++  raw: unknown = {},
++  ctx: VmcContext = {},
++): VmcResult {
++  const p = normalizeVmcParams(raw),
++    interval = ctx.interval ?? "1h",
++    step = candleIntervals[interval],
++    now = ctx.now ?? Date.now() / 1000;
++  const wt = waveTrend(bars, p),
++    mfi = moneyFlow(bars, p),
++    rs = rsi(source(bars, p.rsiSRC), p.rsiLen);
++  const sx = source(bars, p.stochSRC).map((v) =>
++    p.stochUseLog ? (finite(v) && v > 0 ? Math.log(v) : null) : v,
++  );
++  const kk = sma(
++      stochastic(rsi(sx, p.stochRsiLen), p.stochLen),
++      p.stochKSmooth,
++    ),
++    d = sma(kk, p.stochDSmooth);
++  const k = kk.map((v, i) =>
++    p.stochAvg ? (finite(v) && finite(d[i]) ? (v + d[i]!) / 2 : null) : v,
++  );
++  const tc = schaff(source(bars, p.tcSRC), p),
++    warnings: string[] = [];
++  function history(tf: CandleInterval) {
++    return tf === interval ? bars : (ctx.histories?.[tf] ?? []);
++  }
++  function align(tf: CandleInterval, v: Values, lookahead = false) {
++    return alignValues(
++      bars,
++      step,
++      history(tf),
++      candleIntervals[tf],
++      v,
++      lookahead,
++      p.mtfMode === "confirmed",
++      now,
++    );
++  }
++  for (const tf of requiredVmcIntervals(p)) {
++    if (!history(tf).length)
++      warnings.push(
++        `Нет данных ${tf}: соответствующие сигналы MTF недоступны.`,
++      );
++    else if (history(tf)[0].time > bars[0]?.time)
++      warnings.push(
++        `История ${tf} покрывает только последние ${history(tf).length} свечей: ранние сигналы MTF недоступны.`,
++      );
++  }
++  const htf = vmcTimeframes[p.sommiVwapTF];
++  const hv =
++    p.sommiFlagShow || p.sommiShowVwap
++      ? align(htf, waveTrend(history(htf), p).fast)
++      : [];
++  const sommi = ema(hv, 3);
++  const ha1 = p.sommiDiamondShow
++    ? align(
++        vmcTimeframes[p.sommiHTCRes],
++        heikinAshiDirection(history(vmcTimeframes[p.sommiHTCRes])),
++        true,
++      )
++    : [];
++  const ha2 = p.sommiDiamondShow
++    ? align(
++        vmcTimeframes[p.sommiHTCRes2],
++        heikinAshiDirection(history(vmcTimeframes[p.sommiHTCRes2])),
++        true,
++      )
++    : [];
++  let macd: Values = [],
++    macdSignal: Values = [],
++    macdMfi: Values = [];
++  if (p.macdWTColorsShow) {
++    const tf = vmcTimeframes[p.macdWTColorsTF],
++      h = history(tf),
++      s = source(h, "close"),
++      fast = ema(s, 28),
++      slow = ema(s, 42);
++    const m = fast.map((v, i) =>
++      finite(v) && finite(slow[i]) ? v - slow[i]! : null,
++    );
++    macd = align(tf, m);
++    macdSignal = align(tf, sma(m, 9));
++    macdMfi = align(tf, moneyFlow(h, p));
++  }
++  const wd = divergences(wt.wt2, bars, p.wtDivOBLevel, p.wtDivOSLevel, true),
++    wa = divergences(
++      wt.wt2,
++      bars,
++      p.wtDivOBLevel_add,
++      p.wtDivOSLevel_add,
++      true,
++    ),
++    wn = divergences(wt.wt2, bars, 0, 0, false);
++  const rd = divergences(rs, bars, p.rsiDivOBLevel, p.rsiDivOSLevel, true),
++    rn = divergences(rs, bars, 0, 0, false),
++    sd = divergences(k, bars, 0, 0, false);
++  const events: VmcEvent[] = [];
++  const points: VmcPoint[] = bars.map((b, i) => ({
++    time: b.time,
++    values: {
++      wt1: wt.wt1[i],
++      wt2: wt.wt2[i],
++      fast: wt.fast[i],
++      mfi: mfi[i],
++      rsi: rs[i],
++      k: k[i],
++      d: d[i],
++      schaff: tc[i],
++      sommi: sommi[i] ?? null,
++    },
++    marks: [],
++    segments: [],
++    wt1Color: p.colorWT1blue,
++    wt2Color: p.colorWT2purple,
++  }));
++  for (let i = 0; i < bars.length; i++) {
++    const a = wt.wt1[i],
++      b = wt.wt2[i],
++      prevA = wt.wt1[i - 1],
++      prevB = wt.wt2[i - 1];
++    const cross =
++      finite(a) &&
++      finite(b) &&
++      finite(prevA) &&
++      finite(prevB) &&
++      ((a > b && prevA <= prevB) || (a < b && prevA >= prevB));
++    const up = cross && a! >= b!,
++      down = cross && a! <= b!,
++      buy = up && b! <= p.osLevel,
++      sell = down && b! >= p.obLevel;
++    function event(name: string, pivot = false) {
++      events.push({
++        name,
++        time: bars[i].time,
++        ...(pivot && i >= 2 ? { pivotTime: bars[i - 2].time } : {}),
++      });
++    }
++    function mark(
++      index: number,
++      value: number,
++      color: string,
++      label: string,
++      shape: VmcMark["shape"] = "circle",
++      size = 4,
++    ) {
++      if (points[index])
++        points[index].marks.push({
++          value,
++          color,
++          label,
++          shape,
++          size,
++          confirmedAt: bars[i].time,
++        });
++    }
++    if (cross) {
++      mark(
++        i,
++        b!,
++        up ? p.signalcolorup : p.signalcolordown,
++        up ? "WT Cross Up" : "WT Cross Down",
++        "circle",
++        2,
++      );
++      event(up ? "Buy small circle" : "Sell small circle");
++    }
++    if (buy) {
++      event("Buy");
++      if (p.wtBuyShow) mark(i, -107, "#3fff00", "Buy");
++    }
++    if (sell) {
++      event("Sell");
++      if (p.wtSellShow) mark(i, 105, "#ff0000", "Sell");
++    }
++    function divSegments(
++      ds: Divergence,
++      hidden: Divergence,
++      regular: boolean,
++      showHidden: boolean,
++      bearColor: string,
++      bullColor: string,
++      name: string,
++    ) {
++      for (const bull of [false, true]) {
++        const reg = bull ? ds.bull : ds.bear,
++          hid = bull ? hidden.hiddenBull : hidden.hiddenBear;
++        const selected =
++          regular && reg ? ds : showHidden && hid ? hidden : null;
++        const pivot = bull ? selected?.bottom : selected?.top,
++          prev = bull ? selected?.previousBottom : selected?.previousTop;
++        if (pivot && prev)
++          points[pivot.index].segments.push({
++            from: prev.index,
++            fromValue: prev.value,
++            toValue: pivot.value,
++            color: bull ? bullColor : bearColor,
++            label: name + (bull ? " Bull" : " Bear"),
++            confirmedAt: bars[i].time,
++          });
++      }
++    }
++    divSegments(
++      wd[i],
++      p.showHiddenDiv_nl ? wn[i] : wd[i],
++      p.wtShowDiv,
++      p.wtShowHiddenDiv,
++      p.WTBearDivColorDown,
++      p.wtBullDivColorUp,
++      "WT",
++    );
++    divSegments(
++      wa[i],
++      wa[i],
++      p.wtShowDiv && p.wtDivOBLevel_addshow,
++      p.wtShowHiddenDiv && p.wtDivOBLevel_addshow,
++      p.WTBearDivColorDown,
++      p.wtBullDivColorUp,
++      "WT 2",
++    );
++    divSegments(
++      rd[i],
++      p.showHiddenDiv_nl ? rn[i] : rd[i],
++      p.rsiShowDiv,
++      p.rsiShowHiddenDiv,
++      "#e60000",
++      "#38ff42",
++      "RSI",
++    );
++    divSegments(
++      sd[i],
++      sd[i],
++      p.stochShowDiv,
++      p.stochShowHiddenDiv,
++      "#e60000",
++      "#38ff42",
++      "Stoch",
++    );
++    const bullDiv =
++      (p.wtShowDiv && (wd[i].bull || wa[i].bull)) ||
++      (p.stochShowDiv && sd[i].bull) ||
++      (p.rsiShowDiv && rd[i].bull);
++    const bearDiv =
++      (p.wtShowDiv && (wd[i].bear || wa[i].bear)) ||
++      (p.stochShowDiv && sd[i].bear) ||
++      (p.rsiShowDiv && rd[i].bear);
++    if (bullDiv) {
++      event("Buy divergence", true);
++      const color = wd[i].bull
++        ? "#3fff00"
++        : wa[i].bull
++          ? "#3fff0066"
++          : p.rsiShowDiv
++            ? "#3fff00"
++            : null;
++      if (p.wtDivShow && color) mark(i - 2, -106, color, "Bull divergence");
++    }
++    if (bearDiv) {
++      event("Sell divergence", true);
++      const color = wd[i].bear
++        ? "#ff0000"
++        : wa[i].bear
++          ? "#ff000066"
++          : rd[i].bear
++            ? "#ff0000"
++            : null;
++      if (p.wtDivShow && color) mark(i - 2, 106, color, "Bear divergence");
++    }
++    const previous = wd[i].previousBottom;
++    const gold =
++      ((p.wtShowDiv && wd[i].bull) || (p.rsiShowDiv && rd[i].bull)) &&
++      previous &&
++      previous.value <= p.osLevel3 &&
++      finite(b) &&
++      b > p.osLevel3 &&
++      previous.value - b <= -5 &&
++      finite(rs[previous.index]) &&
++      rs[previous.index]! < 30;
++    if (gold) {
++      event("Gold buy", true);
++      if (p.wtGoldShow) mark(i - 2, -106, "#e2a400", "Gold", "circle", 6);
++    }
++    if (p.sommiFlagShow && finite(mfi[i]) && finite(hv[i])) {
++      const bear =
++        mfi[i]! < p.soomiRSIMFIBearLevel &&
++        b! > p.soomiFlagWTBearLevel &&
++        down &&
++        hv[i]! < p.sommiVwapBearLevel;
++      const bull =
++        mfi[i]! > p.soomiRSIMFIBullLevel &&
++        b! < p.soomiFlagWTBullLevel &&
++        up &&
++        hv[i]! > p.sommiVwapBullLevel;
++      if (bear || bull) {
++        event(bull ? "Sommi bullish flag" : "Sommi bearish flag");
++        mark(
++          i,
++          bull ? -108 : 108,
++          bull ? "#31c0ff" : "#ff00f0",
++          "Sommi flag",
++          "flag",
++        );
++      }
++    }
++    if (p.sommiDiamondShow && finite(ha1[i]) && finite(ha2[i])) {
++      const bear =
++        b! >= p.soomiDiamondWTBearLevel && down && ha1[i] === 0 && ha2[i] === 0;
++      const bull =
++        b! <= p.soomiDiamondWTBullLevel && up && ha1[i] === 1 && ha2[i] === 1;
++      if (bear || bull) {
++        event(bull ? "Sommi bullish diamond" : "Sommi bearish diamond");
++        mark(
++          i,
++          bull ? -108 : 108,
++          bull ? "#31c0ff" : "#ff00f0",
++          "Sommi diamond",
++          "diamond",
++        );
++      }
++    }
++    if (
++      p.macdWTColorsShow &&
++      finite(macd[i]) &&
++      finite(macdSignal[i]) &&
++      finite(macdMfi[i])
++    ) {
++      const up = macd[i]! >= macdSignal[i]!,
++        m = macdMfi[i]!;
++      points[i].wt1Color = up
++        ? m > 0
++          ? "#7ee57e"
++          : "#4caf58"
++        : m < 0
++          ? "#ff3535"
++          : "#af4c4c";
++      points[i].wt2Color = up
++        ? m < 0
++          ? "#132213"
++          : "#305630"
++        : m < 0
++          ? "#770000"
++          : "#310101";
++    }
++  }
++  if (bars.length && !finite(mfi.at(-1)))
++    warnings.push(
++      "Недостаточно истории для MFI: уменьшите период или загрузите больше свечей.",
++    );
++  return { points, events, warnings };
++}
+diff --git a/src/server/market-service.ts b/src/server/market-service.ts
+index e9da2b7de758b5d14c36471416fa168add68cd97..2f66b9018e5b10ed46e5b7b6ef580e135b731080 100644
+--- a/src/server/market-service.ts
++++ b/src/server/market-service.ts
+@@ -1,12 +1,12 @@
+ import { catalog, instrument } from "../domain/catalog";
+ import { demoCandles, demoQuote } from "../domain/demo";
+ import {
+-  intervals,
++  candleIntervals,
+   type Quote,
+   type CandleResponse,
+   type MarketResponse,
+   type LogEntry,
+-  type Timeframe,
++  type CandleInterval,
+ } from "../domain/market";
+ export interface Config {
+   DATA_MODE?: string;
+@@ -201,7 +201,7 @@ export async function markets(
+ }
+ export async function candles(
+   symbol: string,
+-  tf: Timeframe,
++  tf: CandleInterval,
+   config: Config = {},
+   force = false,
+ ): Promise<CandleResponse> {
+@@ -249,6 +249,10 @@ export async function candles(
+                   symbol: providerSymbol,
+                   interval: {
+                     "15m": "15min",
++                    "30m": "30min",
++                    "2h": "2h",
++                    "8h": "8h",
++                    "12h": "12h",
+                     "1h": "1h",
+                     "4h": "4h",
+                     "1d": "1day",
+@@ -327,12 +331,19 @@ export async function handleApi(
+       case "/api/candles": {
+         const symbol = u.searchParams.get("symbol") ?? "BTCUSDT";
+         const tf = u.searchParams.get("interval") ?? "1h";
+-        if (!instrument(symbol) || !Object.hasOwn(intervals, tf))
++        if (!instrument(symbol) || !Object.hasOwn(candleIntervals, tf))
+           return Response.json(
+             { error: "Неизвестный symbol или interval" },
+             { status: 400 },
+           );
+-        result = await candles(symbol, tf as Timeframe, config, force);
++        result = await candles(
++          symbol,
++          tf as CandleInterval,
++          u.searchParams.get("demo") === "1"
++            ? { ...config, DATA_MODE: "demo" }
++            : config,
++          force,
++        );
+         break;
+       }
+       case "/api/health":
+diff --git a/tests/core.test.ts b/tests/core.test.ts
+index 8091e54debf2dd670a5437b26b36b24c0019f125..443e78f35c91e8718169fa2168b6e97763d594c4 100644
+--- a/tests/core.test.ts
++++ b/tests/core.test.ts
+@@ -5,6 +5,7 @@ import { demoCandles, demoQuote } from "../src/domain/demo";
+ import { deviation, intervals, type Timeframe } from "../src/domain/market";
+ import { handleApi } from "../src/server/market-service";
+ import { sessionInfo } from "../src/components/sessions";
++import "./vmc.test";
+ 
+ test("demo OHLC invariants and cross-timeframe current price", () => {
+   const now = Date.parse("2026-09-06T15:37:00Z"),
+diff --git a/tests/vmc.test.ts b/tests/vmc.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..9f9cc3d740583d2ae84efc26de870c3b08d85bf6
+--- /dev/null
++++ b/tests/vmc.test.ts
+@@ -0,0 +1,323 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { readFileSync } from "node:fs";
++import { sma, ema, rma, rsi, stochastic } from "../src/indicators/pine-math";
++import {
++  computeVmc,
++  divergences,
++  alignValues,
++  heikinAshiDirection,
++  waveTrend,
++  schaff,
++} from "../src/indicators/vmc";
++import {
++  vmcDefaults,
++  vmcFields,
++  normalizeVmcParams,
++} from "../src/indicators/vmc-settings";
++import { demoCandles } from "../src/domain/demo";
++import { catalog } from "../src/domain/catalog";
++import { handleApi } from "../src/server/market-service";
++import type { Candle } from "../src/domain/market";
++import { VmcRenderer } from "../src/indicators/vmc-renderer";
++import { vmcStyleDefaults } from "../src/indicators/vmc-settings";
++import type { Time } from "lightweight-charts";
++const candle = (time: number, close = 10): Candle => ({
++  time,
++  open: close - 1,
++  high: close + 2,
++  low: close - 2,
++  close,
++  volume: 10,
++});
++const near = (a: number | null | undefined, b: number) =>
++  assert.ok(typeof a === "number" && Math.abs(a - b) < 1e-9, `${a} != ${b}`);
++
++test("Pine averages seed correctly and na never becomes a zero observation", () => {
++  assert.deepEqual(sma([1, 2, null, 3, 4], 3), [null, null, null, 2, 3]);
++  assert.deepEqual(ema([null, 2, 4, 8], 3), [null, 2, 3, 5.5]);
++  const avg = rma([1, 2, 3, 4, 5], 3);
++  assert.deepEqual(avg.slice(0, 3), [null, null, 2]);
++  near(avg[3], 8 / 3);
++  near(avg[4], 31 / 9);
++  // RSI(3): changes +1,+1,-1 -> gain 2/3, loss 1/3.
++  near(rsi([1, 2, 3, 2], 3)[3], 200 / 3);
++  assert.deepEqual(stochastic([10, 20, 15, 30], 3), [null, 100, 50, 100]);
++});
++test("WaveTrend hand-calculated short vector", () => {
++  const p = normalizeVmcParams({
++    ...vmcDefaults,
++    wtMASource: "close",
++    wtChannelLen: 3,
++    wtAverageLen: 3,
++    wtMALen: 2,
++  });
++  const w = waveTrend(
++    [candle(0, 10), candle(1, 12), candle(2, 14), candle(3, 13)],
++    p,
++  );
++
++  assert.equal(w.wt1[0], null);
++  near(w.wt1[1], 400 / 3);
++  near(w.wt1[2], 350 / 3);
++  near(w.wt1[3], 215 / 3);
++  assert.equal(w.wt2[1], null);
++  near(w.wt2[2], 125);
++  near(w.wt2[3], 565 / 6);
++  near(w.fast[3], -22.5);
++});
++test("all 84 Pine inputs remain represented and settings reject corrupt stored values", () => {
++  const source = readFileSync("references/vmc2-original.pine", "utf8");
++  const names = [...source.matchAll(/^(\w+)\s*=\s*input\(/gm)].map((m) => m[1]);
++  assert.equal(names.length, 84);
++  assert.deepEqual(
++    vmcFields
++      .filter((f) => f.key !== "mtfMode")
++      .map((f) => f.key)
++      .sort(),
++    names.sort(),
++  );
++  const p = normalizeVmcParams({
++    wtChannelLen: 0,
++    rsiLen: Infinity,
++    wtMASource: "bad",
++    rsiSRC: "__proto__",
++    sommiVwapTF: "__proto__",
++    wtShow: "false",
++    colorWT1blue: "url(foo)",
++    rsiOversold: 30,
++  });
++  assert.equal(p.wtChannelLen, 1);
++  assert.equal(p.rsiLen, 14);
++  assert.equal(p.wtMASource, "hlc3");
++  assert.equal(p.sommiVwapTF, "720");
++  assert.equal(p.wtShow, true);
++  assert.equal(p.rsiOversold, 30);
++  assert.equal(p.colorWT1blue, vmcDefaults.colorWT1blue);
++});
++test("divergence is confirmed two bars after pivot, compares price and oscillator", () => {
++  const values = [0, 1, 5, 1, 0, 1, 4, 1, 0];
++  const bars = values.map((_, i) => ({
++    ...candle(i),
++    high: i === 2 ? 20 : i === 6 ? 25 : 15,
++  }));
++  const div = divergences(values, bars, 3, -3, true);
++  assert.equal(div[6].bear, false);
++  assert.equal(div[7].bear, false);
++  assert.equal(div[8].bear, true);
++  assert.equal(div[8].top?.index, 6);
++  assert.equal(div[8].previousTop?.index, 2);
++  assert.deepEqual(
++    divergences(values.slice(0, 8), bars.slice(0, 8), 3, -3, true),
++    div.slice(0, 8),
++  );
++  const hiddenBars = bars.map((b, i) => ({
++    ...b,
++    high: i === 2 ? 25 : i === 6 ? 20 : b.high,
++  }));
++  const hidden = divergences(
++    [0, 1, 4, 1, 0, 1, 5, 1, 0],
++    hiddenBars,
++    3,
++    -3,
++    true,
++  );
++  assert.equal(hidden[8].hiddenBear, true);
++});
++test("MTF historical merge, lookahead and closed-candle mode", () => {
++  const chart = [0, 60, 120, 180, 240, 300, 360, 420].map((t) => candle(t));
++  const high = [candle(0), candle(240)];
++  assert.deepEqual(
++    alignValues(chart, 60, high, 240, [10, 20], false, false, 1000),
++    [null, null, null, 10, 10, 10, 10, 20],
++  );
++  assert.deepEqual(
++    alignValues(chart, 60, high, 240, [10, 20], true, false, 1000),
++    [10, 10, 10, 10, 20, 20, 20, 20],
++  );
++  assert.deepEqual(
++    alignValues(chart.slice(0, 5), 60, high, 240, [10, 999], true, true, 270),
++    [null, null, null, 10, 10],
++  );
++  const small = [0, 60, 120, 180].map((t) => candle(t));
++  assert.deepEqual(
++    alignValues([candle(0)], 240, small, 60, [1, 2, 3, 4], true, false, 1000),
++    [1],
++  );
++  assert.deepEqual(
++    alignValues([candle(0)], 240, small, 60, [1, 2, 3, 4], false, false, 1000),
++    [4],
++  );
++});
++test("Heikin Ashi uses recursive synthetic open", () => {
++  const bars = [
++    { time: 0, open: 10, high: 16, low: 8, close: 14, volume: 1 },
++    { time: 1, open: 14, high: 18, low: 12, close: 16, volume: 1 },
++  ];
++  assert.deepEqual(heikinAshiDirection(bars), [0, 1]);
++});
++test("whole VMC produces finite or null values, deterministic signals and stable prefixes", () => {
++  const now = Date.parse("2026-09-07T10:37:00Z"),
++    bars = demoCandles(catalog[0], "1h", now);
++  const a = computeVmc(bars, vmcDefaults, { interval: "1h", now: now / 1000 });
++  assert.equal(a.points.length, 400);
++  assert.ok(a.events.length > 0);
++  assert.equal(a.warnings.length, 0);
++  assert.ok(
++    a.points.every((p) =>
++      Object.values(p.values).every((v) => v === null || Number.isFinite(v)),
++    ),
++  );
++  assert.ok(a.points.some((p) => p.segments.length > 0));
++  const prefix = computeVmc(bars.slice(0, 200), vmcDefaults, {
++    interval: "1h",
++    now: bars[199].time + 3600,
++  });
++  assert.deepEqual(
++    prefix.points.map((p) => p.values),
++    a.points.slice(0, 200).map((p) => p.values),
++  );
++  assert.deepEqual(
++    prefix.events,
++    a.events.filter((e) => e.time <= bars[199].time),
++  );
++  for (const point of a.points)
++    for (const segment of point.segments)
++      assert.equal(segment.confirmedAt - point.time, 7200);
++  const changed = computeVmc(bars, { ...vmcDefaults, wtChannelLen: 20 });
++  assert.notEqual(
++    a.points.at(-1)!.values.wt2,
++    changed.points.at(-1)!.values.wt2,
++  );
++  const flat = computeVmc(
++    Array.from({ length: 100 }, (_, i) => ({
++      time: i,
++      open: 10,
++      close: 10,
++      high: 10,
++      low: 10,
++      volume: 0,
++    })),
++  );
++  assert.ok(
++    flat.points.every((p) =>
++      Object.values(p.values).every((v) => v === null || Number.isFinite(v)),
++    ),
++  );
++  assert.deepEqual(computeVmc([]).points, []);
++});
++test("MTF calculation loads all requested contexts and reports absent histories", () => {
++  const now = Date.parse("2026-09-07T10:37:00Z"),
++    bars = demoCandles(catalog[0], "1h", now);
++  const params = {
++    ...vmcDefaults,
++    sommiFlagShow: true,
++    sommiDiamondShow: true,
++    sommiShowVwap: true,
++    macdWTColorsShow: true,
++    mtfMode: "confirmed",
++  };
++  const result = computeVmc(bars, params, {
++    interval: "1h",
++    histories: {
++      "4h": demoCandles(catalog[0], "4h", now),
++      "12h": demoCandles(catalog[0], "12h", now),
++    },
++    now: now / 1000,
++  });
++  assert.equal(result.warnings.length, 0);
++  assert.ok(result.points.at(-1)!.values.sommi !== null);
++  assert.ok(result.points.some((p) => p.wt1Color !== vmcDefaults.colorWT1blue));
++  const missing = computeVmc(bars, params, { interval: "1h", now: now / 1000 });
++  assert.equal(missing.warnings.length, 2);
++  assert.ok(missing.points.every((p) => p.values.sommi === null));
++});
++test("new API candle intervals and explicit demo provenance", async () => {
++  for (const tf of ["30m", "2h", "8h", "12h"]) {
++    const r = await handleApi(
++      new Request(
++        `http://local/api/candles?symbol=BTCUSDT&interval=${tf}&demo=1`,
++      ),
++    );
++    assert.equal(r.status, 200);
++    const d = (await r.json()) as any;
++    assert.equal(d.source, "demo");
++    assert.equal(d.data.length, 400);
++  }
++  assert.equal(
++    (await handleApi(new Request("http://local/api/candles?interval=720")))
++      .status,
++    400,
++  );
++});
++
++test("MFI and Schaff hand-calculated vectors", () => {
++  const bars = [10, 12, 14, 13].map((v, i) => candle(i, v));
++  const result = computeVmc(bars, { ...vmcDefaults, rsiMFIperiod: 2 });
++  assert.deepEqual(
++    result.points.map((p) => p.values.mfi),
++    [null, 35, 35, 35],
++  );
++  assert.deepEqual(
++    schaff(
++      [10, 12, 14, 13],
++      normalizeVmcParams({
++        tcfastLength: 1,
++        tcslowLength: 3,
++        tclength: 2,
++        tcfactor: 0.5,
++      }),
++    ),
++    [0, 50, 75, 37.5],
++  );
++});
++
++test("custom renderer handles warm-up, markers and clipping without invalid coordinates", () => {
++  const result = computeVmc(
++    demoCandles(catalog[0], "1h", Date.parse("2026-09-07T10:37:00Z")),
++  );
++  const renderer = new VmcRenderer(vmcDefaults, vmcStyleDefaults, "#ffffff", 1);
++  const data = result.points.map((point, index) => ({
++    time: point.time as Time,
++    point,
++    index,
++  }));
++  for (const point of data)
++    assert.ok(renderer.priceValueBuilder(point).every(Number.isFinite));
++  renderer.update({
++    bars: data.map((originalData, i) => ({
++      x: i * 3,
++      time: i,
++      originalData,
++      barColor: "#fff",
++    })),
++    barSpacing: 3,
++    visibleRange: { from: 0, to: data.length },
++  });
++  let drawingCalls = 0;
++  const check = (...args: unknown[]) => {
++    drawingCalls++;
++    for (const x of args)
++      if (typeof x === "number") assert.ok(Number.isFinite(x));
++  };
++  const context = new Proxy({} as CanvasRenderingContext2D, {
++    get: () => check,
++    set: () => true,
++  });
++  const target = {
++    useMediaCoordinateSpace: (callback: (scope: unknown) => void) =>
++      callback({ context, mediaSize: { width: 800, height: 250 } }),
++  };
++  renderer
++    .renderer()
++    .draw(
++      target as Parameters<ReturnType<VmcRenderer["renderer"]>["draw"]>[0],
++      (value) =>
++        (125 - value) as ReturnType<
++          Parameters<ReturnType<VmcRenderer["renderer"]>["draw"]>[1]
++        >,
++      false,
++    );
++  assert.ok(drawingCalls > 100);
++  renderer.destroy();
++});

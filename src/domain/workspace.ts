@@ -1,3 +1,5 @@
+import { computeVmc } from "../indicators/vmc";
+import type { VmcParams, VmcStyle } from "../indicators/vmc-settings";
 import type { Candle, Timeframe } from "./market";
 /** Serializable workspace document: each future pane owns its series and drawings. */
 export interface IndicatorInstance {
@@ -7,6 +9,9 @@ export interface IndicatorInstance {
   period: number;
   color: string;
   paneId: string;
+  params?: Partial<VmcParams>;
+  style?: Partial<VmcStyle>;
+  timeframes?: Timeframe[];
 }
 export interface Drawing {
   id: string;
@@ -34,6 +39,14 @@ export interface IndicatorDefinition {
   compute?: (bars: Candle[], params: Record<string, unknown>) => unknown;
 }
 export const indicatorRegistry: IndicatorDefinition[] = [
+  {
+    id: "vmc",
+    name: "VMC Cipher B · VuManChu",
+    description:
+      "WaveTrend, MFI, RSI, Stoch RSI, Schaff, дивергенции и Sommi. Отдельная панель.",
+    implemented: true,
+    compute: computeVmc,
+  },
   {
     id: "nwe",
     name: "Nadaraya–Watson Envelope",

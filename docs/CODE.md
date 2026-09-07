@@ -7,7 +7,7 @@
 | `src/domain/market.ts`         | Общие DTO, допустимые таймфреймы, форматирование, формула процента           |
 | `src/domain/catalog.ts`        | Каталог и метаданные инструментов                                            |
 | `src/domain/demo.ts`           | Генерация маркированных синтетических OHLC, согласованных между таймфреймами |
-| `src/domain/workspace.ts`      | Контракты panes, drawings, индикаторов и реестр будущих расчётов             |
+| `src/domain/workspace.ts`      | Контракты panes, drawings, индикаторов и реестр доступных и будущих расчётов |
 | `src/server/market-service.ts` | Получение котировок/свечей, кеш, журнал, HTTP handler                        |
 | `src/hooks/use-resource.ts`    | Polling, отмена устаревших запросов, localStorage                            |
 | `src/components/terminal.tsx`  | Главная страница, Backend, PairWorkspace, настройки и менеджер               |
@@ -34,7 +34,7 @@
 
 ### `candles(symbol, timeframe, config, force)`
 
-Возвращает CandleResponse с 400 свечами или доступным количеством от провайдера. При ошибке провайдера возвращает DEMO и warning. Только известные инструменты и четыре перечисленных interval допускаются обработчиком API.
+Возвращает CandleResponse с 400 свечами или доступным количеством от провайдера. При ошибке провайдера возвращает DEMO и warning. Только известные инструменты и интервалы из `candleIntervals` допускаются обработчиком API. Основной UI использует 15m/1h/4h/1d; VMC дополнительно запрашивает 30m/2h/8h/12h.
 
 ### `cached(key, ttl, force, fn)`
 
@@ -68,3 +68,7 @@ Canvas-график не предоставляет полного screen-reader
 - Новые секреты только через серверный Config/env; не используйте клиентские VITE*/NEXT_PUBLIC* для ключей.
 - Сохраняйте cleanup для timers, subscriptions, observers и chart instances.
 - При изменении localStorage schema повышайте версию ключа или добавляйте миграцию.
+
+## VMC Cipher B
+
+Численные функции, renderer, настройки и MTF-hook описаны в [INDICATOR_VMC.md](INDICATOR_VMC.md). Добавлены необязательные `params`, `style`, `timeframes` у IndicatorInstance; старые записи localStorage совместимы.

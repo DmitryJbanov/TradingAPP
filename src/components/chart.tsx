@@ -17,6 +17,20 @@ import {
   type Candle,
   type Timeframe,
 } from "../domain/market";
+import type { VmcPane } from "../hooks/use-vmc";
+import { VmcRenderer, type VmcChartData } from "../indicators/vmc-renderer";
+import type {
+  CustomSeriesOptions,
+  Time,
+  WhitespaceData,
+} from "lightweight-charts";
+type VmcSeries = ISeriesApi<
+  "Custom",
+  Time,
+  VmcChartData | WhitespaceData<Time>,
+  CustomSeriesOptions
+>;
+
 export interface ChartPalette {
   background: string;
   grid: string;
@@ -36,17 +50,25 @@ export function MarketChart({
   palette,
   timeframe,
   resetKey,
+  vmcPanes,
 }: {
   bars: Candle[];
   palette: ChartPalette;
   timeframe: Timeframe;
   resetKey: number;
+  vmcPanes: VmcPane[];
 }) {
   const host = useRef<HTMLDivElement>(null),
     chart = useRef<IChartApi | null>(null),
     series = useRef<ISeriesApi<"Candlestick"> | null>(null),
     volume = useRef<ISeriesApi<"Histogram"> | null>(null),
     current = useRef(0);
+  const vmcSeries = useRef(
+    new Map<string, { series: VmcSeries; renderer: VmcRenderer }>(),
+  );
+  const [indicatorCursor, setIndicatorCursor] = useState<
+    Record<string, VmcChartData["point"]>
+  >({});
   const [cursor, setCursor] = useState<{
     x: number;
     y: number;
@@ -127,12 +149,19 @@ export function MarketChart({
     series.current = s;
     volume.current = v;
     c.subscribeCrosshairMove((p) => {
+      const values: Record<string, VmcChartData["point"]> = {};
+      vmcSeries.current.forEach((entry, id) => {
+        const d = p.seriesData.get(entry.series);
+        if (d && "point" in d) values[id] = (d as VmcChartData).point;
+      });
+      setIndicatorCursor(values);
       if (!p.point || !p.time || p.point.x < 0 || p.point.y < 0) {
         setCursor(null);
         setOhlc(null);
         return;
       }
-      const price = s.coordinateToPrice(p.point.y);
+      const price = p.paneIndex === 0 ? s.coordinateToPrice(p.point.y) : null;
+      if (price === null) setCursor(null);
       if (price !== null)
         setCursor({
           x: p.point.x,
@@ -148,6 +177,7 @@ export function MarketChart({
       );
     });
     return () => {
+      vmcSeries.current.clear();
       c.remove();
       chart.current = null;
       series.current = null;
@@ -174,7 +204,14 @@ export function MarketChart({
     });
   }, [palette]);
   useEffect(() => {
-    if (!bars.length) return;
+    if (!bars.length) {
+      series.current?.setData([]);
+      volume.current?.setData([]);
+      current.current = 0;
+      setCursor(null);
+      setOhlc(null);
+      return;
+    }
     current.current = bars.at(-1)!.close;
     const p = current.current;
     const precision = p < 0.01 ? 8 : p < 1 ? 6 : p < 10 ? 4 : 2;
@@ -195,73 +232,158 @@ export function MarketChart({
   }, [bars, palette]);
   useEffect(() => {
     chart.current?.timeScale().fitContent();
-    chart.current?.priceScale("right").applyOptions({ autoScale: true });
+    chart.current
+      ?.panes()
+      .forEach((_, index) =>
+        chart.current
+          ?.priceScale("right", index)
+          .applyOptions({ autoScale: true }),
+      );
   }, [timeframe, resetKey]);
+  useEffect(() => {
+    const c = chart.current;
+    if (!c) return;
+    const hadPanes = vmcSeries.current.size > 0;
+    const ids = new Set(vmcPanes.map((p) => p.id));
+    for (const [id, entry] of vmcSeries.current)
+      if (!ids.has(id)) {
+        c.removeSeries(entry.series);
+        vmcSeries.current.delete(id);
+      }
+    vmcPanes.forEach((pane, index) => {
+      let entry = vmcSeries.current.get(pane.id);
+      if (!entry) {
+        const renderer = new VmcRenderer(
+          pane.params,
+          pane.style,
+          palette.text,
+          index + 1,
+        );
+        const s = c.addCustomSeries(renderer, {}, c.panes().length);
+        entry = { series: s, renderer };
+        vmcSeries.current.set(pane.id, entry);
+        s.priceScale().applyOptions({
+          scaleMargins: { top: 0.12, bottom: 0.08 },
+          autoScale: true,
+        });
+        s.getPane().setStretchFactor(1);
+      }
+      entry.renderer.configure(
+        pane.params,
+        pane.style,
+        palette.text,
+        index + 1,
+      );
+      if (entry.series.getPane().paneIndex() !== index + 1)
+        entry.series.getPane().moveTo(index + 1);
+      entry.series.setData(
+        pane.result.points.map((point, index) => ({
+          time: point.time as UTCTimestamp,
+          point,
+          index,
+        })),
+      );
+    });
+    if (!hadPanes && vmcPanes.length) c.panes()[0]?.setStretchFactor(2.5);
+  }, [vmcPanes, palette]);
   const b = ohlc ?? bars.at(-1);
   return (
-    <div className="chart-container" style={{ background: palette.background }}>
-      <div className="chart-ohlc" style={{ color: palette.text }}>
-        {b && (
+    <>
+      <div
+        className="chart-container"
+        style={{
+          background: palette.background,
+          ...(vmcPanes.length ? { height: 560 + vmcPanes.length * 230 } : {}),
+        }}
+      >
+        <div className="chart-ohlc" style={{ color: palette.text }}>
+          {b && (
+            <>
+              O <b>{priceFormat(b.open)}</b> H <b>{priceFormat(b.high)}</b> L{" "}
+              <b>{priceFormat(b.low)}</b> C{" "}
+              <b
+                style={{ color: b.close >= b.open ? palette.up : palette.down }}
+              >
+                {priceFormat(b.close)}
+              </b>
+            </>
+          )}
+        </div>
+        <div
+          className="chart-canvas"
+          ref={host}
+          role="img"
+          aria-label="Свечной график. Перетаскивайте шкалы цены и времени для независимого масштабирования."
+        />
+        {cursor && (
           <>
-            O <b>{priceFormat(b.open)}</b> H <b>{priceFormat(b.high)}</b> L{" "}
-            <b>{priceFormat(b.low)}</b> C{" "}
-            <b style={{ color: b.close >= b.open ? palette.up : palette.down }}>
-              {priceFormat(b.close)}
-            </b>
+            <div
+              className="cursor-percent"
+              style={{
+                left: Math.max(
+                  3,
+                  Math.min(
+                    cursor.x - 42,
+                    (host.current?.clientWidth ?? 500) - 200,
+                  ),
+                ),
+                bottom: 30,
+              }}
+              title="(Текущая цена / цена курсора − 1) × 100"
+            >
+              {cursor.percent === null
+                ? "—"
+                : `${cursor.percent >= 0 ? "+" : ""}${cursor.percent.toFixed(2)}%`}
+            </div>
+            <div
+              className="cursor-price"
+              style={{
+                top: Math.max(
+                  45,
+                  Math.min(
+                    cursor.y + 10,
+                    (host.current?.clientHeight ?? 500) - 90,
+                  ),
+                ),
+                right: 95,
+              }}
+            >
+              Δ к текущей {cursor.percent?.toFixed(2) ?? "—"}%
+            </div>
           </>
         )}
+        <a
+          className="chart-attribution"
+          href="https://www.tradingview.com/"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Charts by TradingView
+        </a>
       </div>
-      <div
-        className="chart-canvas"
-        ref={host}
-        role="img"
-        aria-label="Свечной график. Перетаскивайте шкалы цены и времени для независимого масштабирования."
-      />
-      {cursor && (
-        <>
-          <div
-            className="cursor-percent"
-            style={{
-              left: Math.max(
-                3,
-                Math.min(
-                  cursor.x - 42,
-                  (host.current?.clientWidth ?? 500) - 200,
-                ),
-              ),
-              bottom: 30,
-            }}
-            title="(Текущая цена / цена курсора − 1) × 100"
-          >
-            {cursor.percent === null
-              ? "—"
-              : `${cursor.percent >= 0 ? "+" : ""}${cursor.percent.toFixed(2)}%`}
-          </div>
-          <div
-            className="cursor-price"
-            style={{
-              top: Math.max(
-                45,
-                Math.min(
-                  cursor.y + 10,
-                  (host.current?.clientHeight ?? 500) - 90,
-                ),
-              ),
-              right: 95,
-            }}
-          >
-            Δ к текущей {cursor.percent?.toFixed(2) ?? "—"}%
-          </div>
-        </>
+      {vmcPanes.length > 0 && (
+        <div className="vmc-readouts">
+          {vmcPanes.map((pane, index) => {
+            const point = indicatorCursor[pane.id] ?? pane.result.points.at(-1);
+            return (
+              <div key={pane.id}>
+                <b>VMC #{index + 1}</b>
+                {point &&
+                  Object.entries(point.values)
+                    .filter(
+                      ([key]) => key !== "sommi" || pane.params.sommiShowVwap,
+                    )
+                    .map(([key, v]) => (
+                      <span key={key}>
+                        {key.toUpperCase()}{" "}
+                        <strong>{v?.toFixed(2) ?? "—"}</strong>
+                      </span>
+                    ))}
+              </div>
+            );
+          })}
+        </div>
       )}
-      <a
-        className="chart-attribution"
-        href="https://www.tradingview.com/"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Charts by TradingView
-      </a>
-    </div>
+    </>
   );
 }

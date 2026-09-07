@@ -40,11 +40,12 @@ Volume: Binance quoteVolume в USDT; Twelve Data volume × close — оценк�
 
 ## `GET /api/candles?symbol=BTCUSDT&interval=1h`
 
-| Поле     | Значения                            |
-| -------- | ----------------------------------- |
-| symbol   | Символ из каталога; default BTCUSDT |
-| interval | 15m, 1h, 4h, 1d; default 1h         |
-| refresh  | 1 для обхода TTL                    |
+| Поле     | Значения                                      |
+| -------- | --------------------------------------------- |
+| symbol   | Символ из каталога; default BTCUSDT           |
+| interval | 15m, 30m, 1h, 2h, 4h, 8h, 12h, 1d; default 1h |
+| refresh  | 1 для обхода TTL                              |
+| demo     | 1 для явного запроса DEMO                     |
 
 ```json
 {
@@ -108,3 +109,7 @@ curl -fsS 'http://localhost:3000/api/candles?symbol=BTCUSDT&interval=4h'
 curl -fsS 'http://localhost:3000/api/markets?refresh=1'
 curl -fsS http://localhost:3000/api/logs
 ```
+
+## Дополнение VMC
+
+`GET /api/candles` принимает `interval=15m|30m|1h|2h|4h|8h|12h|1d`. `demo=1` явно запрашивает согласованные синтетические данные, даже при DATA_MODE=auto; используется для дополнительных таймфреймов, когда основной график находится в DEMO. `refresh=1` по-прежнему обходит TTL. Размер ответа — до 400 свечей. Неизвестные интервалы отклоняются с 400. `computeVmc` выполняется в клиенте; отдельного endpoint для индикатора нет.

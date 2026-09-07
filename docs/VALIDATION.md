@@ -1,16 +1,26 @@
 # Проверки поставки
 
+## Дополнение VMC Cipher B — 7 сентября 2026
+
+Для патча VMC выполнены TypeScript typecheck, 16 автоматических тестов (11 новых и 5 исходных), standalone build, Node HTTP smoke и hosted Worker build. В том числе проверены вручную рассчитанные векторы WT, MFI, RSI, Schaff; обработка `na`; соответствие набора из 84 inputs исходнику; регулярная/скрытая дивергенция и задержка подтверждения; HTF/LTF merge, lookahead и закрытые свечи; Heikin Ashi; отсутствие MTF-истории; новые API-интервалы. Custom renderer вызывается с тестовым Canvas-контекстом: проверяются отсутствие исключений и неконечных координат на данных с прогревом и сигналами.
+
+Патч проверяется на чистой копии исходного коммита с `git apply --check`, применяется, затем содержимое затронутых файлов побайтово сравнивается с результатом разработки. Обратное применение также проверяется. Документация применения находится в [APPLY_VMC_PATCH.md](APPLY_VMC_PATCH.md).
+
+Браузерные проверки окна настроек и перетаскивания панелей не выполнялись. Сверка с экспортом значений TradingView не выполнена, численное совпадение с его историей не заявлено. Особенности переноса и ограничения истории описаны в [INDICATOR_VMC.md](INDICATOR_VMC.md). Патч не публиковался на существующий сайт. Standalone bundle после VMC: около 566 KB JS без gzip, 178 KB gzip; предупреждение о размере bundle не блокирует сборку.
+
+## Исходная поставка
+
 Проверки выполнены 6 сентября 2026 UTC.
 
-| Проверка | Результат |
-|---|---|
-| `npm run typecheck` | Успешно, TypeScript без ошибок |
-| `npm run test:core` | 5/5 тестов успешно |
-| `npm run build:standalone` | Успешно, готовый Node + frontend release |
-| Hosted Worker build | Успешно, маршруты `/`, `/pair/:symbol`, четыре API |
-| Node HTTP smoke в DEMO | Успешно: root, direct pair URL, assets, 404, health, 44 котировки, 400 свечей, invalid symbol 400 |
-| Server rendering hosted HTML | Успешно, root вернул HTTP 200 HTML |
-| Реальный Binance запрос свечей | Успешно, BTCUSDT 4h, 400 свечей, source=live |
+| Проверка                       | Результат                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`            | Успешно, TypeScript без ошибок                                                                    |
+| `npm run test:core`            | 5/5 тестов успешно                                                                                |
+| `npm run build:standalone`     | Успешно, готовый Node + frontend release                                                          |
+| Hosted Worker build            | Успешно, маршруты `/`, `/pair/:symbol`, четыре API                                                |
+| Node HTTP smoke в DEMO         | Успешно: root, direct pair URL, assets, 404, health, 44 котировки, 400 свечей, invalid symbol 400 |
+| Server rendering hosted HTML   | Успешно, root вернул HTTP 200 HTML                                                                |
+| Реальный Binance запрос свечей | Успешно, BTCUSDT 4h, 400 свечей, source=live                                                      |
 
 ## Что проверяют core-тесты
 

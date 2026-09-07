@@ -5,6 +5,7 @@ import { demoCandles, demoQuote } from "../src/domain/demo";
 import { deviation, intervals, type Timeframe } from "../src/domain/market";
 import { handleApi } from "../src/server/market-service";
 import { sessionInfo } from "../src/components/sessions";
+import "./vmc.test";
 
 test("demo OHLC invariants and cross-timeframe current price", () => {
   const now = Date.parse("2026-09-06T15:37:00Z"),

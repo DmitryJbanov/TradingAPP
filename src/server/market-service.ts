@@ -1,12 +1,12 @@
 import { catalog, instrument } from "../domain/catalog";
 import { demoCandles, demoQuote } from "../domain/demo";
 import {
-  intervals,
+  candleIntervals,
   type Quote,
   type CandleResponse,
   type MarketResponse,
   type LogEntry,
-  type Timeframe,
+  type CandleInterval,
 } from "../domain/market";
 export interface Config {
   DATA_MODE?: string;
@@ -201,7 +201,7 @@ export async function markets(
 }
 export async function candles(
   symbol: string,
-  tf: Timeframe,
+  tf: CandleInterval,
   config: Config = {},
   force = false,
 ): Promise<CandleResponse> {
@@ -249,6 +249,10 @@ export async function candles(
                   symbol: providerSymbol,
                   interval: {
                     "15m": "15min",
+                    "30m": "30min",
+                    "2h": "2h",
+                    "8h": "8h",
+                    "12h": "12h",
                     "1h": "1h",
                     "4h": "4h",
                     "1d": "1day",
@@ -327,12 +331,19 @@ export async function handleApi(
       case "/api/candles": {
         const symbol = u.searchParams.get("symbol") ?? "BTCUSDT";
         const tf = u.searchParams.get("interval") ?? "1h";
-        if (!instrument(symbol) || !Object.hasOwn(intervals, tf))
+        if (!instrument(symbol) || !Object.hasOwn(candleIntervals, tf))
           return Response.json(
             { error: "Неизвестный symbol или interval" },
             { status: 400 },
           );
-        result = await candles(symbol, tf as Timeframe, config, force);
+        result = await candles(
+          symbol,
+          tf as CandleInterval,
+          u.searchParams.get("demo") === "1"
+            ? { ...config, DATA_MODE: "demo" }
+            : config,
+          force,
+        );
         break;
       }
       case "/api/health":

@@ -1,9 +1,9 @@
 import {
-  intervals,
+  candleIntervals,
   type Candle,
   type Quote,
   type Instrument,
-  type Timeframe,
+  type CandleInterval,
 } from "./market";
 function hash(s: string) {
   return [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
@@ -11,10 +11,10 @@ function hash(s: string) {
 /** Fixed 15-minute base process makes all timeframe closes and OHLC aggregates consistent. */
 export function demoCandles(
   item: Instrument,
-  tf: Timeframe,
+  tf: CandleInterval,
   now = Date.now(),
 ): Candle[] {
-  const step = intervals[tf],
+  const step = candleIntervals[tf],
     end = Math.floor(now / 1000 / step) * step,
     seed = hash(item.symbol);
   const currentBase = Math.floor(now / 1000 / 900),
