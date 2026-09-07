@@ -1,0 +1,70 @@
+// Nadaraya-Watson Envelope Strategy (NON-REPAINT)
+
+//@version=5
+strategy("Nadaraya-Watson Envelope Strategy NR", overlay=true, pyramiding=0, process_orders_on_close=true, calc_on_every_tick=false, max_bars_back=500, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+//──────────────────── SETTINGS
+src   = input.source(close, "Source")
+h     = input.float(8.0, "Bandwidth", minval=0.1)
+mult  = input.float(3.0, "Envelope Multiplier", minval=0.1)
+window = input.int(200, "Window", minval=50, maxval=500)
+
+entryMode = input.string("Return", "Entry Mode", options=["Breakout","Return"])
+
+tpMode = input.string("Basis", "Take Profit Mode", options=["Basis","Percent"])
+tpPercent = input.float(1.0, "TP %", step=0.1)
+slPercent = input.float(1.0, "SL %", step=0.1)
+
+//──────────────────── GAUSS FUNCTION
+gauss(x, h) =>
+    math.exp(-(x*x)/(2*h*h))
+
+//──────────────────── COEFFICIENTS
+var coefs = array.new_float()
+var float den = 0.0
+
+if barstate.isfirst
+    for i = 0 to window-1
+        w = gauss(i,h)
+        array.push(coefs,w)
+        den += w
+
+//──────────────────── NWE BASIS
+float basis = na
+if bar_index >= window-1
+    float sum = 0.0
+    for i = 0 to window-1
+        sum += src[i] * array.get(coefs,i)
+    basis := sum/den
+
+//──────────────────── ENVELOPE
+dev = ta.sma(math.abs(src-basis), window) * mult
+upper = basis + dev
+lower = basis - dev
+
+//──────────────────── ENTRY LOGIC
+longSignal  = entryMode=="Breakout" ? ta.crossunder(close,lower) : ta.crossover(close,lower)
+shortSignal = entryMode=="Breakout" ? ta.crossover(close,upper) : ta.crossunder(close,upper)
+
+//──────────────────── RISK
+longTP  = tpMode=="Basis" ? basis : strategy.position_avg_price*(1+tpPercent/100)
+shortTP = tpMode=="Basis" ? basis : strategy.position_avg_price*(1-tpPercent/100)
+
+longSL  = strategy.position_avg_price*(1-slPercent/100)
+shortSL = strategy.position_avg_price*(1+slPercent/100)
+
+//──────────────────── ORDERS
+if longSignal
+    strategy.entry("LONG", strategy.long)
+
+if shortSignal
+    strategy.entry("SHORT", strategy.short)
+
+strategy.exit("L EXIT", from_entry="LONG", stop=longSL, limit=longTP)
+strategy.exit("S EXIT", from_entry="SHORT", stop=shortSL, limit=shortTP)
+
+//──────────────────── PLOTS
+plot(basis, color=color.orange, linewidth=2)
+u = plot(upper, color=color.teal)
+l = plot(lower, color=color.red)
+fill(u,l,color.new(color.gray,90))

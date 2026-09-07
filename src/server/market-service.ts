@@ -1,0 +1,371 @@
+import { catalog, instrument } from "../domain/catalog";
+import { demoCandles, demoQuote } from "../domain/demo";
+import {
+  intervals,
+  type Quote,
+  type CandleResponse,
+  type MarketResponse,
+  type LogEntry,
+  type Timeframe,
+} from "../domain/market";
+export interface Config {
+  DATA_MODE?: string;
+  TWELVE_DATA_API_KEY?: string;
+}
+const logs: LogEntry[] = [];
+let sequence = 0;
+const started = Date.now();
+const cache = new Map<string, { value: any; expires: number }>();
+const pending = new Map<string, Promise<any>>();
+const providers: Record<string, { status: string; time: string }> = {};
+function log(level: LogEntry["level"], message: string) {
+  const item = {
+    id: ++sequence,
+    time: new Date().toISOString(),
+    level,
+    message,
+  };
+  logs.push(item);
+  if (logs.length > 100) logs.shift();
+  console.log(JSON.stringify(item));
+}
+async function json(url: string) {
+  const r = await fetch(url, {
+    signal: AbortSignal.timeout(8000),
+    headers: { Accept: "application/json" },
+  });
+  if (!r.ok) throw Error(`HTTP ${r.status}`);
+  const d: any = await r.json();
+  if (d.status === "error")
+    throw Error(`Provider error ${d.code ?? "unknown"}`);
+  return d;
+}
+async function cached<T>(
+  key: string,
+  ttl: number,
+  force: boolean,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const c = cache.get(key);
+  if (!force && c && c.expires > Date.now()) return c.value;
+  if (pending.has(key)) return pending.get(key)!;
+  const job = fn()
+    .then((value) => {
+      if (cache.size > 250) cache.delete(cache.keys().next().value!);
+      cache.set(key, { value, expires: Date.now() + ttl });
+      return value;
+    })
+    .finally(() => pending.delete(key));
+  pending.set(key, job);
+  return job;
+}
+function status(provider: string, ok: boolean) {
+  providers[provider] = {
+    status: ok ? "connected" : "unavailable",
+    time: new Date().toISOString(),
+  };
+}
+const base = "https://data-api.binance.vision";
+export async function markets(
+  config: Config = {},
+  force = false,
+): Promise<MarketResponse> {
+  return cached(
+    "markets:" +
+      (config.DATA_MODE ?? "auto") +
+      ":" +
+      Boolean(config.TWELVE_DATA_API_KEY),
+    30000,
+    force,
+    async () => {
+      const now = Date.now();
+      const rows = catalog.map((x) => demoQuote(x, now));
+      const warnings: string[] = [];
+      if (config.DATA_MODE !== "demo") {
+        await Promise.all([
+          (async () => {
+            try {
+              const data = await json(
+                base +
+                  "/api/v3/ticker/24hr?" +
+                  new URLSearchParams({
+                    symbols: JSON.stringify(
+                      catalog
+                        .filter((x) => x.category === "crypto")
+                        .map((x) => x.symbol),
+                    ),
+                  }),
+              );
+              if (!Array.isArray(data)) throw Error("Invalid response");
+              const map = new Map(data.map((d: any) => [d.symbol, d]));
+              for (let i = 0; i < rows.length; i++) {
+                const item = rows[i];
+                if (item.category !== "crypto") continue;
+                const d: any = map.get(item.symbol);
+                if (!d || !Number.isFinite(+d.lastPrice) || +d.lastPrice <= 0)
+                  continue;
+                rows[i] = {
+                  ...item,
+                  price: +d.lastPrice,
+                  change: +d.priceChangePercent,
+                  volume: +d.quoteVolume,
+                  high: +d.highPrice,
+                  low: +d.lowPrice,
+                  source: "live",
+                  provider: "Binance",
+                  asOf: new Date(+d.closeTime).toISOString(),
+                };
+              }
+              status("Binance", true);
+              log(
+                "INFO",
+                `Binance: обновлено ${rows.filter((x) => x.source === "live").length} котировок`,
+              );
+            } catch (e) {
+              status("Binance", false);
+              warnings.push(
+                "Binance недоступен: криптовалюты показаны в деморежиме",
+              );
+              log(
+                "WARN",
+                `Binance: ${e instanceof Error ? e.message : "request failed"}; demo fallback`,
+              );
+            }
+          })(),
+          (async () => {
+            if (!config.TWELVE_DATA_API_KEY) return;
+            try {
+              const others = catalog.filter((x) => x.category !== "crypto");
+              const symbols = others.map((x) =>
+                x.category === "forex"
+                  ? x.base.slice(0, 3) + "/" + x.base.slice(3)
+                  : x.symbol,
+              );
+              const data = await json(
+                "https://api.twelvedata.com/quote?" +
+                  new URLSearchParams({
+                    symbol: symbols.join(","),
+                    apikey: config.TWELVE_DATA_API_KEY,
+                  }),
+              );
+              let count = 0;
+              for (let j = 0; j < others.length; j++) {
+                const d = data[symbols[j]];
+                if (
+                  !d ||
+                  d.status === "error" ||
+                  !Number.isFinite(+d.close) ||
+                  +d.close <= 0
+                )
+                  continue;
+                const i = rows.findIndex((x) => x.symbol === others[j].symbol);
+                rows[i] = {
+                  ...rows[i],
+                  price: +d.close,
+                  change: +d.percent_change || 0,
+                  volume: (+d.volume || 0) * +d.close,
+                  high: +d.high,
+                  low: +d.low,
+                  source: "live",
+                  provider: "Twelve Data",
+                  asOf: d.timestamp
+                    ? new Date(+d.timestamp * 1000).toISOString()
+                    : new Date(now).toISOString(),
+                };
+                count++;
+              }
+              status("Twelve Data", count > 0);
+              log(
+                count ? "INFO" : "WARN",
+                `Twelve Data: обновлено ${count} котировок`,
+              );
+            } catch (e) {
+              status("Twelve Data", false);
+              warnings.push("Twelve Data недоступен");
+              log("WARN", "Twelve Data: request failed; demo fallback");
+            }
+          })(),
+        ]);
+      }
+      if (rows.some((x) => x.source === "demo"))
+        warnings.push(
+          "DEMO — синтетические данные; акции и индексы требуют ключ Twelve Data и доступного тарифа",
+        );
+      return {
+        data: rows,
+        asOf: new Date(now).toISOString(),
+        warning: warnings.join(". ") || undefined,
+      };
+    },
+  );
+}
+export async function candles(
+  symbol: string,
+  tf: Timeframe,
+  config: Config = {},
+  force = false,
+): Promise<CandleResponse> {
+  const item = instrument(symbol);
+  if (!item) throw Error("Unknown symbol");
+  return cached(
+    `candles:${symbol}:${tf}:${config.DATA_MODE}:${!!config.TWELVE_DATA_API_KEY}`,
+    15000,
+    force,
+    async () => {
+      const asOf = new Date().toISOString();
+      let reason = "Демонстрационные свечи";
+      if (config.DATA_MODE !== "demo")
+        try {
+          if (item.category === "crypto") {
+            const data = await json(
+              base +
+                "/api/v3/klines?" +
+                new URLSearchParams({ symbol, interval: tf, limit: "400" }),
+            );
+            if (!Array.isArray(data) || !data.length)
+              throw Error("Empty response");
+            const bars = data.map((d: any) => ({
+              time: +d[0] / 1000,
+              open: +d[1],
+              high: +d[2],
+              low: +d[3],
+              close: +d[4],
+              volume: +d[5],
+            }));
+            if (bars.some((b) => !Number.isFinite(b.close) || b.close <= 0))
+              throw Error("Invalid candles");
+            status("Binance", true);
+            log("INFO", `${symbol} ${tf}: ${bars.length} свечей Binance`);
+            return { data: bars, source: "live", provider: "Binance", asOf };
+          }
+          if (config.TWELVE_DATA_API_KEY) {
+            const providerSymbol =
+              item.category === "forex"
+                ? symbol.slice(0, 3) + "/" + symbol.slice(3)
+                : symbol;
+            const data = await json(
+              "https://api.twelvedata.com/time_series?" +
+                new URLSearchParams({
+                  symbol: providerSymbol,
+                  interval: {
+                    "15m": "15min",
+                    "1h": "1h",
+                    "4h": "4h",
+                    "1d": "1day",
+                  }[tf],
+                  outputsize: "400",
+                  timezone: "UTC",
+                  apikey: config.TWELVE_DATA_API_KEY,
+                }),
+            );
+            if (!Array.isArray(data.values) || !data.values.length)
+              throw Error("Empty response");
+            const bars = data.values
+              .map((d: any) => ({
+                time:
+                  Date.parse(
+                    d.datetime.replace(" ", "T") +
+                      (d.datetime.includes(":") ? "Z" : "T00:00:00Z"),
+                  ) / 1000,
+                open: +d.open,
+                high: +d.high,
+                low: +d.low,
+                close: +d.close,
+                volume: +d.volume || 0,
+              }))
+              .sort((a: any, b: any) => a.time - b.time);
+            if (
+              bars.some(
+                (b: any) =>
+                  !Number.isFinite(b.time) || !Number.isFinite(b.close),
+              )
+            )
+              throw Error("Invalid candles");
+            status("Twelve Data", true);
+            log("INFO", `${symbol} ${tf}: ${bars.length} свечей Twelve Data`);
+            return {
+              data: bars,
+              source: "live",
+              provider: "Twelve Data",
+              asOf,
+            };
+          }
+          reason = "Для этого рынка нужен ключ Twelve Data";
+        } catch (e) {
+          reason = "Источник недоступен: показаны демонстрационные свечи";
+          status(item.category === "crypto" ? "Binance" : "Twelve Data", false);
+          log("WARN", `${symbol} ${tf}: request failed; demo fallback`);
+        }
+      return {
+        data: demoCandles(item, tf),
+        source: "demo",
+        provider: "Demo",
+        asOf,
+        warning: reason,
+      };
+    },
+  );
+}
+/** Shared Fetch API handler used by both Cloudflare and standalone Node. */
+export async function handleApi(
+  request: Request,
+  config: Config = {},
+): Promise<Response> {
+  const u = new URL(request.url);
+  if (request.method !== "GET")
+    return Response.json(
+      { error: "Method not allowed" },
+      { status: 405, headers: { Allow: "GET" } },
+    );
+  const force = u.searchParams.get("refresh") === "1";
+  try {
+    let result: unknown;
+    switch (u.pathname) {
+      case "/api/markets":
+        result = await markets(config, force);
+        break;
+      case "/api/candles": {
+        const symbol = u.searchParams.get("symbol") ?? "BTCUSDT";
+        const tf = u.searchParams.get("interval") ?? "1h";
+        if (!instrument(symbol) || !Object.hasOwn(intervals, tf))
+          return Response.json(
+            { error: "Неизвестный symbol или interval" },
+            { status: 400 },
+          );
+        result = await candles(symbol, tf as Timeframe, config, force);
+        break;
+      }
+      case "/api/health":
+        result = {
+          status: "ok",
+          uptime: Math.floor((Date.now() - started) / 1000),
+          time: new Date().toISOString(),
+          providers,
+          cacheEntries: cache.size,
+          mode: config.DATA_MODE ?? "auto",
+          logScope: "current process / worker isolate",
+        };
+        break;
+      case "/api/logs":
+        result = {
+          data: logs.slice(-60),
+          scope: "current process / worker isolate",
+        };
+        break;
+      default:
+        return Response.json({ error: "Not found" }, { status: 404 });
+    }
+    return Response.json(result, {
+      headers: {
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  } catch {
+    log("ERROR", "Internal API error");
+    return Response.json(
+      { error: "Внутренняя ошибка сервера" },
+      { status: 500 },
+    );
+  }
+}

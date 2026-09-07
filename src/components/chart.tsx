@@ -1,0 +1,267 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
+import {
+  createChart,
+  CandlestickSeries,
+  HistogramSeries,
+  ColorType,
+  CrosshairMode,
+  LineStyle,
+  type IChartApi,
+  type ISeriesApi,
+  type UTCTimestamp,
+} from "lightweight-charts";
+import {
+  deviation,
+  priceFormat,
+  type Candle,
+  type Timeframe,
+} from "../domain/market";
+export interface ChartPalette {
+  background: string;
+  grid: string;
+  up: string;
+  down: string;
+  text: string;
+}
+export const defaultPalette: ChartPalette = {
+  background: "#101318",
+  grid: "#20262f",
+  up: "#44d7a8",
+  down: "#ef7185",
+  text: "#8f9bab",
+};
+export function MarketChart({
+  bars,
+  palette,
+  timeframe,
+  resetKey,
+}: {
+  bars: Candle[];
+  palette: ChartPalette;
+  timeframe: Timeframe;
+  resetKey: number;
+}) {
+  const host = useRef<HTMLDivElement>(null),
+    chart = useRef<IChartApi | null>(null),
+    series = useRef<ISeriesApi<"Candlestick"> | null>(null),
+    volume = useRef<ISeriesApi<"Histogram"> | null>(null),
+    current = useRef(0);
+  const [cursor, setCursor] = useState<{
+    x: number;
+    y: number;
+    price: number;
+    percent: number | null;
+  } | null>(null);
+  const [ohlc, setOhlc] = useState<Candle | null>(null);
+  useEffect(() => {
+    if (!host.current) return;
+    const c = createChart(host.current, {
+      autoSize: true,
+      layout: {
+        background: { type: ColorType.Solid, color: palette.background },
+        textColor: palette.text,
+        fontFamily: "ui-monospace, monospace",
+        fontSize: 12,
+        attributionLogo: true,
+      },
+      grid: {
+        vertLines: { color: palette.grid },
+        horzLines: { color: palette.grid },
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: {
+          style: LineStyle.Dashed,
+          color: "#8994a5",
+          labelBackgroundColor: "#364153",
+        },
+        horzLine: {
+          style: LineStyle.Dashed,
+          color: "#8994a5",
+          labelBackgroundColor: "#364153",
+        },
+      },
+      rightPriceScale: {
+        borderColor: palette.grid,
+        minimumWidth: 90,
+        scaleMargins: { top: 0.13, bottom: 0.23 },
+      },
+      timeScale: {
+        borderColor: palette.grid,
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 8,
+        barSpacing: 8,
+      },
+      handleScale: {
+        axisPressedMouseMove: { time: true, price: true },
+        axisDoubleClickReset: { time: true, price: true },
+        mouseWheel: true,
+        pinch: true,
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
+      },
+    });
+    const s = c.addSeries(CandlestickSeries, {
+      upColor: palette.up,
+      downColor: palette.down,
+      borderVisible: false,
+      wickUpColor: palette.up,
+      wickDownColor: palette.down,
+    });
+    const v = c.addSeries(HistogramSeries, {
+      priceScaleId: "volume",
+      priceFormat: { type: "volume" },
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+    c.priceScale("volume").applyOptions({
+      scaleMargins: { top: 0.85, bottom: 0 },
+    });
+    chart.current = c;
+    series.current = s;
+    volume.current = v;
+    c.subscribeCrosshairMove((p) => {
+      if (!p.point || !p.time || p.point.x < 0 || p.point.y < 0) {
+        setCursor(null);
+        setOhlc(null);
+        return;
+      }
+      const price = s.coordinateToPrice(p.point.y);
+      if (price !== null)
+        setCursor({
+          x: p.point.x,
+          y: p.point.y,
+          price,
+          percent: deviation(current.current, price),
+        });
+      const bar = p.seriesData.get(s);
+      setOhlc(
+        bar && "open" in bar
+          ? ({ ...bar, time: Number(bar.time), volume: 0 } as Candle)
+          : null,
+      );
+    });
+    return () => {
+      c.remove();
+      chart.current = null;
+      series.current = null;
+      volume.current = null;
+    };
+    // One chart per workspace pane; updates below preserve independent axis scaling.
+  }, []);
+  useEffect(() => {
+    chart.current?.applyOptions({
+      layout: {
+        background: { type: ColorType.Solid, color: palette.background },
+        textColor: palette.text,
+      },
+      grid: {
+        vertLines: { color: palette.grid },
+        horzLines: { color: palette.grid },
+      },
+    });
+    series.current?.applyOptions({
+      upColor: palette.up,
+      downColor: palette.down,
+      wickUpColor: palette.up,
+      wickDownColor: palette.down,
+    });
+  }, [palette]);
+  useEffect(() => {
+    if (!bars.length) return;
+    current.current = bars.at(-1)!.close;
+    const p = current.current;
+    const precision = p < 0.01 ? 8 : p < 1 ? 6 : p < 10 ? 4 : 2;
+    series.current?.applyOptions({
+      priceFormat: { type: "price", precision, minMove: 10 ** -precision },
+    });
+    series.current?.setData(
+      bars.map((b) => ({ ...b, time: b.time as UTCTimestamp })),
+    );
+    volume.current?.setData(
+      bars.map((b) => ({
+        time: b.time as UTCTimestamp,
+        value: b.volume,
+        color: (b.close >= b.open ? palette.up : palette.down) + "38",
+      })),
+    );
+    setCursor(null);
+  }, [bars, palette]);
+  useEffect(() => {
+    chart.current?.timeScale().fitContent();
+    chart.current?.priceScale("right").applyOptions({ autoScale: true });
+  }, [timeframe, resetKey]);
+  const b = ohlc ?? bars.at(-1);
+  return (
+    <div className="chart-container" style={{ background: palette.background }}>
+      <div className="chart-ohlc" style={{ color: palette.text }}>
+        {b && (
+          <>
+            O <b>{priceFormat(b.open)}</b> H <b>{priceFormat(b.high)}</b> L{" "}
+            <b>{priceFormat(b.low)}</b> C{" "}
+            <b style={{ color: b.close >= b.open ? palette.up : palette.down }}>
+              {priceFormat(b.close)}
+            </b>
+          </>
+        )}
+      </div>
+      <div
+        className="chart-canvas"
+        ref={host}
+        role="img"
+        aria-label="Свечной график. Перетаскивайте шкалы цены и времени для независимого масштабирования."
+      />
+      {cursor && (
+        <>
+          <div
+            className="cursor-percent"
+            style={{
+              left: Math.max(
+                3,
+                Math.min(
+                  cursor.x - 42,
+                  (host.current?.clientWidth ?? 500) - 200,
+                ),
+              ),
+              bottom: 30,
+            }}
+            title="(Текущая цена / цена курсора − 1) × 100"
+          >
+            {cursor.percent === null
+              ? "—"
+              : `${cursor.percent >= 0 ? "+" : ""}${cursor.percent.toFixed(2)}%`}
+          </div>
+          <div
+            className="cursor-price"
+            style={{
+              top: Math.max(
+                45,
+                Math.min(
+                  cursor.y + 10,
+                  (host.current?.clientHeight ?? 500) - 90,
+                ),
+              ),
+              right: 95,
+            }}
+          >
+            Δ к текущей {cursor.percent?.toFixed(2) ?? "—"}%
+          </div>
+        </>
+      )}
+      <a
+        className="chart-attribution"
+        href="https://www.tradingview.com/"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Charts by TradingView
+      </a>
+    </div>
+  );
+}

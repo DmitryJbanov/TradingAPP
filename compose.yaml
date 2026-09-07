@@ -1,0 +1,21 @@
+services:
+  terminal:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATA_MODE: ${DATA_MODE:-auto}
+      TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
