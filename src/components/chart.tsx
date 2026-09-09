@@ -19,6 +19,8 @@ import {
 } from "../domain/market";
 import type { VmcPane } from "../hooks/use-vmc";
 import { VmcRenderer, type VmcChartData } from "../indicators/vmc-renderer";
+import type { OrderBlockOverlay } from "../hooks/use-order-blocks";
+import { OrderBlocksRenderer } from "../indicators/order-blocks-renderer";
 import type {
   CustomSeriesOptions,
   Time,
@@ -51,12 +53,14 @@ export function MarketChart({
   timeframe,
   resetKey,
   vmcPanes,
+  orderBlocks,
 }: {
   bars: Candle[];
   palette: ChartPalette;
   timeframe: Timeframe;
   resetKey: number;
   vmcPanes: VmcPane[];
+  orderBlocks: OrderBlockOverlay[];
 }) {
   const host = useRef<HTMLDivElement>(null),
     chart = useRef<IChartApi | null>(null),
@@ -66,6 +70,7 @@ export function MarketChart({
   const vmcSeries = useRef(
     new Map<string, { series: VmcSeries; renderer: VmcRenderer }>(),
   );
+  const orderBlocksRenderer = useRef<OrderBlocksRenderer | null>(null);
   const [indicatorCursor, setIndicatorCursor] = useState<
     Record<string, VmcChartData["point"]>
   >({});
@@ -148,6 +153,9 @@ export function MarketChart({
     chart.current = c;
     series.current = s;
     volume.current = v;
+    const obRenderer = new OrderBlocksRenderer();
+    s.attachPrimitive(obRenderer);
+    orderBlocksRenderer.current = obRenderer;
     c.subscribeCrosshairMove((p) => {
       const values: Record<string, VmcChartData["point"]> = {};
       vmcSeries.current.forEach((entry, id) => {
@@ -178,6 +186,8 @@ export function MarketChart({
     });
     return () => {
       vmcSeries.current.clear();
+      s.detachPrimitive(obRenderer);
+      orderBlocksRenderer.current = null;
       c.remove();
       chart.current = null;
       series.current = null;
@@ -230,6 +240,9 @@ export function MarketChart({
     );
     setCursor(null);
   }, [bars, palette]);
+  useEffect(() => {
+    orderBlocksRenderer.current?.configure(orderBlocks);
+  }, [orderBlocks]);
   useEffect(() => {
     chart.current?.timeScale().fitContent();
     chart.current
@@ -379,6 +392,44 @@ export function MarketChart({
                         <strong>{v?.toFixed(2) ?? "—"}</strong>
                       </span>
                     ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {orderBlocks.length > 0 && (
+        <div className="vmc-readouts">
+          {orderBlocks.map((overlay, index) => {
+            const event = overlay.result.events.at(-1);
+            return (
+              <div key={overlay.id}>
+                <b>Sonarlab OB #{index + 1}</b>
+                <span>
+                  Бычьи зоны{" "}
+                  <strong>
+                    {
+                      overlay.result.blocks.filter((b) => b.side === "bullish")
+                        .length
+                    }
+                  </strong>
+                </span>
+                <span>
+                  Медвежьи зоны{" "}
+                  <strong>
+                    {
+                      overlay.result.blocks.filter((b) => b.side === "bearish")
+                        .length
+                    }
+                  </strong>
+                </span>
+                <span>
+                  Последний сигнал:{" "}
+                  <strong>
+                    {event
+                      ? `${event.side === "bullish" ? "Buy" : "Sell"} · ${new Date(event.time * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC`
+                      : "—"}
+                  </strong>
+                </span>
               </div>
             );
           })}

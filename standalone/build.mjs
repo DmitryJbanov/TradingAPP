@@ -35,3 +35,14 @@ await copyFile(
   "THIRD_PARTY_NOTICES.md",
   "release/licenses/THIRD_PARTY_NOTICES.md",
 );
+await mkdir("release/licenses/sonarlab", { recursive: true });
+for (const source of [
+  "references/sonarlab-ob-original.pine",
+  "src/indicators/order-blocks.ts",
+  "src/indicators/order-blocks-settings.ts",
+]) {
+  await copyFile(
+    source,
+    `release/licenses/sonarlab/${source.split("/").at(-1)}`,
+  );
+}

@@ -1,5 +1,7 @@
 import { computeVmc } from "../indicators/vmc";
 import type { VmcParams, VmcStyle } from "../indicators/vmc-settings";
+import { computeOrderBlocks } from "../indicators/order-blocks";
+import type { OrderBlockParams } from "../indicators/order-blocks-settings";
 import type { Candle, Timeframe } from "./market";
 /** Serializable workspace document: each future pane owns its series and drawings. */
 export interface IndicatorInstance {
@@ -9,7 +11,7 @@ export interface IndicatorInstance {
   period: number;
   color: string;
   paneId: string;
-  params?: Partial<VmcParams>;
+  params?: Partial<VmcParams> | Partial<OrderBlockParams>;
   style?: Partial<VmcStyle>;
   timeframes?: Timeframe[];
 }
@@ -46,6 +48,14 @@ export const indicatorRegistry: IndicatorDefinition[] = [
       "WaveTrend, MFI, RSI, Stoch RSI, Schaff, дивергенции и Sommi. Отдельная панель.",
     implemented: true,
     compute: computeVmc,
+  },
+  {
+    id: "sonarlab-ob",
+    name: "Sonarlab · Order Blocks",
+    description:
+      "Бычьи и медвежьи зоны на ценовом графике. Чувствительность, удаление Close/Wick и сигналы касания.",
+    implemented: true,
+    compute: computeOrderBlocks,
   },
   {
     id: "nwe",

@@ -65,6 +65,9 @@ import { MarketChart, defaultPalette, type ChartPalette } from "./chart";
 import { useVmc } from "../hooks/use-vmc";
 import { VmcSettingsDialog } from "./vmc-settings-dialog";
 import { vmcDefaults, vmcStyleDefaults } from "../indicators/vmc-settings";
+import { useOrderBlocks } from "../hooks/use-order-blocks";
+import { OrderBlocksSettingsDialog } from "./order-blocks-settings-dialog";
+import { orderBlockDefaults } from "../indicators/order-blocks-settings";
 
 function Change({ value }: { value: number }) {
   return (
@@ -918,6 +921,7 @@ function PairWorkspace({
     15000,
   );
   const vmc = useVmc(symbol, tf, resource.data, indicators, indicatorRefresh);
+  const orderBlocks = useOrderBlocks(tf, resource.data, indicators);
   const editingIndicator = indicators.find((i) => i.id === settingsId);
   function openIndicatorSettings(id: string) {
     setManager(false);
@@ -1076,6 +1080,7 @@ function PairWorkspace({
               palette={palette}
               resetKey={reset}
               vmcPanes={vmc.panes}
+              orderBlocks={orderBlocks}
             />
             {!bars.length && (
               <div className="chart-loading">
@@ -1110,7 +1115,7 @@ function PairWorkspace({
                 <button
                   key={i.id}
                   onClick={() =>
-                    i.definitionId === "vmc"
+                    i.definitionId === "vmc" || i.definitionId === "sonarlab-ob"
                       ? openIndicatorSettings(i.id)
                       : setManager(true)
                   }
@@ -1120,9 +1125,10 @@ function PairWorkspace({
                   {
                     indicatorRegistry.find((x) => x.id === i.definitionId)?.name
                   }{" "}
-                  {i.definitionId === "vmc" ? (
+                  {i.definitionId === "vmc" ||
+                  i.definitionId === "sonarlab-ob" ? (
                     <small>
-                      {vmc.panes.some((p) => p.id === i.id)
+                      {[...vmc.panes, ...orderBlocks].some((p) => p.id === i.id)
                         ? "настройки ⚙"
                         : "скрыт · настройки ⚙"}
                     </small>
@@ -1194,8 +1200,8 @@ function PairWorkspace({
           <DialogHeader>
             <DialogTitle>Индикаторы</DialogTitle>
             <DialogDescription>
-              Настройте состав для {symbol}. VMC Cipher B доступен для расчёта;
-              остальные индикаторы пока в разработке.
+              Настройте состав для {symbol}. Доступны VMC Cipher B и Sonarlab
+              Order Blocks; остальные индикаторы пока в разработке.
             </DialogDescription>
           </DialogHeader>
           <label className="search-field">
@@ -1237,14 +1243,19 @@ function PairWorkspace({
                                 : d.id === "rsi"
                                   ? 14
                                   : 20,
-                          color: "#99a5ff",
+                          color:
+                            d.id === "sonarlab-ob"
+                              ? orderBlockDefaults.col_bullish
+                              : "#99a5ff",
                           paneId: d.id === "vmc" ? "oscillator" : "main",
                           ...(d.id === "vmc"
                             ? {
                                 params: { ...vmcDefaults },
                                 style: { ...vmcStyleDefaults },
                               }
-                            : {}),
+                            : d.id === "sonarlab-ob"
+                              ? { params: { ...orderBlockDefaults } }
+                              : {}),
                         },
                       ])
                     }
@@ -1301,7 +1312,8 @@ function PairWorkspace({
                     <Trash2 size={15} />
                   </button>
                 </div>
-                {i.definitionId === "vmc" ? (
+                {i.definitionId === "vmc" ||
+                i.definitionId === "sonarlab-ob" ? (
                   <div className="instance-options">
                     <button
                       className="button"
@@ -1311,7 +1323,10 @@ function PairWorkspace({
                       Настройки
                     </button>
                     <span className="muted">
-                      Отдельная панель · расчёт подключён
+                      {i.definitionId === "vmc"
+                        ? "Отдельная панель"
+                        : "На ценовом графике"}{" "}
+                      · расчёт подключён
                     </span>
                   </div>
                 ) : (
@@ -1372,8 +1387,20 @@ function PairWorkspace({
           </div>
         </DialogContent>
       </Dialog>
-      {editingIndicator && (
+      {editingIndicator?.definitionId === "vmc" && (
         <VmcSettingsDialog
+          key={editingIndicator.id}
+          instance={editingIndicator}
+          onClose={() => setSettingsId(null)}
+          onApply={(next) =>
+            changeIndicators(
+              indicators.map((i) => (i.id === next.id ? next : i)),
+            )
+          }
+        />
+      )}
+      {editingIndicator?.definitionId === "sonarlab-ob" && (
+        <OrderBlocksSettingsDialog
           key={editingIndicator.id}
           instance={editingIndicator}
           onClose={() => setSettingsId(null)}

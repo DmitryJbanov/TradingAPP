@@ -79,6 +79,8 @@ npm run start:standalone
 
 Реализованы каталог, поиск, добавление экземпляров, порядок, видимость, удаление и сохранение отдельно для каждого инструмента. **VMC Cipher B · VuManChu** рассчитывается по приложенному `vmc2.txt` и рисуется в отдельной панели: WaveTrend, MFI, RSI, Stoch RSI, Schaff, дивергенции, Buy/Sell/Gold и Sommi. Настройки включают вкладки «Аргументы», «Стиль», «Видимость», применение, отмену и сброс. Все 84 исходных параметра доступны. [Расчёт, параметры и особенности переноса](docs/INDICATOR_VMC.md). Nadaraya–Watson, SMA и RSI как отдельные индикаторы остаются заготовками; встроенный в VMC RSI работает.
 
+**Sonarlab · Order Blocks** доступен в том же каталоге: бычьи и медвежьи зоны на ценовом графике, чувствительность, удаление Close/Wick, цвета и сигналы. Можно использовать совместно с VMC. [Расчёт и настройки](docs/INDICATOR_ORDER_BLOCKS.md).
+
 Приложенный `test.txt` сохранён без изменения логики в `references/nadaraya-watson-original.pine`. Это стратегия Pine Script, а не браузерный JavaScript. Её исполнение и перенос в TypeScript пока не выполнялись.
 
 ## Источники и достоверность
@@ -114,6 +116,7 @@ npm run start:standalone
 - [Интеграции и источники](docs/INTEGRATIONS.md)
 - [Расширение: индикаторы, панели, рисование](docs/EXTENDING.md)
 - [VMC Cipher B: формулы, параметры, MTF и ограничения](docs/INDICATOR_VMC.md)
+- [Sonarlab Order Blocks: зоны, параметры и сигналы](docs/INDICATOR_ORDER_BLOCKS.md)
 - [Применение обновления через .patch](docs/APPLY_VMC_PATCH.md)
 - [Развёртывание и эксплуатация](docs/OPERATIONS.md)
 - [Проверки и ограничения](docs/VALIDATION.md)
