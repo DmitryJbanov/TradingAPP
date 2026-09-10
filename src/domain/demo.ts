@@ -5,6 +5,7 @@ import {
   type Instrument,
   type CandleInterval,
 } from "./market";
+import { candleCount, DEFAULT_CANDLE_COUNT } from "./history";
 function hash(s: string) {
   return [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
 }
@@ -13,7 +14,9 @@ export function demoCandles(
   item: Instrument,
   tf: CandleInterval,
   now = Date.now(),
+  requestedCount = DEFAULT_CANDLE_COUNT,
 ): Candle[] {
+  const count = candleCount(requestedCount);
   const step = candleIntervals[tf],
     end = Math.floor(now / 1000 / step) * step,
     seed = hash(item.symbol);
@@ -25,8 +28,8 @@ export function demoCandles(
       0.026 * Math.sin(n * 0.011 + seed) +
       0.014 * Math.sin(n * 0.041 + seed) +
       0.009 * Math.cos(n * 0.089 + seed));
-  return Array.from({ length: 400 }, (_, i) => {
-    const time = end - (399 - i) * step,
+  return Array.from({ length: count }, (_, i) => {
+    const time = end - (count - 1 - i) * step,
       first = time / 900,
       last = Math.min(first + width - 1, currentBase);
     let high = -Infinity,

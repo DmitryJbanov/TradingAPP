@@ -1,5 +1,9 @@
 # Сторонние компоненты
 
+- Delta Reaction Zones [BOSWaves] — © BOSWaves, MPL-2.0 (https://mozilla.org/MPL/2.0/). Оригинал `references/drz-original.pine`; изменённый перенос `src/indicators/drz.ts` и `drz-settings.ts`. Исходники также включаются в `release/licenses/drz/`.
+- Smart Money Concepts [LuxAlgo] — © LuxAlgo, CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/). Оригинал `references/smc-original.pine`; изменённый перенос `src/indicators/smc.ts` и `smc-settings.ts`. Производные материалы сохраняют атрибуцию, некоммерческое ограничение и ShareAlike. Коммерческое использование требует соответствующего разрешения правообладателя. Исходники также включаются в `release/licenses/smc/`.
+- Общие новые модули overlay-model, overlay-settings, price-overlays-renderer, use-overlays и overlay-settings-dialog доступны под MPL-2.0 либо CC BY-NC-SA 4.0 на выбор; это не изменяет лицензии исходных индикаторов.
+
 - Sonarlab - Order Blocks 1.0.2 — © ClayeWeight, Mozilla Public License 2.0 (https://mozilla.org/MPL/2.0/). Пользовательский оригинал: `references/sonarlab-ob-original.pine`; изменённый перенос на TypeScript: `src/indicators/order-blocks.ts`. При распространении сборки исходники этих файлов доступны в `release/licenses/sonarlab/` под MPL-2.0.
 
 - TradingView Lightweight Charts 5.0.9 — Apache-2.0. Copyright TradingView, Inc. Ссылка TradingView и встроенная атрибуция сохранены. Библиотека и её license/NOTICE доступны в npm-пакете и https://github.com/tradingview/lightweight-charts.

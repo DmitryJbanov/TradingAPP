@@ -21,6 +21,8 @@ import type { VmcPane } from "../hooks/use-vmc";
 import { VmcRenderer, type VmcChartData } from "../indicators/vmc-renderer";
 import type { OrderBlockOverlay } from "../hooks/use-order-blocks";
 import { OrderBlocksRenderer } from "../indicators/order-blocks-renderer";
+import { PriceOverlaysRenderer } from "../indicators/price-overlays-renderer";
+import type { PriceOverlay } from "../hooks/use-overlays";
 import type {
   CustomSeriesOptions,
   Time,
@@ -54,6 +56,8 @@ export function MarketChart({
   resetKey,
   vmcPanes,
   orderBlocks,
+  priceOverlays,
+  historyCount,
 }: {
   bars: Candle[];
   palette: ChartPalette;
@@ -61,6 +65,8 @@ export function MarketChart({
   resetKey: number;
   vmcPanes: VmcPane[];
   orderBlocks: OrderBlockOverlay[];
+  priceOverlays: PriceOverlay[];
+  historyCount: number;
 }) {
   const host = useRef<HTMLDivElement>(null),
     chart = useRef<IChartApi | null>(null),
@@ -71,6 +77,8 @@ export function MarketChart({
     new Map<string, { series: VmcSeries; renderer: VmcRenderer }>(),
   );
   const orderBlocksRenderer = useRef<OrderBlocksRenderer | null>(null);
+  const priceOverlaysRenderer = useRef<PriceOverlaysRenderer | null>(null);
+  const fitted = useRef("");
   const [indicatorCursor, setIndicatorCursor] = useState<
     Record<string, VmcChartData["point"]>
   >({});
@@ -120,6 +128,7 @@ export function MarketChart({
         secondsVisible: false,
         rightOffset: 8,
         barSpacing: 8,
+        minBarSpacing: 0.05,
       },
       handleScale: {
         axisPressedMouseMove: { time: true, price: true },
@@ -156,6 +165,9 @@ export function MarketChart({
     const obRenderer = new OrderBlocksRenderer();
     s.attachPrimitive(obRenderer);
     orderBlocksRenderer.current = obRenderer;
+    const overlaysRenderer = new PriceOverlaysRenderer();
+    s.attachPrimitive(overlaysRenderer);
+    priceOverlaysRenderer.current = overlaysRenderer;
     c.subscribeCrosshairMove((p) => {
       const values: Record<string, VmcChartData["point"]> = {};
       vmcSeries.current.forEach((entry, id) => {
@@ -187,6 +199,8 @@ export function MarketChart({
     return () => {
       vmcSeries.current.clear();
       s.detachPrimitive(obRenderer);
+      s.detachPrimitive(overlaysRenderer);
+      priceOverlaysRenderer.current = null;
       orderBlocksRenderer.current = null;
       c.remove();
       chart.current = null;
@@ -229,7 +243,17 @@ export function MarketChart({
       priceFormat: { type: "price", precision, minMove: 10 ** -precision },
     });
     series.current?.setData(
-      bars.map((b) => ({ ...b, time: b.time as UTCTimestamp })),
+      bars.map((b, index) => {
+        const color = priceOverlays
+          .map((o) => o.result.candleColors?.[index])
+          .filter(Boolean)
+          .at(-1);
+        return {
+          ...b,
+          time: b.time as UTCTimestamp,
+          ...(color ? { color, wickColor: color, borderColor: color } : {}),
+        };
+      }),
     );
     volume.current?.setData(
       bars.map((b) => ({
@@ -239,7 +263,15 @@ export function MarketChart({
       })),
     );
     setCursor(null);
-  }, [bars, palette]);
+    const fitKey = `${timeframe}:${historyCount}:${resetKey}`;
+    if (fitted.current !== fitKey) {
+      chart.current?.timeScale().fitContent();
+      fitted.current = fitKey;
+    }
+  }, [bars, palette, priceOverlays, timeframe, historyCount, resetKey]);
+  useEffect(() => {
+    priceOverlaysRenderer.current?.configure(priceOverlays, palette.text);
+  }, [priceOverlays, palette.text]);
   useEffect(() => {
     orderBlocksRenderer.current?.configure(orderBlocks);
   }, [orderBlocks]);

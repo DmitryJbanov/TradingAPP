@@ -1877,6 +1877,39 @@ h1 {
 .vmc-readouts strong {
   font-weight: 500;
 }
+.history-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.history-count input {
+  width: 82px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+}
+.overlay-settings-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.overlay-settings-actions > :first-child {
+  margin-right: auto;
+}
+.overlay-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 14px;
+  font:
+    11px ui-monospace,
+    monospace;
+  color: var(--muted-foreground);
+}
 @media (max-width: 600px) {
   .vmc-settings-dialog {
     padding: 16px;

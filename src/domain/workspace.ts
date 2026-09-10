@@ -2,6 +2,10 @@ import { computeVmc } from "../indicators/vmc";
 import type { VmcParams, VmcStyle } from "../indicators/vmc-settings";
 import { computeOrderBlocks } from "../indicators/order-blocks";
 import type { OrderBlockParams } from "../indicators/order-blocks-settings";
+import { computeDrz } from "../indicators/drz";
+import { computeSmc } from "../indicators/smc";
+import type { DrzParams } from "../indicators/drz-settings";
+import type { SmcParams } from "../indicators/smc-settings";
 import type { Candle, Timeframe } from "./market";
 /** Serializable workspace document: each future pane owns its series and drawings. */
 export interface IndicatorInstance {
@@ -11,7 +15,11 @@ export interface IndicatorInstance {
   period: number;
   color: string;
   paneId: string;
-  params?: Partial<VmcParams> | Partial<OrderBlockParams>;
+  params?:
+    | Partial<VmcParams>
+    | Partial<OrderBlockParams>
+    | Partial<DrzParams>
+    | Partial<SmcParams>;
   style?: Partial<VmcStyle>;
   timeframes?: Timeframe[];
 }
@@ -41,6 +49,22 @@ export interface IndicatorDefinition {
   compute?: (bars: Candle[], params: Record<string, unknown>) => unknown;
 }
 export const indicatorRegistry: IndicatorDefinition[] = [
+  {
+    id: "drz",
+    name: "DRZ · Delta Reaction Zones",
+    description:
+      "BOSWaves: зоны накопленной дельты, распределение потока, RC / RE.",
+    implemented: true,
+    compute: computeDrz,
+  },
+  {
+    id: "smc",
+    name: "SMC · Smart Money Concepts",
+    description:
+      "LuxAlgo: BOS / CHoCH, order blocks, EQH / EQL, FVG и уровни периодов.",
+    implemented: true,
+    compute: computeSmc,
+  },
   {
     id: "vmc",
     name: "VMC Cipher B · VuManChu",

@@ -7,6 +7,7 @@ import { handleApi } from "../src/server/market-service";
 import { sessionInfo } from "../src/components/sessions";
 import "./vmc.test";
 import "./order-blocks.test";
+import "./history-overlays.test";
 
 test("demo OHLC invariants and cross-timeframe current price", () => {
   const now = Date.parse("2026-09-06T15:37:00Z"),
@@ -14,7 +15,7 @@ test("demo OHLC invariants and cross-timeframe current price", () => {
     price = demoQuote(item, now).price;
   for (const tf of Object.keys(intervals) as Timeframe[]) {
     const bars = demoCandles(item, tf, now);
-    assert.equal(bars.length, 400);
+    assert.equal(bars.length, 1000);
     assert.equal(bars.at(-1)!.close, price);
     for (let i = 0; i < bars.length; i++) {
       const b = bars[i];
@@ -60,13 +61,13 @@ test("API validates identifiers, methods and reports synthetic provenance", asyn
   assert.equal((await call("/api/markets", "POST")).status, 405);
   assert.equal((await call("/api/unknown")).status, 404);
   const data = (await (await call("/api/markets")).json()) as any;
-  assert.equal(data.data.length, 44);
+  assert.equal(data.data.length, 45);
   assert.ok(data.data.every((q: any) => q.source === "demo"));
   const bars = (await (
     await call("/api/candles?symbol=BTCUSDT&interval=4h")
   ).json()) as any;
   assert.equal(bars.source, "demo");
-  assert.equal(bars.data.length, 400);
+  assert.equal(bars.data.length, 1000);
 });
 test("provider success mapping and failure fallback do not mislabel data", async () => {
   const original = globalThis.fetch;

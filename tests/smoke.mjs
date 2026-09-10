@@ -35,7 +35,9 @@ try {
   const health = await (await get("/api/health")).json();
   assert.equal(health.status, "ok");
   const markets = await (await get("/api/markets")).json();
-  assert.equal(markets.data.length, 44);
+  assert.equal(markets.data.length, 45);
+  assert.ok(markets.data.some((q) => q.symbol === "HYPEUSDT"));
+  assert.equal((await get("/pair/HYPEUSDT")).status, 200);
   console.log(
     "Quote sources:",
     JSON.stringify(
@@ -48,9 +50,21 @@ try {
   const bars = await (
     await get("/api/candles?symbol=BTCUSDT&interval=4h")
   ).json();
-  assert.equal(bars.data.length, 400);
+  assert.equal(bars.data.length, 1000);
+  for (const count of [300, 4000]) {
+    const d = await (
+      await get(
+        `/api/candles?symbol=HYPEUSDT&interval=15m&count=${count}&demo=1`,
+      )
+    ).json();
+    assert.equal(d.data.length, count);
+  }
   console.log("Candle source:", bars.source);
-  if (process.env.SMOKE_LIVE === "1") console.log("Provider events:", JSON.stringify((await (await get("/api/logs")).json()).data));
+  if (process.env.SMOKE_LIVE === "1")
+    console.log(
+      "Provider events:",
+      JSON.stringify((await (await get("/api/logs")).json()).data),
+    );
   assert.equal((await get("/api/candles?symbol=INVALID")).status, 400);
   console.log(
     "PASS standalone HTTP: root, direct pair URL, assets, 404, health, markets, candles, invalid symbol",

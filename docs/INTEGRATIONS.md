@@ -1,13 +1,15 @@
 # Интеграции
 
+HYPE использует Binance Futures (`fapi.binance.com/fapi/v1`), а не общий спотовый запрос. Пагинация и метаданные: [INDICATORS_DRZ_SMC.md](INDICATORS_DRZ_SMC.md).
+
 ## Binance Market Data
 
 Основа: публичный HTTPS market-data host `https://data-api.binance.vision`. Только чтение котировок; торговые endpoints не используются, Binance API key не нужен.
 
-| Запрос                                             | Использование                              |
-| -------------------------------------------------- | ------------------------------------------ |
-| `/api/v3/ticker/24hr?symbols=[...]`                | Пакетный ответ для криптовалют из каталога |
-| `/api/v3/klines?symbol=...&interval=...&limit=400` | Свечи конкретной пары                      |
+| Запрос                                                          | Использование                              |
+| --------------------------------------------------------------- | ------------------------------------------ |
+| `/api/v3/ticker/24hr?symbols=[...]`                             | Пакетный ответ для криптовалют из каталога |
+| `/api/v3/klines?symbol=...&interval=...&limit=1000&endTime=...` | Страница истории пары                      |
 
 Преобразования тикера: lastPrice → price, priceChangePercent → change, quoteVolume → volume, highPrice/lowPrice → high/low, closeTime → asOf. Binance OHLC массив: индексы 0=open time, 1=open, 2=high, 3=low, 4=close, 5=volume; время /1000.
 

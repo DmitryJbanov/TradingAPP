@@ -45,6 +45,8 @@ export interface MarketResponse {
   warning?: string;
 }
 export interface CandleResponse {
+  /** Exchange PRICE_FILTER tickSize; may be absent when metadata is unavailable. */
+  tickSize?: number;
   data: Candle[];
   source: Source;
   provider: string;

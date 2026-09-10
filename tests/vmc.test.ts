@@ -89,7 +89,7 @@ test("all 84 Pine inputs remain represented and settings reject corrupt stored v
   });
   assert.equal(p.wtChannelLen, 1);
   assert.equal(p.rsiLen, 14);
-  assert.equal(p.wtMASource, "hlc3");
+  assert.equal(p.wtMASource, "close");
   assert.equal(p.sommiVwapTF, "720");
   assert.equal(p.wtShow, true);
   assert.equal(p.rsiOversold, 30);
@@ -160,7 +160,7 @@ test("whole VMC produces finite or null values, deterministic signals and stable
   const now = Date.parse("2026-09-07T10:37:00Z"),
     bars = demoCandles(catalog[0], "1h", now);
   const a = computeVmc(bars, vmcDefaults, { interval: "1h", now: now / 1000 });
-  assert.equal(a.points.length, 400);
+  assert.equal(a.points.length, 1000);
   assert.ok(a.events.length > 0);
   assert.equal(a.warnings.length, 0);
   assert.ok(
@@ -242,7 +242,7 @@ test("new API candle intervals and explicit demo provenance", async () => {
     assert.equal(r.status, 200);
     const d = (await r.json()) as any;
     assert.equal(d.source, "demo");
-    assert.equal(d.data.length, 400);
+    assert.equal(d.data.length, 1000);
   }
   assert.equal(
     (await handleApi(new Request("http://local/api/candles?interval=720")))

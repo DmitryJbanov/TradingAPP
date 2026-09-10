@@ -25,6 +25,25 @@ await writeFile(
   ),
 );
 console.log("Standalone ready: node release/server.mjs");
+// Include the licensed, modified indicator sources alongside the release.
+for (const name of ["drz", "smc"]) {
+  await mkdir(`release/licenses/${name}`, { recursive: true });
+  for (const source of [
+    `references/${name}-original.pine`,
+    `src/indicators/${name}.ts`,
+    `src/indicators/${name}-settings.ts`,
+    "src/indicators/overlay-model.ts",
+    "src/indicators/overlay-settings.ts",
+    "src/indicators/price-overlays-renderer.ts",
+    "src/hooks/use-overlays.ts",
+    "src/components/overlay-settings-dialog.tsx",
+  ]) {
+    await copyFile(
+      source,
+      `release/licenses/${name}/${source.split("/").at(-1)}`,
+    );
+  }
+}
 
 await mkdir("release/licenses", { recursive: true });
 await copyFile(

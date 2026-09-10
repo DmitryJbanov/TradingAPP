@@ -3,6 +3,7 @@ const coins: [string, string, number, string][] = [
   ["BTC", "Bitcoin", 97432, "Layer 1"],
   ["ETH", "Ethereum", 3241, "Layer 1"],
   ["SOL", "Solana", 184, "Layer 1"],
+  ["HYPE", "Hyperliquid · Perpetual", 40, "DeFi"],
   ["BNB", "BNB", 682, "Layer 1"],
   ["XRP", "XRP", 2.34, "Payments"],
   ["DOGE", "Dogecoin", 0.247, "Meme"],

@@ -68,6 +68,14 @@ import { vmcDefaults, vmcStyleDefaults } from "../indicators/vmc-settings";
 import { useOrderBlocks } from "../hooks/use-order-blocks";
 import { OrderBlocksSettingsDialog } from "./order-blocks-settings-dialog";
 import { orderBlockDefaults } from "../indicators/order-blocks-settings";
+import { HistoryCount } from "./history-count";
+import { candleCount, DEFAULT_CANDLE_COUNT } from "../domain/history";
+import { useOverlays } from "../hooks/use-overlays";
+import { OverlaySettingsDialog } from "./overlay-settings-dialog";
+import { drzDefaults } from "../indicators/drz-settings";
+import { smcDefaults } from "../indicators/smc-settings";
+const hasIndicatorSettings = (id: string) =>
+  ["vmc", "sonarlab-ob", "drz", "smc"].includes(id);
 
 function Change({ value }: { value: number }) {
   return (
@@ -916,12 +924,37 @@ function PairWorkspace({
     Record<string, IndicatorInstance[]>
   >("vector.indicators.v1", {});
   const indicators = allIndicators[symbol] ?? [];
+  const [storedCount, setCount] = useStored(
+    "vector.candles.v1",
+    DEFAULT_CANDLE_COUNT,
+  );
+  const historyCount = candleCount(storedCount);
   const resource = useResource<CandleResponse>(
-    "/api/candles?symbol=" + encodeURIComponent(symbol) + "&interval=" + tf,
+    "/api/candles?symbol=" +
+      encodeURIComponent(symbol) +
+      "&interval=" +
+      tf +
+      "&count=" +
+      historyCount,
     15000,
   );
-  const vmc = useVmc(symbol, tf, resource.data, indicators, indicatorRefresh);
+  const vmc = useVmc(
+    symbol,
+    tf,
+    resource.data,
+    indicators,
+    indicatorRefresh,
+    historyCount,
+  );
   const orderBlocks = useOrderBlocks(tf, resource.data, indicators);
+  const overlays = useOverlays(
+    symbol,
+    tf,
+    resource.data,
+    indicators,
+    historyCount,
+    indicatorRefresh,
+  );
   const editingIndicator = indicators.find((i) => i.id === settingsId);
   function openIndicatorSettings(id: string) {
     setManager(false);
@@ -1015,6 +1048,7 @@ function PairWorkspace({
               </TabsList>
             </Tabs>
             <span className="toolbar-separator" />
+            <HistoryCount value={historyCount} onChange={setCount} />
             <button
               className="button toolbar-button"
               onClick={() => setManager(true)}
@@ -1072,6 +1106,9 @@ function PairWorkspace({
               {resource.data.warning}. Данные не являются рыночными.
             </div>
           )}
+          {resource.data?.source !== "demo" && resource.data?.warning && (
+            <div className="notice">{resource.data.warning}</div>
+          )}
           <div className="chart-stage">
             <MarketChart
               key={symbol}
@@ -1081,6 +1118,8 @@ function PairWorkspace({
               resetKey={reset}
               vmcPanes={vmc.panes}
               orderBlocks={orderBlocks}
+              priceOverlays={overlays.overlays}
+              historyCount={historyCount}
             />
             {!bars.length && (
               <div className="chart-loading">
@@ -1100,6 +1139,32 @@ function PairWorkspace({
               {vmc.warnings.join(" ")}
             </div>
           )}
+          {overlays.loading && (
+            <div className="notice" role="status">
+              SMC: загрузка дополнительных таймфреймов…
+            </div>
+          )}
+          {!overlays.loading && overlays.warnings.length > 0 && (
+            <div className="notice" role="status">
+              {overlays.warnings.join(" ")}
+            </div>
+          )}
+          {overlays.overlays.some((o) => o.result.signals.length > 0) && (
+            <div className="overlay-signals">
+              {overlays.overlays.map((o) => {
+                const signal = o.result.signals.at(-1);
+                return signal ? (
+                  <span key={o.id}>
+                    {o.name}: {signal.type} ·{" "}
+                    {new Date(signal.time * 1000).toLocaleString("ru-RU", {
+                      timeZone: "UTC",
+                    })}{" "}
+                    UTC
+                  </span>
+                ) : null;
+              })}
+            </div>
+          )}
           <div className="chart-status">
             <span>
               {resource.loading
@@ -1115,7 +1180,7 @@ function PairWorkspace({
                 <button
                   key={i.id}
                   onClick={() =>
-                    i.definitionId === "vmc" || i.definitionId === "sonarlab-ob"
+                    hasIndicatorSettings(i.definitionId)
                       ? openIndicatorSettings(i.id)
                       : setManager(true)
                   }
@@ -1125,10 +1190,13 @@ function PairWorkspace({
                   {
                     indicatorRegistry.find((x) => x.id === i.definitionId)?.name
                   }{" "}
-                  {i.definitionId === "vmc" ||
-                  i.definitionId === "sonarlab-ob" ? (
+                  {hasIndicatorSettings(i.definitionId) ? (
                     <small>
-                      {[...vmc.panes, ...orderBlocks].some((p) => p.id === i.id)
+                      {[
+                        ...vmc.panes,
+                        ...orderBlocks,
+                        ...overlays.overlays,
+                      ].some((p) => p.id === i.id)
                         ? "настройки ⚙"
                         : "скрыт · настройки ⚙"}
                     </small>
@@ -1255,7 +1323,11 @@ function PairWorkspace({
                               }
                             : d.id === "sonarlab-ob"
                               ? { params: { ...orderBlockDefaults } }
-                              : {}),
+                              : d.id === "drz"
+                                ? { params: { ...drzDefaults } }
+                                : d.id === "smc"
+                                  ? { params: { ...smcDefaults } }
+                                  : {}),
                         },
                       ])
                     }
@@ -1312,8 +1384,7 @@ function PairWorkspace({
                     <Trash2 size={15} />
                   </button>
                 </div>
-                {i.definitionId === "vmc" ||
-                i.definitionId === "sonarlab-ob" ? (
+                {hasIndicatorSettings(i.definitionId) ? (
                   <div className="instance-options">
                     <button
                       className="button"
@@ -1387,6 +1458,20 @@ function PairWorkspace({
           </div>
         </DialogContent>
       </Dialog>
+      {editingIndicator &&
+        ["drz", "smc"].includes(editingIndicator.definitionId) && (
+          <OverlaySettingsDialog
+            key={editingIndicator.id}
+            instance={editingIndicator}
+            timeframe={tf}
+            onClose={() => setSettingsId(null)}
+            onApply={(next) =>
+              changeIndicators(
+                indicators.map((i) => (i.id === next.id ? next : i)),
+              )
+            }
+          />
+        )}
       {editingIndicator?.definitionId === "vmc" && (
         <VmcSettingsDialog
           key={editingIndicator.id}

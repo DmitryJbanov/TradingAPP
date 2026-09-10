@@ -7,12 +7,15 @@ export function useResource<T>(url: string, period = 30000) {
   const [loading, setLoading] = useState(true);
   const controller = useRef<AbortController | null>(null);
   const version = useRef(0);
+  const inFlight = useRef(false);
+  const loadedUrl = useRef("");
   const refresh = useCallback(
     async (force = false) => {
       controller.current?.abort();
       const abort = new AbortController();
       controller.current = abort;
       const id = ++version.current;
+      inFlight.current = true;
       setLoading(true);
       try {
         const r = await fetch(
@@ -22,6 +25,7 @@ export function useResource<T>(url: string, period = 30000) {
         if (!r.ok) throw Error(`HTTP ${r.status}`);
         const next = await r.json();
         if (id === version.current) {
+          loadedUrl.current = url;
           setData(next as T);
           setError("");
         }
@@ -29,7 +33,10 @@ export function useResource<T>(url: string, period = 30000) {
         if (!abort.signal.aborted && id === version.current)
           setError(e instanceof Error ? e.message : "Нет связи с сервером");
       } finally {
-        if (id === version.current) setLoading(false);
+        if (id === version.current) {
+          inFlight.current = false;
+          setLoading(false);
+        }
       }
     },
     [url],
@@ -38,7 +45,8 @@ export function useResource<T>(url: string, period = 30000) {
     setData(undefined);
     void refresh();
     const timer = setInterval(() => {
-      if (document.visibilityState === "visible") void refresh();
+      if (document.visibilityState === "visible" && !inFlight.current)
+        void refresh();
     }, period);
     return () => {
       clearInterval(timer);
@@ -46,7 +54,12 @@ export function useResource<T>(url: string, period = 30000) {
       version.current++;
     };
   }, [refresh, period]);
-  return { data, error, loading, refresh };
+  return {
+    data: loadedUrl.current === url ? data : undefined,
+    error,
+    loading,
+    refresh,
+  };
 }
 export function useStored<T>(key: string, initial: T) {
   const [value, setValue] = useState(initial);

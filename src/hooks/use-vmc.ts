@@ -29,6 +29,7 @@ export function useVmc(
   main: CandleResponse | undefined,
   indicators: IndicatorInstance[],
   refreshToken = 0,
+  count = 1000,
 ) {
   const lastRefresh = useRef(refreshToken);
   const signature = JSON.stringify(
@@ -54,7 +55,7 @@ export function useVmc(
     .filter((t) => t !== timeframe)
     .sort()
     .join(",");
-  const key = `${symbol}:${timeframe}:${main?.source}:${main?.provider}:${main?.asOf}:${requests}:${refreshToken}`;
+  const key = `${symbol}:${timeframe}:${count}:${main?.source}:${main?.provider}:${main?.asOf}:${requests}:${refreshToken}`;
   const [state, setState] = useState<{
     key: string;
     histories: Partial<Record<CandleInterval, CandleResponse["data"]>>;
@@ -69,7 +70,7 @@ export function useVmc(
     void Promise.allSettled(
       tfs.map(async (tf) => {
         const response = await fetch(
-          `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${tf}${main.source === "demo" ? "&demo=1" : ""}${force ? "&refresh=1" : ""}`,
+          `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${tf}&count=${count}${main.source === "demo" ? "&demo=1" : ""}${force ? "&refresh=1" : ""}`,
           { signal: abort.signal },
         );
         if (!response.ok) throw Error(`${tf}: HTTP ${response.status}`);

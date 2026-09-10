@@ -1,5 +1,11 @@
 # Проверки поставки
 
+## История, HYPE, DRZ и SMC — 10 сентября 2026
+
+Новый набор включает 35 core-тестов: сохранённые VMC/Sonarlab плюс count, пагинация, HYPE routing, delta/EMA, FVG, BOS/CHoCH/mitigation, подтверждение HTF, календарный февраль и независимые оси primitive. Проверки запускаются командами из [инструкции](APPLY_HISTORY_DRZ_SMC_PATCH.md). Smoke дополнен HYPE и 300/4000 свечами. `release`, `dist`, `.test-build` исключены из проверки исходников TypeScript.
+
+База — `vector-market-terminal(4).zip`, SHA-256 `42bb4ecc9079d269142dea6423f0bddaaaca7ee9accc0da02edce727f44d756a`. Визуальное сравнение с TradingView и реальный сетевой HYPE не проверялись. Старые результаты ниже относятся к соответствующим версиям, а не новым индикаторам.
+
 ## Дополнение Sonarlab Order Blocks — 9 сентября 2026
 
 Пройдены `npm run typecheck`, все 23 теста `npm run test:core` (7 новых для Sonarlab), `npm run build:standalone` и `npm run test:smoke`. ESLint новых TypeScript-файлов проходит без замечаний. В Windows запуск дочерних процессов esbuild/Vite потребовал выполнения за пределами песочницы. Предупреждение Vite о bundle больше 500 KB сохраняется: JS около 576 KB, gzip 180 KB.

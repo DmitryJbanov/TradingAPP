@@ -1,5 +1,7 @@
 import { catalog, instrument } from "../domain/catalog";
 import { demoCandles, demoQuote } from "../domain/demo";
+import { DEFAULT_CANDLE_COUNT, validCandleCount } from "../domain/history";
+import { binanceEndpoint, loadBinanceHistory } from "./binance-history";
 import {
   candleIntervals,
   type Quote,
@@ -51,7 +53,7 @@ async function cached<T>(
   if (pending.has(key)) return pending.get(key)!;
   const job = fn()
     .then((value) => {
-      if (cache.size > 250) cache.delete(cache.keys().next().value!);
+      if (cache.size >= 64) cache.delete(cache.keys().next().value!);
       cache.set(key, { value, expires: Date.now() + ttl });
       return value;
     })
@@ -91,7 +93,10 @@ export async function markets(
                   new URLSearchParams({
                     symbols: JSON.stringify(
                       catalog
-                        .filter((x) => x.category === "crypto")
+                        .filter(
+                          (x) =>
+                            x.category === "crypto" && x.symbol !== "HYPEUSDT",
+                        )
                         .map((x) => x.symbol),
                     ),
                   }),
@@ -130,6 +135,43 @@ export async function markets(
                 "WARN",
                 `Binance: ${e instanceof Error ? e.message : "request failed"}; demo fallback`,
               );
+            }
+          })(),
+          (async () => {
+            try {
+              const e = binanceEndpoint("HYPEUSDT");
+              const d = await json(
+                `${e.root}${e.path}/ticker/24hr?symbol=HYPEUSDT`,
+              );
+              if (
+                ![
+                  d.lastPrice,
+                  d.priceChangePercent,
+                  d.quoteVolume,
+                  d.highPrice,
+                  d.lowPrice,
+                  d.closeTime,
+                ].every((v) => v !== undefined && Number.isFinite(Number(v))) ||
+                +d.lastPrice <= 0
+              )
+                throw Error("Invalid HYPE quote");
+              const i = rows.findIndex((r) => r.symbol === "HYPEUSDT");
+              rows[i] = {
+                ...rows[i],
+                price: +d.lastPrice,
+                change: +d.priceChangePercent,
+                volume: +d.quoteVolume,
+                high: +d.highPrice,
+                low: +d.lowPrice,
+                source: "live",
+                provider: e.name,
+                asOf: new Date(+d.closeTime).toISOString(),
+              };
+              status(e.name, true);
+            } catch {
+              status("Binance Futures", false);
+              warnings.push("HYPE: Binance Futures недоступен, показан DEMO");
+              log("WARN", "HYPE: Binance Futures unavailable; demo fallback");
             }
           })(),
           (async () => {
@@ -204,11 +246,13 @@ export async function candles(
   tf: CandleInterval,
   config: Config = {},
   force = false,
+  count = DEFAULT_CANDLE_COUNT,
 ): Promise<CandleResponse> {
+  if (!validCandleCount(count)) throw Error("Invalid candle count");
   const item = instrument(symbol);
   if (!item) throw Error("Unknown symbol");
   return cached(
-    `candles:${symbol}:${tf}:${config.DATA_MODE}:${!!config.TWELVE_DATA_API_KEY}`,
+    `candles:${symbol}:${tf}:${count}:${config.DATA_MODE}:${!!config.TWELVE_DATA_API_KEY}`,
     15000,
     force,
     async () => {
@@ -217,26 +261,45 @@ export async function candles(
       if (config.DATA_MODE !== "demo")
         try {
           if (item.category === "crypto") {
-            const data = await json(
-              base +
-                "/api/v3/klines?" +
-                new URLSearchParams({ symbol, interval: tf, limit: "400" }),
+            const endpoint = binanceEndpoint(symbol),
+              { bars, warning } = await loadBinanceHistory(
+                symbol,
+                tf,
+                count,
+                json,
+              );
+            let tickSize: number | undefined;
+            try {
+              const info = await cached(
+                `tick:${endpoint.name}:${symbol}`,
+                3600000,
+                false,
+                () =>
+                  json(
+                    `${endpoint.root}${endpoint.path}/exchangeInfo${symbol === "HYPEUSDT" ? "" : "?symbol=" + encodeURIComponent(symbol)}`,
+                  ),
+              );
+              const f = info.symbols
+                ?.find((s: any) => s.symbol === symbol)
+                ?.filters?.find((f: any) => f.filterType === "PRICE_FILTER");
+              if (f && Number.isFinite(+f.tickSize) && +f.tickSize > 0)
+                tickSize = +f.tickSize;
+            } catch {
+              /* History remains usable without exchange metadata. */
+            }
+            status(endpoint.name, true);
+            log(
+              "INFO",
+              `${symbol} ${tf}: ${bars.length} свечей ${endpoint.name}`,
             );
-            if (!Array.isArray(data) || !data.length)
-              throw Error("Empty response");
-            const bars = data.map((d: any) => ({
-              time: +d[0] / 1000,
-              open: +d[1],
-              high: +d[2],
-              low: +d[3],
-              close: +d[4],
-              volume: +d[5],
-            }));
-            if (bars.some((b) => !Number.isFinite(b.close) || b.close <= 0))
-              throw Error("Invalid candles");
-            status("Binance", true);
-            log("INFO", `${symbol} ${tf}: ${bars.length} свечей Binance`);
-            return { data: bars, source: "live", provider: "Binance", asOf };
+            return {
+              data: bars,
+              source: "live",
+              provider: endpoint.name,
+              asOf,
+              warning,
+              tickSize,
+            };
           }
           if (config.TWELVE_DATA_API_KEY) {
             const providerSymbol =
@@ -257,7 +320,7 @@ export async function candles(
                     "4h": "4h",
                     "1d": "1day",
                   }[tf],
-                  outputsize: "400",
+                  outputsize: String(count),
                   timezone: "UTC",
                   apikey: config.TWELVE_DATA_API_KEY,
                 }),
@@ -292,16 +355,25 @@ export async function candles(
               source: "live",
               provider: "Twelve Data",
               asOf,
+              warning:
+                bars.length < count
+                  ? `Доступно ${bars.length} из ${count} свечей.`
+                  : undefined,
             };
           }
           reason = "Для этого рынка нужен ключ Twelve Data";
         } catch (e) {
           reason = "Источник недоступен: показаны демонстрационные свечи";
-          status(item.category === "crypto" ? "Binance" : "Twelve Data", false);
+          status(
+            item.category === "crypto"
+              ? binanceEndpoint(symbol).name
+              : "Twelve Data",
+            false,
+          );
           log("WARN", `${symbol} ${tf}: request failed; demo fallback`);
         }
       return {
-        data: demoCandles(item, tf),
+        data: demoCandles(item, tf, Date.parse(asOf), count),
         source: "demo",
         provider: "Demo",
         asOf,
@@ -331,6 +403,14 @@ export async function handleApi(
       case "/api/candles": {
         const symbol = u.searchParams.get("symbol") ?? "BTCUSDT";
         const tf = u.searchParams.get("interval") ?? "1h";
+        const count = u.searchParams.has("count")
+          ? Number(u.searchParams.get("count"))
+          : DEFAULT_CANDLE_COUNT;
+        if (!validCandleCount(count))
+          return Response.json(
+            { error: "count: целое число от 300 до 4000" },
+            { status: 400 },
+          );
         if (!instrument(symbol) || !Object.hasOwn(candleIntervals, tf))
           return Response.json(
             { error: "Неизвестный symbol или interval" },
@@ -343,6 +423,7 @@ export async function handleApi(
             ? { ...config, DATA_MODE: "demo" }
             : config,
           force,
+          count,
         );
         break;
       }
