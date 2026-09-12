@@ -1,3 +1,5 @@
+import "./symbol-search.test";
+import "./shared-indicators.test";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { catalog } from "../src/domain/catalog";

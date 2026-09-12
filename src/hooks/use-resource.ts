@@ -22,7 +22,10 @@ export function useResource<T>(url: string, period = 30000) {
           url + (force ? (url.includes("?") ? "&" : "?") + "refresh=1" : ""),
           { signal: abort.signal },
         );
-        if (!r.ok) throw Error(`HTTP ${r.status}`);
+        if (!r.ok) {
+          const body = (await r.json().catch(() => ({}))) as { error?: string };
+          throw Error(body.error || `HTTP ${r.status}`);
+        }
         const next = await r.json();
         if (id === version.current) {
           loadedUrl.current = url;

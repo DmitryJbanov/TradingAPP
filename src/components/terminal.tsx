@@ -1,4 +1,5 @@
 "use client";
+import { SymbolSearch } from "./symbol-search";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
@@ -59,6 +60,7 @@ import {
 } from "../domain/market";
 import { indicatorRegistry, type IndicatorInstance } from "../domain/workspace";
 import { useResource, useStored } from "../hooks/use-resource";
+import { useSharedIndicators } from "../hooks/use-shared-indicators";
 import { Choice } from "./controls";
 import { Sessions } from "./sessions";
 import { MarketChart, defaultPalette, type ChartPalette } from "./chart";
@@ -384,6 +386,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
           <span className="avatar">VT</span>
         </div>
       </header>
+      <SymbolSearch favorites={favorites} star={star} />
       {symbol ? (
         <PairWorkspace
           symbol={symbol}
@@ -934,7 +937,7 @@ function PairWorkspace({
   palette: ChartPalette;
   openSettings: () => void;
 }) {
-  const [tf, setTf] = useState<Timeframe>("1h"),
+  const [tf, setTf] = useState<Timeframe>("4h"),
     [query, setQuery] = useState(""),
     [onlyFavorites, setOnlyFavorites] = useState(false),
     [manager, setManager] = useState(false),
@@ -942,10 +945,7 @@ function PairWorkspace({
     [indicatorSearch, setIndicatorSearch] = useState("");
   const [indicatorRefresh, setIndicatorRefresh] = useState(0);
   const [settingsId, setSettingsId] = useState<string | null>(null);
-  const [allIndicators, setAllIndicators] = useStored<
-    Record<string, IndicatorInstance[]>
-  >("vector.indicators.v1", {});
-  const indicators = allIndicators[symbol] ?? [];
+  const [indicators, setIndicators] = useSharedIndicators(symbol);
   const [storedCount, setCount] = useStored(
     "vector.candles.v1",
     DEFAULT_CANDLE_COUNT,
@@ -1028,7 +1028,7 @@ function PairWorkspace({
     setSettingsId(id);
   }
   const q = rows.find((x) => x.symbol === symbol),
-    item = catalog.find((x) => x.symbol === symbol);
+    item = catalog.find((x) => x.symbol === symbol) ?? candleData?.instrument;
   const bars = candleData?.data ?? [],
     last = bars.at(-1);
   const list = rows.filter(
@@ -1037,12 +1037,25 @@ function PairWorkspace({
       (x.symbol + " " + x.name).toLowerCase().includes(query.toLowerCase()),
   );
   function changeIndicators(next: IndicatorInstance[]) {
-    setAllIndicators({ ...allIndicators, [symbol]: next });
+    setIndicators(next);
   }
   if (!item)
     return (
       <main className="empty-state">
-        <h1>Инструмент не найден</h1>
+        <h1>
+          {resource.loading
+            ? "Загрузка инструмента…"
+            : "Не удалось загрузить инструмент"}
+        </h1>
+        {resource.error && <p>{resource.error}</p>}
+        {!resource.loading && (
+          <button
+            className="button"
+            onClick={() => void resource.refresh(true)}
+          >
+            Повторить
+          </button>
+        )}
         <a className="button" href="/">
           Вернуться к рынкам
         </a>
@@ -1333,8 +1346,8 @@ function PairWorkspace({
           <DialogHeader>
             <DialogTitle>Индикаторы</DialogTitle>
             <DialogDescription>
-              Настройте состав для {symbol}. Доступны VMC Cipher B и Sonarlab
-              Order Blocks; остальные индикаторы пока в разработке.
+              Общий набор для всех торговых пар: VMC, DRZ, SMC и Sonarlab Order
+              Blocks. Настройки сохраняются при переключении пары.
             </DialogDescription>
           </DialogHeader>
           <label className="search-field">
@@ -1368,14 +1381,7 @@ function PairWorkspace({
                           id: crypto.randomUUID(),
                           definitionId: d.id,
                           enabled: true,
-                          period:
-                            d.id === "vmc"
-                              ? 9
-                              : d.id === "nwe"
-                                ? 200
-                                : d.id === "rsi"
-                                  ? 14
-                                  : 20,
+                          period: d.id === "vmc" ? 9 : 20,
                           color:
                             d.id === "sonarlab-ob"
                               ? orderBlockDefaults.col_bullish

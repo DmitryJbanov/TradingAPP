@@ -52,7 +52,7 @@ Backend не зависит от React и не рендерит графики. 
 
 ## Состояние
 
-Состояние фильтров и текущего таймфрейма живёт в React и сбрасывается при полном переходе на другую страницу. В localStorage сохраняются `vector.theme.v1`, `vector.accent.v1`, `vector.chart.v1`, `vector.favorites.v1`, `vector.indicators.v1`. Последний ключ содержит словарь экземпляров индикаторов по symbol.
+Состояние фильтров и текущего таймфрейма (4H при открытии) живёт в React и сбрасывается при полном переходе на другую страницу. В localStorage сохраняются `vector.theme.v1`, `vector.accent.v1`, `vector.chart.v1`, `vector.favorites.v1`, `vector.indicators.v1`. Старый ключ `vector.indicators.v1` содержит резервный словарь по symbol. Активный общий набор для всех пар хранится в `vector.indicators.shared.v1`; правила переноса описаны в APPLY_PREFERENCES_PATCH.md.
 
 `WorkspaceDocument` описывает будущую схему с несколькими PaneState. Сейчас работает один график. Контракт не означает реализованный layout manager; порядок внедрения описан в EXTENDING.md.
 

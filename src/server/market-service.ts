@@ -1,3 +1,9 @@
+import {
+  resolveInstrument,
+  searchSymbols,
+  SymbolError,
+  upstreamSymbol,
+} from "./symbol-service";
 import { catalog, instrument } from "../domain/catalog";
 import { demoCandles, demoQuote } from "../domain/demo";
 import { DEFAULT_CANDLE_COUNT, validCandleCount } from "../domain/history";
@@ -252,8 +258,7 @@ export async function candles(
   // history route still validates its own 300–4000 range below.
   if (!validCandleCount(count) && count !== 2)
     throw Error("Invalid candle count");
-  const item = instrument(symbol);
-  if (!item) throw Error("Unknown symbol");
+  const item = await resolveInstrument(symbol, config.DATA_MODE === "demo");
   return cached(
     `candles:${symbol}:${tf}:${count}:${config.DATA_MODE}:${!!config.TWELVE_DATA_API_KEY}`,
     15000,
@@ -280,11 +285,11 @@ export async function candles(
                   false,
                   () =>
                     json(
-                      `${endpoint.root}${endpoint.path}/exchangeInfo${symbol === "HYPEUSDT" ? "" : "?symbol=" + encodeURIComponent(symbol)}`,
+                      `${endpoint.root}${endpoint.path}/exchangeInfo${endpoint.name === "Binance Futures" ? "" : "?symbol=" + encodeURIComponent(upstreamSymbol(symbol))}`,
                     ),
                 );
                 const f = info.symbols
-                  ?.find((s: any) => s.symbol === symbol)
+                  ?.find((s: any) => s.symbol === upstreamSymbol(symbol))
                   ?.filters?.find((f: any) => f.filterType === "PRICE_FILTER");
                 if (f && Number.isFinite(+f.tickSize) && +f.tickSize > 0)
                   tickSize = +f.tickSize;
@@ -298,6 +303,7 @@ export async function candles(
             );
             return {
               data: bars,
+              instrument: item,
               source: "live",
               provider: endpoint.name,
               asOf,
@@ -356,6 +362,7 @@ export async function candles(
             log("INFO", `${symbol} ${tf}: ${bars.length} свечей Twelve Data`);
             return {
               data: bars,
+              instrument: item,
               source: "live",
               provider: "Twelve Data",
               asOf,
@@ -374,9 +381,15 @@ export async function candles(
               : "Twelve Data",
             false,
           );
-          log("WARN", `${symbol} ${tf}: request failed; demo fallback`);
+          log(
+            "WARN",
+            `${symbol} ${tf}: request failed${instrument(symbol) ? "; demo fallback" : ""}`,
+          );
         }
+      if (!instrument(symbol))
+        throw new SymbolError("Котировки пары временно недоступны");
       return {
+        instrument: item,
         data: demoCandles(
           item,
           tf,
@@ -406,6 +419,13 @@ export async function handleApi(
   try {
     let result: unknown;
     switch (u.pathname) {
+      case "/api/symbols":
+        result = await searchSymbols(
+          u.searchParams.get("q") ?? "",
+          u.searchParams.get("market") ?? "all",
+          config.DATA_MODE === "demo",
+        );
+        break;
       case "/api/markets":
         result = await markets(config, force);
         break;
@@ -420,7 +440,7 @@ export async function handleApi(
             { error: "count: целое число от 300 до 4000" },
             { status: 400 },
           );
-        if (!instrument(symbol) || !Object.hasOwn(candleIntervals, tf))
+        if (!Object.hasOwn(candleIntervals, tf))
           return Response.json(
             { error: "Неизвестный symbol или interval" },
             { status: 400 },
@@ -439,7 +459,7 @@ export async function handleApi(
       case "/api/candles/latest": {
         const symbol = u.searchParams.get("symbol") ?? "BTCUSDT";
         const tf = u.searchParams.get("interval") ?? "1h";
-        if (!instrument(symbol) || !Object.hasOwn(candleIntervals, tf))
+        if (!Object.hasOwn(candleIntervals, tf))
           return Response.json(
             { error: "Неизвестный symbol или interval" },
             { status: 400 },
@@ -481,7 +501,12 @@ export async function handleApi(
         "X-Content-Type-Options": "nosniff",
       },
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof SymbolError)
+      return Response.json(
+        { error: error.message },
+        { status: error.status, headers: { "Cache-Control": "no-store" } },
+      );
     log("ERROR", "Internal API error");
     return Response.json(
       { error: "Внутренняя ошибка сервера" },

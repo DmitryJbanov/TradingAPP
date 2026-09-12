@@ -81,22 +81,4 @@ export const indicatorRegistry: IndicatorDefinition[] = [
     implemented: true,
     compute: computeOrderBlocks,
   },
-  {
-    id: "nwe",
-    name: "Nadaraya–Watson Envelope",
-    description: "Исходник Pine Script сохранён. Перенос расчёта запланирован.",
-    implemented: false,
-  },
-  {
-    id: "sma",
-    name: "Moving Average",
-    description: "Скользящая средняя · расчёт будет добавлен позже.",
-    implemented: false,
-  },
-  {
-    id: "rsi",
-    name: "Relative Strength Index",
-    description: "Осциллятор в отдельной панели · расчёт будет добавлен позже.",
-    implemented: false,
-  },
 ];

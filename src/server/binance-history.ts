@@ -1,6 +1,7 @@
+import { upstreamSymbol } from "./symbol-service";
 import type { Candle, CandleInterval } from "../domain/market";
 export const binanceEndpoint = (symbol: string) =>
-  symbol === "HYPEUSDT"
+  symbol === "HYPEUSDT" || symbol.startsWith("FUTURES:")
     ? {
         root: "https://fapi.binance.com",
         path: "/fapi/v1",
@@ -23,7 +24,11 @@ export async function loadBinanceHistory(
   let endTime: number | undefined, warning: string | undefined;
   for (let page = 0; page < 5 && byTime.size < count; page++) {
     const limit = Math.min(1000, count - byTime.size),
-      query = new URLSearchParams({ symbol, interval, limit: String(limit) });
+      query = new URLSearchParams({
+        symbol: upstreamSymbol(symbol),
+        interval,
+        limit: String(limit),
+      });
     if (endTime !== undefined) query.set("endTime", String(endTime));
     try {
       const data = await json(

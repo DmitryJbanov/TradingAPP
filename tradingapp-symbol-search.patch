@@ -1,0 +1,759 @@
+diff --git a/app/api/symbols/route.ts b/app/api/symbols/route.ts
+new file mode 100644
+index 0000000..49ce531
+--- /dev/null
++++ b/app/api/symbols/route.ts
+@@ -0,0 +1,7 @@
++import { handleApi } from "@/src/server/market-service";
++export async function GET(request: Request) {
++  return handleApi(request, {
++    DATA_MODE: process.env.DATA_MODE,
++    TWELVE_DATA_API_KEY: process.env.TWELVE_DATA_API_KEY,
++  });
++}
+diff --git a/app/globals.css b/app/globals.css
+index 63bc969..013bffa 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -1943,3 +1943,70 @@ h1 {
+     max-width: 60%;
+   }
+ }
++
++.symbol-search {
++  margin: 16px 28px;
++  padding: 16px;
++  border: 1px solid var(--border);
++  border-radius: 12px;
++  background: var(--card);
++}
++.symbol-search-controls {
++  display: flex;
++  gap: 16px;
++  flex-wrap: wrap;
++}
++.symbol-search-controls label {
++  display: grid;
++  gap: 6px;
++  flex: 1;
++  min-width: 200px;
++  font-size: 13px;
++}
++.symbol-search-controls input,
++.symbol-search-controls select {
++  padding: 10px;
++  border: 1px solid var(--border);
++  border-radius: 6px;
++  background: var(--card);
++  color: var(--foreground);
++}
++.symbol-search p,
++.symbol-search small {
++  font-size: 12px;
++  color: var(--muted-foreground);
++}
++.symbol-search-results {
++  list-style: none;
++  padding: 0;
++  margin: 12px 0 0;
++  max-height: 300px;
++  overflow-y: auto;
++}
++.symbol-search-results li {
++  display: flex;
++  align-items: center;
++  border-bottom: 1px solid var(--border);
++}
++.symbol-search-results a {
++  flex: 1;
++  padding: 10px;
++}
++.symbol-search-results small {
++  margin-left: 12px;
++}
++.symbol-search-results button {
++  padding: 10px 14px;
++}
++.symbol-search-favorites {
++  margin-top: 12px;
++}
++.symbol-search-favorites summary {
++  cursor: pointer;
++  font-size: 13px;
++}
++@media (max-width: 600px) {
++  .symbol-search {
++    margin: 12px;
++  }
++}
+diff --git a/docs/APPLY_SYMBOL_SEARCH_PATCH.md b/docs/APPLY_SYMBOL_SEARCH_PATCH.md
+new file mode 100644
+index 0000000..b8ca962
+--- /dev/null
++++ b/docs/APPLY_SYMBOL_SEARCH_PATCH.md
+@@ -0,0 +1,19 @@
++# Динамический поиск торговых пар
++
++Патч `tradingapp-symbol-search.patch` применяется после `tradingapp-preferences.patch` к базе main `126c1fbe90e233c5c614ada5549aa18c2502a763`. Он сохраняет 4H по умолчанию, общие настройки индикаторов и обновление свечей каждые 30 секунд.
++
++В корне проекта: `git apply --check tradingapp-symbol-search.patch`, затем `git apply tradingapp-symbol-search.patch`.
++
++Проверка: `npm run typecheck`, `npm run test:core`. Сборка: `npm run build:standalone`. Перезапустите сервер командой `npm run start:standalone` после остановки старого процесса. Для Docker: `docker compose up -d --build`.
++
++На главной странице и странице графика появился блок «Поиск торговых пар». Введите базовый актив или пару (например, BTC/USDC); запрос отправляется после паузы 300 мс. Поиск охватывает активные Binance Spot и бессрочные Binance USDⓈ-M Futures, включая пары, отсутствующие в исходном каталоге. Фильтр позволяет выбрать рынок. Максимум 60 результатов; для более длинного списка уточните запрос. При недоступности одного рынка доступны результаты другого с предупреждением. В режиме DATA_MODE=demo биржевой поиск недоступен.
++
++Нажатие результата открывает график с историей, индикаторами и обновлением последней свечи. Прямая ссылка также работает без предварительного поиска. Spot и Futures различаются в URL: например, `/pair/BTCUSDC` и `/pair/FUTURES%3ABTCUSDC`. Старая ссылка HYPEUSDT остаётся фьючерсной; спотовая пара, если доступна, использует SPOT:HYPEUSDT. Отдельный список котировок на главной странице остаётся подборкой популярных инструментов; произвольные пары доступны через новый поиск.
++
++Кнопка ☆ добавляет результат в избранное. Раздел «Избранные пары» под поиском содержит ссылки на все сохранённые инструменты, включая отсутствующие в подборке. Избранное хранится в прежнем vector.favorites.v1 в localStorage текущего браузера. Spot и Futures сохраняются отдельно. При запрете localStorage сохранение после перезагрузки недоступно.
++
++Новый GET /api/symbols принимает q и market=all|spot|futures. Каталоги exchangeInfo кэшируются на сервере на час, одновременные запросы объединяются. Листинги и делистинги отражаются после истечения кэша. API свечей проверяет новые идентификаторы по каталогу и возвращает метаданные инструмента. Ошибка каталога/котировок новой пары даёт 503, неизвестная или неактивная пара — 400; синтетические свечи для новых пар не создаются. Доступность рынков зависит от доступа сервера к Binance. API-ключ для этих публичных данных не требуется. Поиск акций, Forex и других бирж в эту доработку не входит.
++
++Из src/domain/backlog.ts удалён выполненный dynamic-symbol-search. Остаются chart-drawing-tools, backlog-section и coinglass-liquidation-map. Меняйте массив backlog в этом файле, чтобы обновить список задач.
++
++Проверено: 41 автоматический тест, TypeScript, standalone-сборка и HTTP smoke-тест. Новые тесты используют подставные ответы биржи: проверяют фильтрацию каталога, разделение рынков, частичную недоступность, прямую загрузку истории и последних свечей, отклонение неизвестных пар и отсутствие DEMO-подмены при сбое. Реальное соединение с Binance и интерактивная проверка в браузере не выполнялись.
+diff --git a/src/components/symbol-search.tsx b/src/components/symbol-search.tsx
+new file mode 100644
+index 0000000..450255b
+--- /dev/null
++++ b/src/components/symbol-search.tsx
+@@ -0,0 +1,140 @@
++"use client";
++import { useEffect, useState } from "react";
++
++interface Result {
++  symbol: string;
++  base: string;
++  quote: string;
++  market: "spot" | "futures";
++}
++interface Results {
++  data: Result[];
++  total: number;
++  warning?: string;
++}
++export function SymbolSearch({
++  favorites,
++  star,
++}: {
++  favorites: string[];
++  star: (symbol: string) => void;
++}) {
++  const [query, setQuery] = useState("");
++  const [market, setMarket] = useState("all");
++  const [results, setResults] = useState<Results>();
++  const [error, setError] = useState("");
++  const [loading, setLoading] = useState(false);
++  useEffect(() => {
++    const controller = new AbortController();
++    setResults(undefined);
++    setError("");
++    setLoading(!!query.trim());
++    if (!query.trim()) return () => controller.abort();
++    const timer = setTimeout(async () => {
++      try {
++        const response = await fetch(
++          `/api/symbols?q=${encodeURIComponent(query)}&market=${market}`,
++          { signal: controller.signal },
++        );
++        const body = (await response.json()) as Results & { error?: string };
++        if (!response.ok)
++          throw new Error(body.error || `HTTP ${response.status}`);
++        if (!controller.signal.aborted) setResults(body);
++      } catch (e) {
++        if (!controller.signal.aborted)
++          setError(e instanceof Error ? e.message : "Поиск недоступен");
++      } finally {
++        if (!controller.signal.aborted) setLoading(false);
++      }
++    }, 300);
++    return () => {
++      clearTimeout(timer);
++      controller.abort();
++    };
++  }, [query, market]);
++  return (
++    <section className="symbol-search" aria-label="Поиск торговых пар">
++      <div className="symbol-search-controls">
++        <label>
++          Поиск торговых пар
++          <input
++            type="search"
++            value={query}
++            maxLength={40}
++            onChange={(e) => setQuery(e.target.value)}
++            placeholder="Например, BTC/USDC"
++          />
++        </label>
++        <label>
++          Рынок
++          <select value={market} onChange={(e) => setMarket(e.target.value)}>
++            <option value="all">Все рынки Binance</option>
++            <option value="spot">Spot</option>
++            <option value="futures">USDⓈ-M Perpetual</option>
++          </select>
++        </label>
++      </div>
++      <div role="status" aria-live="polite">
++        {loading && <p>Поиск…</p>}
++        {error && <p>{error}</p>}
++        {results?.warning && <p>{results.warning}</p>}
++        {results && (
++          <p>
++            {results.total
++              ? `Найдено: ${results.total}${results.total > results.data.length ? ". Показаны первые 60 — уточните запрос." : ""}`
++              : "Активные пары не найдены."}
++          </p>
++        )}
++      </div>
++      {results && results.data.length > 0 && (
++        <ul className="symbol-search-results">
++          {results.data.map((row) => (
++            <li key={row.symbol}>
++              <a href={`/pair/${encodeURIComponent(row.symbol)}`}>
++                {row.base} / {row.quote}
++                <small>
++                  {row.market === "spot" ? "Spot" : "USDⓈ-M Perpetual"}
++                </small>
++              </a>
++              <button
++                type="button"
++                aria-label={`Избранное: ${row.symbol}`}
++                aria-pressed={favorites.includes(row.symbol)}
++                onClick={() => star(row.symbol)}
++              >
++                {favorites.includes(row.symbol) ? "★" : "☆"}
++              </button>
++            </li>
++          ))}
++        </ul>
++      )}
++      <details className="symbol-search-favorites">
++        <summary>Избранные пары ({favorites.length})</summary>
++        <ul className="symbol-search-results">
++          {favorites.map((symbol) => (
++            <li key={symbol}>
++              <a href={`/pair/${encodeURIComponent(symbol)}`}>
++                {symbol.replace(/^(FUTURES|SPOT):/, "")}
++                <small>
++                  {symbol.startsWith("FUTURES:") || symbol === "HYPEUSDT"
++                    ? "USDⓈ-M Perpetual"
++                    : "Spot / другие рынки"}
++                </small>
++              </a>
++              <button
++                type="button"
++                aria-label={`Удалить ${symbol} из избранного`}
++                onClick={() => star(symbol)}
++              >
++                ×
++              </button>
++            </li>
++          ))}
++        </ul>
++        {!favorites.length && (
++          <p>Добавьте пару кнопкой ☆ в результатах поиска.</p>
++        )}
++      </details>
++    </section>
++  );
++}
+diff --git a/src/components/terminal.tsx b/src/components/terminal.tsx
+index a70d25c..7f2c291 100644
+--- a/src/components/terminal.tsx
++++ b/src/components/terminal.tsx
+@@ -1,4 +1,5 @@
+ "use client";
++import { SymbolSearch } from "./symbol-search";
+ import { useEffect, useMemo, useRef, useState } from "react";
+ import {
+   Activity,
+@@ -385,6 +386,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
+           <span className="avatar">VT</span>
+         </div>
+       </header>
++      <SymbolSearch favorites={favorites} star={star} />
+       {symbol ? (
+         <PairWorkspace
+           symbol={symbol}
+@@ -1026,7 +1028,7 @@ function PairWorkspace({
+     setSettingsId(id);
+   }
+   const q = rows.find((x) => x.symbol === symbol),
+-    item = catalog.find((x) => x.symbol === symbol);
++    item = catalog.find((x) => x.symbol === symbol) ?? candleData?.instrument;
+   const bars = candleData?.data ?? [],
+     last = bars.at(-1);
+   const list = rows.filter(
+@@ -1040,7 +1042,20 @@ function PairWorkspace({
+   if (!item)
+     return (
+       <main className="empty-state">
+-        <h1>Инструмент не найден</h1>
++        <h1>
++          {resource.loading
++            ? "Загрузка инструмента…"
++            : "Не удалось загрузить инструмент"}
++        </h1>
++        {resource.error && <p>{resource.error}</p>}
++        {!resource.loading && (
++          <button
++            className="button"
++            onClick={() => void resource.refresh(true)}
++          >
++            Повторить
++          </button>
++        )}
+         <a className="button" href="/">
+           Вернуться к рынкам
+         </a>
+diff --git a/src/domain/backlog.ts b/src/domain/backlog.ts
+index 4eb45a0..90d064a 100644
+--- a/src/domain/backlog.ts
++++ b/src/domain/backlog.ts
+@@ -1,11 +1,5 @@
+ /** Edit this array to change the visible roadmap on the home page. */
+ export const backlog = [
+-  {
+-    id: "dynamic-symbol-search",
+-    title: "Поиск произвольных торговых пар",
+-    description:
+-      "Реализовать динамический поиск и выбор торговых пар без ограничения заранее заданным в исходном коде списком инструментов.",
+-  },
+   {
+     id: "chart-drawing-tools",
+     title: "Инструменты рисования на графике",
+diff --git a/src/domain/market.ts b/src/domain/market.ts
+index 13fac1b..ee04b5a 100644
+--- a/src/domain/market.ts
++++ b/src/domain/market.ts
+@@ -45,6 +45,7 @@ export interface MarketResponse {
+   warning?: string;
+ }
+ export interface CandleResponse {
++  instrument?: Instrument;
+   /** Exchange PRICE_FILTER tickSize; may be absent when metadata is unavailable. */
+   tickSize?: number;
+   data: Candle[];
+diff --git a/src/hooks/use-resource.ts b/src/hooks/use-resource.ts
+index 1a1f855..04d6503 100644
+--- a/src/hooks/use-resource.ts
++++ b/src/hooks/use-resource.ts
+@@ -22,7 +22,10 @@ export function useResource<T>(url: string, period = 30000) {
+           url + (force ? (url.includes("?") ? "&" : "?") + "refresh=1" : ""),
+           { signal: abort.signal },
+         );
+-        if (!r.ok) throw Error(`HTTP ${r.status}`);
++        if (!r.ok) {
++          const body = (await r.json().catch(() => ({}))) as { error?: string };
++          throw Error(body.error || `HTTP ${r.status}`);
++        }
+         const next = await r.json();
+         if (id === version.current) {
+           loadedUrl.current = url;
+diff --git a/src/server/binance-history.ts b/src/server/binance-history.ts
+index 073c177..99eccb9 100644
+--- a/src/server/binance-history.ts
++++ b/src/server/binance-history.ts
+@@ -1,6 +1,7 @@
++import { upstreamSymbol } from "./symbol-service";
+ import type { Candle, CandleInterval } from "../domain/market";
+ export const binanceEndpoint = (symbol: string) =>
+-  symbol === "HYPEUSDT"
++  symbol === "HYPEUSDT" || symbol.startsWith("FUTURES:")
+     ? {
+         root: "https://fapi.binance.com",
+         path: "/fapi/v1",
+@@ -23,7 +24,11 @@ export async function loadBinanceHistory(
+   let endTime: number | undefined, warning: string | undefined;
+   for (let page = 0; page < 5 && byTime.size < count; page++) {
+     const limit = Math.min(1000, count - byTime.size),
+-      query = new URLSearchParams({ symbol, interval, limit: String(limit) });
++      query = new URLSearchParams({
++        symbol: upstreamSymbol(symbol),
++        interval,
++        limit: String(limit),
++      });
+     if (endTime !== undefined) query.set("endTime", String(endTime));
+     try {
+       const data = await json(
+diff --git a/src/server/market-service.ts b/src/server/market-service.ts
+index 459240f..f2ec915 100644
+--- a/src/server/market-service.ts
++++ b/src/server/market-service.ts
+@@ -1,3 +1,9 @@
++import {
++  resolveInstrument,
++  searchSymbols,
++  SymbolError,
++  upstreamSymbol,
++} from "./symbol-service";
+ import { catalog, instrument } from "../domain/catalog";
+ import { demoCandles, demoQuote } from "../domain/demo";
+ import { DEFAULT_CANDLE_COUNT, validCandleCount } from "../domain/history";
+@@ -252,8 +258,7 @@ export async function candles(
+   // history route still validates its own 300–4000 range below.
+   if (!validCandleCount(count) && count !== 2)
+     throw Error("Invalid candle count");
+-  const item = instrument(symbol);
+-  if (!item) throw Error("Unknown symbol");
++  const item = await resolveInstrument(symbol, config.DATA_MODE === "demo");
+   return cached(
+     `candles:${symbol}:${tf}:${count}:${config.DATA_MODE}:${!!config.TWELVE_DATA_API_KEY}`,
+     15000,
+@@ -280,11 +285,11 @@ export async function candles(
+                   false,
+                   () =>
+                     json(
+-                      `${endpoint.root}${endpoint.path}/exchangeInfo${symbol === "HYPEUSDT" ? "" : "?symbol=" + encodeURIComponent(symbol)}`,
++                      `${endpoint.root}${endpoint.path}/exchangeInfo${endpoint.name === "Binance Futures" ? "" : "?symbol=" + encodeURIComponent(upstreamSymbol(symbol))}`,
+                     ),
+                 );
+                 const f = info.symbols
+-                  ?.find((s: any) => s.symbol === symbol)
++                  ?.find((s: any) => s.symbol === upstreamSymbol(symbol))
+                   ?.filters?.find((f: any) => f.filterType === "PRICE_FILTER");
+                 if (f && Number.isFinite(+f.tickSize) && +f.tickSize > 0)
+                   tickSize = +f.tickSize;
+@@ -298,6 +303,7 @@ export async function candles(
+             );
+             return {
+               data: bars,
++              instrument: item,
+               source: "live",
+               provider: endpoint.name,
+               asOf,
+@@ -356,6 +362,7 @@ export async function candles(
+             log("INFO", `${symbol} ${tf}: ${bars.length} свечей Twelve Data`);
+             return {
+               data: bars,
++              instrument: item,
+               source: "live",
+               provider: "Twelve Data",
+               asOf,
+@@ -374,9 +381,15 @@ export async function candles(
+               : "Twelve Data",
+             false,
+           );
+-          log("WARN", `${symbol} ${tf}: request failed; demo fallback`);
++          log(
++            "WARN",
++            `${symbol} ${tf}: request failed${instrument(symbol) ? "; demo fallback" : ""}`,
++          );
+         }
++      if (!instrument(symbol))
++        throw new SymbolError("Котировки пары временно недоступны");
+       return {
++        instrument: item,
+         data: demoCandles(
+           item,
+           tf,
+@@ -406,6 +419,13 @@ export async function handleApi(
+   try {
+     let result: unknown;
+     switch (u.pathname) {
++      case "/api/symbols":
++        result = await searchSymbols(
++          u.searchParams.get("q") ?? "",
++          u.searchParams.get("market") ?? "all",
++          config.DATA_MODE === "demo",
++        );
++        break;
+       case "/api/markets":
+         result = await markets(config, force);
+         break;
+@@ -420,7 +440,7 @@ export async function handleApi(
+             { error: "count: целое число от 300 до 4000" },
+             { status: 400 },
+           );
+-        if (!instrument(symbol) || !Object.hasOwn(candleIntervals, tf))
++        if (!Object.hasOwn(candleIntervals, tf))
+           return Response.json(
+             { error: "Неизвестный symbol или interval" },
+             { status: 400 },
+@@ -439,7 +459,7 @@ export async function handleApi(
+       case "/api/candles/latest": {
+         const symbol = u.searchParams.get("symbol") ?? "BTCUSDT";
+         const tf = u.searchParams.get("interval") ?? "1h";
+-        if (!instrument(symbol) || !Object.hasOwn(candleIntervals, tf))
++        if (!Object.hasOwn(candleIntervals, tf))
+           return Response.json(
+             { error: "Неизвестный symbol или interval" },
+             { status: 400 },
+@@ -481,7 +501,12 @@ export async function handleApi(
+         "X-Content-Type-Options": "nosniff",
+       },
+     });
+-  } catch {
++  } catch (error) {
++    if (error instanceof SymbolError)
++      return Response.json(
++        { error: error.message },
++        { status: error.status, headers: { "Cache-Control": "no-store" } },
++      );
+     log("ERROR", "Internal API error");
+     return Response.json(
+       { error: "Внутренняя ошибка сервера" },
+diff --git a/src/server/symbol-service.ts b/src/server/symbol-service.ts
+new file mode 100644
+index 0000000..1243d1e
+--- /dev/null
++++ b/src/server/symbol-service.ts
+@@ -0,0 +1,141 @@
++import { instrument } from "../domain/catalog";
++import type { Instrument } from "../domain/market";
++
++export class SymbolError extends Error {
++  constructor(
++    message: string,
++    public status = 503,
++  ) {
++    super(message);
++  }
++}
++export interface SearchInstrument extends Instrument {
++  market: "spot" | "futures";
++}
++const entries = new Map<
++  string,
++  { expires: number; data: SearchInstrument[] }
++>();
++const pending = new Map<string, Promise<SearchInstrument[]>>();
++export function upstreamSymbol(symbol: string) {
++  return symbol.replace(/^(FUTURES|SPOT):/, "");
++}
++export function parseExchangeSymbols(
++  data: unknown,
++  market: "spot" | "futures",
++): SearchInstrument[] {
++  const rows = (data as { symbols?: unknown[] })?.symbols;
++  if (!Array.isArray(rows)) throw new SymbolError("Некорректный каталог биржи");
++  return rows.flatMap((value) => {
++    const row = value as Record<string, unknown>;
++    if (
++      !row ||
++      row.status !== "TRADING" ||
++      (market === "spot" && row.isSpotTradingAllowed === false) ||
++      (market === "futures" && row.contractType !== "PERPETUAL") ||
++      typeof row.symbol !== "string" ||
++      !/^[A-Z0-9]{2,30}$/.test(row.symbol) ||
++      typeof row.baseAsset !== "string" ||
++      typeof row.quoteAsset !== "string"
++    )
++      return [];
++    // Keep the existing HYPE perpetual URL; prefix every other futures symbol.
++    const symbol =
++      market === "futures" && row.symbol !== "HYPEUSDT"
++        ? `FUTURES:${row.symbol}`
++        : market === "spot" && row.symbol === "HYPEUSDT"
++          ? "SPOT:HYPEUSDT"
++          : row.symbol;
++    return [
++      {
++        symbol,
++        base: row.baseAsset,
++        quote: row.quoteAsset,
++        name: `${row.baseAsset} / ${row.quoteAsset}`,
++        category: "crypto" as const,
++        sector: market === "spot" ? "Spot" : "Perpetual",
++        seed: 1,
++        market,
++      },
++    ];
++  });
++}
++async function exchange(market: "spot" | "futures") {
++  const cached = entries.get(market);
++  if (cached && cached.expires > Date.now()) return cached.data;
++  if (pending.has(market)) return pending.get(market)!;
++  const task = (async () => {
++    const url =
++      market === "spot"
++        ? "https://data-api.binance.vision/api/v3/exchangeInfo"
++        : "https://fapi.binance.com/fapi/v1/exchangeInfo";
++    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
++    if (!response.ok)
++      throw new SymbolError(`Каталог ${market}: HTTP ${response.status}`);
++    const data = parseExchangeSymbols(await response.json(), market);
++    entries.set(market, { data, expires: Date.now() + 3600000 });
++    return data;
++  })().finally(() => pending.delete(market));
++  pending.set(market, task);
++  return task;
++}
++export async function searchSymbols(
++  query: string,
++  market: string,
++  demo = false,
++) {
++  const q = query.toUpperCase().replace(/[\s/_-]/g, "");
++  if (
++    q.length > 40 ||
++    !/^[A-Z0-9:]*$/.test(q) ||
++    !["all", "spot", "futures"].includes(market)
++  )
++    throw new SymbolError("Некорректные параметры поиска", 400);
++  if (demo)
++    throw new SymbolError("Поиск биржевых пар недоступен в режиме DEMO");
++  const markets: ("spot" | "futures")[] =
++    market === "all" ? ["spot", "futures"] : [market as "spot" | "futures"];
++  const results = await Promise.allSettled(markets.map(exchange));
++  const warnings: string[] = [];
++  const rows = results.flatMap((result, index) => {
++    if (result.status === "fulfilled") return result.value;
++    warnings.push(`Каталог ${markets[index]} недоступен`);
++    return [];
++  });
++  if (results.every((r) => r.status === "rejected"))
++    throw new SymbolError(warnings.join(". "));
++  const matches = rows
++    .filter(
++      (row) => (row.base + row.quote).includes(q) || row.symbol.includes(q),
++    )
++    .sort(
++      (a, b) =>
++        Number(b.base + b.quote === q) - Number(a.base + a.quote === q) ||
++        a.symbol.localeCompare(b.symbol),
++    );
++  return {
++    data: matches.slice(0, 60),
++    total: matches.length,
++    warning: warnings.join(". ") || undefined,
++  };
++}
++export async function resolveInstrument(
++  symbol: string,
++  demo = false,
++): Promise<Instrument> {
++  const known = instrument(symbol);
++  if (known) return known;
++  if (demo || !/^(?:(?:FUTURES|SPOT):)?[A-Z0-9]{2,30}$/.test(symbol))
++    throw new SymbolError("Неизвестная торговая пара", 400);
++  let rows: SearchInstrument[];
++  try {
++    rows = await exchange(symbol.startsWith("FUTURES:") ? "futures" : "spot");
++  } catch {
++    throw new SymbolError(
++      "Не удалось проверить пару: каталог биржи недоступен",
++    );
++  }
++  const found = rows.find((row) => row.symbol === symbol);
++  if (!found) throw new SymbolError("Активная торговая пара не найдена", 400);
++  return found;
++}
+diff --git a/tests/core.test.ts b/tests/core.test.ts
+index 9fefdf5..3b17f7a 100644
+--- a/tests/core.test.ts
++++ b/tests/core.test.ts
+@@ -1,3 +1,4 @@
++import "./symbol-search.test";
+ import "./shared-indicators.test";
+ import { test } from "node:test";
+ import assert from "node:assert/strict";
+diff --git a/tests/symbol-search.test.ts b/tests/symbol-search.test.ts
+new file mode 100644
+index 0000000..d715c29
+--- /dev/null
++++ b/tests/symbol-search.test.ts
+@@ -0,0 +1,102 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { parseExchangeSymbols } from "../src/server/symbol-service";
++import { handleApi } from "../src/server/market-service";
++
++const active = {
++  symbol: "ZZZUSDC",
++  baseAsset: "ZZZ",
++  quoteAsset: "USDC",
++  status: "TRADING",
++  contractType: "PERPETUAL",
++};
++test("exchange parser excludes inactive/unsupported markets and separates spot/futures", () => {
++  const symbols = [
++    active,
++    { ...active, status: "BREAK" },
++    { ...active, symbol: "HYPEUSDT" },
++  ];
++  assert.deepEqual(
++    parseExchangeSymbols({ symbols }, "spot").map((x) => x.symbol),
++    ["ZZZUSDC", "SPOT:HYPEUSDT"],
++  );
++  assert.deepEqual(
++    parseExchangeSymbols({ symbols }, "futures").map((x) => x.symbol),
++    ["FUTURES:ZZZUSDC", "HYPEUSDT"],
++  );
++  assert.equal(
++    parseExchangeSymbols(
++      { symbols: [{ ...active, contractType: "CURRENT_QUARTER" }] },
++      "futures",
++    ).length,
++    0,
++  );
++  assert.equal(
++    parseExchangeSymbols(
++      { symbols: [{ ...active, isSpotTradingAllowed: false }] },
++      "spot",
++    ).length,
++    0,
++  );
++});
++test("dynamic search, direct candle URLs and polling work outside curated catalog", async () => {
++  const original = globalThis.fetch;
++  const calls: string[] = [];
++  let failFutures = true,
++    failCandles = false;
++  globalThis.fetch = async (input) => {
++    const url = new URL(String(input));
++    calls.push(url.href);
++    if (url.pathname.endsWith("exchangeInfo")) {
++      if (url.hostname === "fapi.binance.com" && failFutures)
++        return new Response("", { status: 503 });
++      return Response.json({ symbols: [active] });
++    }
++    if (failCandles) return new Response("", { status: 503 });
++    assert.equal(url.searchParams.get("symbol"), "ZZZUSDC");
++    return Response.json([
++      [1700000000000, "10", "12", "9", "11", "100"],
++      [1700000060000, "11", "13", "10", "12", "200"],
++    ]);
++  };
++  const call = (path: string) => handleApi(new Request("http://local" + path));
++  try {
++    const partial = (await (
++      await call("/api/symbols?q=zzz%2Fusdc")
++    ).json()) as any;
++    assert.equal(partial.total, 1);
++    assert.match(partial.warning, /futures/);
++    failFutures = false;
++    const results = (await (
++      await call("/api/symbols?q=zzz-usdc")
++    ).json()) as any;
++    assert.equal(results.total, 2);
++    for (const symbol of ["ZZZUSDC", "FUTURES:ZZZUSDC"]) {
++      for (const route of ["candles", "candles/latest"]) {
++        const response = await call(
++          `/api/${route}?symbol=${encodeURIComponent(symbol)}&interval=4h&refresh=1`,
++        );
++        assert.equal(response.status, 200);
++        const body = (await response.json()) as any;
++        assert.equal(body.instrument.symbol, symbol);
++        assert.equal(body.source, "live");
++        assert.equal(body.data.at(-1).close, 12);
++        assert.equal(
++          body.provider,
++          symbol.startsWith("FUTURES:") ? "Binance Futures" : "Binance",
++        );
++      }
++    }
++    assert.ok(
++      calls.some((url) => url.includes("fapi/v1/klines?symbol=ZZZUSDC")),
++    );
++    assert.equal((await call("/api/candles?symbol=NOTLISTED")).status, 400);
++    assert.equal((await call("/api/symbols?q=ZZZ&market=invalid")).status, 400);
++    failCandles = true;
++    const failure = await call("/api/candles?symbol=ZZZUSDC&refresh=1");
++    assert.equal(failure.status, 503);
++    assert.ok(((await failure.json()) as any).error);
++  } finally {
++    globalThis.fetch = original;
++  }
++});

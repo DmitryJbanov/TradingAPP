@@ -1,0 +1,352 @@
+diff --git a/README.md b/README.md
+index 200e4a3..9ed67c9 100644
+--- a/README.md
++++ b/README.md
+@@ -2,6 +2,8 @@
+ 
+ Самостоятельное веб-приложение для просмотра торговых инструментов: React + TypeScript, собственный backend и свечные графики TradingView Lightweight Charts. Интерфейс на русском. Исходники и готовая автономная сборка входят в поставку.
+ 
++Обновление: график открывается на **4H**. Состав и настройки индикаторов общие для всех пар. В каталоге доступны VMC, DRZ, SMC и Sonarlab; индикаторы-заглушки удалены. [Применение и перенос настроек](docs/APPLY_PREFERENCES_PATCH.md).
++
+ ## Быстрый запуск
+ 
+ ### Обновление: история, HYPE, DRZ и SMC
+diff --git a/docs/APPLY_PREFERENCES_PATCH.md b/docs/APPLY_PREFERENCES_PATCH.md
+new file mode 100644
+index 0000000..1ca7acf
+--- /dev/null
++++ b/docs/APPLY_PREFERENCES_PATCH.md
+@@ -0,0 +1,15 @@
++# Общие индикаторы и таймфрейм 4H
++
++Основа патча: коммит `126c1fbe90e233c5c614ada5549aa18c2502a763` ветки main. Это дополнительный патч после обновления свечей и беклога.
++
++Сохраните свои локальные изменения. В корне проекта проверьте: `git apply --check tradingapp-preferences.patch`. Если ошибок нет, примените: `git apply tradingapp-preferences.patch`.
++
++Соберите: `npm run build:standalone`. Остановите старый процесс через Ctrl+C и запустите `npm run start:standalone`. Для Docker: `docker compose up -d --build`.
++
++При открытии пары выбран 4H. Пользователь может переключать таймфреймы как раньше.
++
++Все пары используют общий набор индикаторов из `vector.indicators.shared.v1` в localStorage. Сохраняются состав, порядок, включение/отключение, параметры, стиль и ограничения видимости по таймфреймам. При первом открытии после обновления переносится набор открытой пары из старого `vector.indicators.v1`; если он пуст или содержит только заглушки, берётся первый непустой поддерживаемый набор по алфавиту символов. Старый ключ остаётся резервной копией. Существующий общий набор, в том числе пустой, имеет приоритет. Хранилище относится к текущему браузеру и origin; при запрете localStorage после перезагрузки сохранение недоступно. Одновременное редактирование в разных вкладках не синхронизируется в реальном времени.
++
++Из каталога и активного набора исключены Nadaraya–Watson, SMA и отдельный RSI без реализации. Расчёты RSI внутри VMC сохранены. Доступны VMC, DRZ, SMC и Sonarlab Order Blocks.
++
++Из `src/domain/backlog.ts` удалены выполненные пункты default-timeframe, indicator-persistence, remove-placeholder-indicators. Оставшиеся четыре записи сохранены.
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 456cae9..6c19f63 100644
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -52,7 +52,7 @@ Backend не зависит от React и не рендерит графики.
+ 
+ ## Состояние
+ 
+-Состояние фильтров и текущего таймфрейма живёт в React и сбрасывается при полном переходе на другую страницу. В localStorage сохраняются `vector.theme.v1`, `vector.accent.v1`, `vector.chart.v1`, `vector.favorites.v1`, `vector.indicators.v1`. Последний ключ содержит словарь экземпляров индикаторов по symbol.
++Состояние фильтров и текущего таймфрейма (4H при открытии) живёт в React и сбрасывается при полном переходе на другую страницу. В localStorage сохраняются `vector.theme.v1`, `vector.accent.v1`, `vector.chart.v1`, `vector.favorites.v1`, `vector.indicators.v1`. Старый ключ `vector.indicators.v1` содержит резервный словарь по symbol. Активный общий набор для всех пар хранится в `vector.indicators.shared.v1`; правила переноса описаны в APPLY_PREFERENCES_PATCH.md.
+ 
+ `WorkspaceDocument` описывает будущую схему с несколькими PaneState. Сейчас работает один график. Контракт не означает реализованный layout manager; порядок внедрения описан в EXTENDING.md.
+ 
+diff --git a/src/components/terminal.tsx b/src/components/terminal.tsx
+index 320a63d..a70d25c 100644
+--- a/src/components/terminal.tsx
++++ b/src/components/terminal.tsx
+@@ -59,6 +59,7 @@ import {
+ } from "../domain/market";
+ import { indicatorRegistry, type IndicatorInstance } from "../domain/workspace";
+ import { useResource, useStored } from "../hooks/use-resource";
++import { useSharedIndicators } from "../hooks/use-shared-indicators";
+ import { Choice } from "./controls";
+ import { Sessions } from "./sessions";
+ import { MarketChart, defaultPalette, type ChartPalette } from "./chart";
+@@ -934,7 +935,7 @@ function PairWorkspace({
+   palette: ChartPalette;
+   openSettings: () => void;
+ }) {
+-  const [tf, setTf] = useState<Timeframe>("1h"),
++  const [tf, setTf] = useState<Timeframe>("4h"),
+     [query, setQuery] = useState(""),
+     [onlyFavorites, setOnlyFavorites] = useState(false),
+     [manager, setManager] = useState(false),
+@@ -942,10 +943,7 @@ function PairWorkspace({
+     [indicatorSearch, setIndicatorSearch] = useState("");
+   const [indicatorRefresh, setIndicatorRefresh] = useState(0);
+   const [settingsId, setSettingsId] = useState<string | null>(null);
+-  const [allIndicators, setAllIndicators] = useStored<
+-    Record<string, IndicatorInstance[]>
+-  >("vector.indicators.v1", {});
+-  const indicators = allIndicators[symbol] ?? [];
++  const [indicators, setIndicators] = useSharedIndicators(symbol);
+   const [storedCount, setCount] = useStored(
+     "vector.candles.v1",
+     DEFAULT_CANDLE_COUNT,
+@@ -1037,7 +1035,7 @@ function PairWorkspace({
+       (x.symbol + " " + x.name).toLowerCase().includes(query.toLowerCase()),
+   );
+   function changeIndicators(next: IndicatorInstance[]) {
+-    setAllIndicators({ ...allIndicators, [symbol]: next });
++    setIndicators(next);
+   }
+   if (!item)
+     return (
+@@ -1333,8 +1331,8 @@ function PairWorkspace({
+           <DialogHeader>
+             <DialogTitle>Индикаторы</DialogTitle>
+             <DialogDescription>
+-              Настройте состав для {symbol}. Доступны VMC Cipher B и Sonarlab
+-              Order Blocks; остальные индикаторы пока в разработке.
++              Общий набор для всех торговых пар: VMC, DRZ, SMC и Sonarlab Order
++              Blocks. Настройки сохраняются при переключении пары.
+             </DialogDescription>
+           </DialogHeader>
+           <label className="search-field">
+@@ -1368,14 +1366,7 @@ function PairWorkspace({
+                           id: crypto.randomUUID(),
+                           definitionId: d.id,
+                           enabled: true,
+-                          period:
+-                            d.id === "vmc"
+-                              ? 9
+-                              : d.id === "nwe"
+-                                ? 200
+-                                : d.id === "rsi"
+-                                  ? 14
+-                                  : 20,
++                          period: d.id === "vmc" ? 9 : 20,
+                           color:
+                             d.id === "sonarlab-ob"
+                               ? orderBlockDefaults.col_bullish
+diff --git a/src/domain/backlog.ts b/src/domain/backlog.ts
+index 3797978..4eb45a0 100644
+--- a/src/domain/backlog.ts
++++ b/src/domain/backlog.ts
+@@ -1,29 +1,11 @@
+ /** Edit this array to change the visible roadmap on the home page. */
+ export const backlog = [
+-  {
+-    id: "default-timeframe",
+-    title: "Таймфрейм по умолчанию — 4 часа",
+-    description:
+-      "Установить таймфрейм 4H в качестве значения по умолчанию при открытии графика торгового инструмента.",
+-  },
+-  {
+-    id: "indicator-persistence",
+-    title: "Сохранение индикаторов между торговыми парами",
+-    description:
+-      "Обеспечить сохранение выбранных индикаторов и их пользовательских настроек при переключении между торговыми парами.",
+-  },
+   {
+     id: "dynamic-symbol-search",
+     title: "Поиск произвольных торговых пар",
+     description:
+       "Реализовать динамический поиск и выбор торговых пар без ограничения заранее заданным в исходном коде списком инструментов.",
+   },
+-  {
+-    id: "remove-placeholder-indicators",
+-    title: "Удаление индикаторов-заглушек",
+-    description:
+-      "Удалить из интерфейса индикаторы, для которых отсутствуют реализованные алгоритмы расчёта и фактическая отрисовка данных.",
+-  },
+   {
+     id: "chart-drawing-tools",
+     title: "Инструменты рисования на графике",
+@@ -42,4 +24,4 @@ export const backlog = [
+     description:
+       "Реализовать получение данных карты ликвидаций CoinGlass и отображение уровней ликвидации на графике через отдельный индикатор. Добавить настройки расчёта и визуализации, возможность повторного запуска парсинга и обновления уровней, а также отображение текущего состояния и прогресса обработки данных.",
+   },
+-] as const;
+\ No newline at end of file
++] as const;
+diff --git a/src/domain/shared-indicators.ts b/src/domain/shared-indicators.ts
+new file mode 100644
+index 0000000..f834423
+--- /dev/null
++++ b/src/domain/shared-indicators.ts
+@@ -0,0 +1,39 @@
++import { indicatorRegistry, type IndicatorInstance } from "./workspace";
++
++export const SHARED_INDICATORS_KEY = "vector.indicators.shared.v1";
++export const LEGACY_INDICATORS_KEY = "vector.indicators.v1";
++
++export function supportedIndicators(value: unknown): IndicatorInstance[] {
++  if (!Array.isArray(value)) return [];
++  return value.filter(
++    (item): item is IndicatorInstance =>
++      item !== null &&
++      typeof item === "object" &&
++      typeof item.id === "string" &&
++      typeof item.enabled === "boolean" &&
++      indicatorRegistry.some(
++        (definition) =>
++          definition.id === item.definitionId &&
++          definition.implemented &&
++          definition.compute,
++      ),
++  );
++}
++
++export function initialSharedIndicators(
++  shared: unknown,
++  legacy: unknown,
++  symbol: string,
++): IndicatorInstance[] {
++  // An intentionally empty shared selection must never re-import old settings.
++  if (Array.isArray(shared)) return supportedIndicators(shared);
++  if (!legacy || typeof legacy !== "object" || Array.isArray(legacy)) return [];
++  const bySymbol = legacy as Record<string, unknown>;
++  const current = supportedIndicators(bySymbol[symbol]);
++  if (current.length) return current;
++  for (const key of Object.keys(bySymbol).sort()) {
++    const items = supportedIndicators(bySymbol[key]);
++    if (items.length) return items;
++  }
++  return [];
++}
+diff --git a/src/domain/workspace.ts b/src/domain/workspace.ts
+index 5bfdc1f..fb6435a 100644
+--- a/src/domain/workspace.ts
++++ b/src/domain/workspace.ts
+@@ -81,22 +81,4 @@ export const indicatorRegistry: IndicatorDefinition[] = [
+     implemented: true,
+     compute: computeOrderBlocks,
+   },
+-  {
+-    id: "nwe",
+-    name: "Nadaraya–Watson Envelope",
+-    description: "Исходник Pine Script сохранён. Перенос расчёта запланирован.",
+-    implemented: false,
+-  },
+-  {
+-    id: "sma",
+-    name: "Moving Average",
+-    description: "Скользящая средняя · расчёт будет добавлен позже.",
+-    implemented: false,
+-  },
+-  {
+-    id: "rsi",
+-    name: "Relative Strength Index",
+-    description: "Осциллятор в отдельной панели · расчёт будет добавлен позже.",
+-    implemented: false,
+-  },
+ ];
+diff --git a/src/hooks/use-shared-indicators.ts b/src/hooks/use-shared-indicators.ts
+new file mode 100644
+index 0000000..692ccd1
+--- /dev/null
++++ b/src/hooks/use-shared-indicators.ts
+@@ -0,0 +1,45 @@
++"use client";
++import { useEffect, useRef, useState } from "react";
++import type { IndicatorInstance } from "../domain/workspace";
++import {
++  initialSharedIndicators,
++  supportedIndicators,
++  SHARED_INDICATORS_KEY,
++  LEGACY_INDICATORS_KEY,
++} from "../domain/shared-indicators";
++
++function read(key: string): unknown {
++  try {
++    return JSON.parse(localStorage.getItem(key) ?? "null");
++  } catch {
++    return undefined;
++  }
++}
++
++export function useSharedIndicators(symbol: string) {
++  const firstSymbol = useRef(symbol);
++  const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
++  const [ready, setReady] = useState(false);
++  useEffect(() => {
++    setIndicators(
++      initialSharedIndicators(
++        read(SHARED_INDICATORS_KEY),
++        read(LEGACY_INDICATORS_KEY),
++        firstSymbol.current,
++      ),
++    );
++    setReady(true);
++  }, []);
++  useEffect(() => {
++    if (!ready) return;
++    try {
++      localStorage.setItem(
++        SHARED_INDICATORS_KEY,
++        JSON.stringify(supportedIndicators(indicators)),
++      );
++    } catch {
++      /* Retain the selection in memory if browser storage is unavailable. */
++    }
++  }, [indicators, ready]);
++  return [indicators, setIndicators] as const;
++}
+diff --git a/tests/core.test.ts b/tests/core.test.ts
+index 73ef7a2..9fefdf5 100644
+--- a/tests/core.test.ts
++++ b/tests/core.test.ts
+@@ -1,3 +1,4 @@
++import "./shared-indicators.test";
+ import { test } from "node:test";
+ import assert from "node:assert/strict";
+ import { catalog } from "../src/domain/catalog";
+diff --git a/tests/shared-indicators.test.ts b/tests/shared-indicators.test.ts
+new file mode 100644
+index 0000000..ef64ecd
+--- /dev/null
++++ b/tests/shared-indicators.test.ts
+@@ -0,0 +1,57 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import {
++  initialSharedIndicators,
++  supportedIndicators,
++} from "../src/domain/shared-indicators";
++import { indicatorRegistry } from "../src/domain/workspace";
++const vmc = {
++  id: "custom",
++  definitionId: "vmc",
++  enabled: false,
++  period: 9,
++  color: "#123456",
++  paneId: "oscillator",
++  params: { wtChannelLen: 17 },
++  style: { wtColor: "#abcdef" },
++  timeframes: ["4h"],
++};
++test("shared selection preserves instance settings and overrides all per-symbol settings", () => {
++  const shared = [vmc, { ...vmc, id: "second" }];
++  for (const symbol of ["BTCUSDT", "ETHUSDT"])
++    assert.deepEqual(
++      initialSharedIndicators(shared, { [symbol]: [] }, symbol),
++      shared,
++    );
++  assert.deepEqual(
++    initialSharedIndicators([], { BTCUSDT: [vmc] }, "BTCUSDT"),
++    [],
++  );
++});
++test("migration prefers current pair then a usable legacy selection and removes placeholders", () => {
++  const other = { ...vmc, id: "other" };
++  const legacy = {
++    BTCUSDT: [vmc, { ...vmc, definitionId: "nwe" }],
++    ETHUSDT: [other],
++  };
++  assert.deepEqual(initialSharedIndicators(null, legacy, "ETHUSDT"), [other]);
++  assert.deepEqual(initialSharedIndicators(null, legacy, "SOLUSDT"), [vmc]);
++  assert.deepEqual(
++    supportedIndicators([null, {}, { ...vmc, definitionId: "sma" }, vmc]),
++    [vmc],
++  );
++  assert.deepEqual(initialSharedIndicators(null, null, "BTCUSDT"), []);
++});
++test("only rendered and calculated indicators remain in the catalog", () => {
++  assert.deepEqual(indicatorRegistry.map((i) => i.id).sort(), [
++    "drz",
++    "smc",
++    "sonarlab-ob",
++    "vmc",
++  ]);
++  assert.ok(
++    indicatorRegistry.every(
++      (i) => i.implemented && typeof i.compute === "function",
++    ),
++  );
++});
