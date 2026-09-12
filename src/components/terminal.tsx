@@ -367,6 +367,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
           VECTOR<span className="brand-tag">TERMINAL</span>
         </a>
         <nav>
+          <a href="/backlog">Беклог</a>
           <a className={!symbol ? "active" : ""} href="/">
             <LayoutGrid size={16} /> Рынки
           </a>
@@ -799,13 +800,19 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                   </h2>
                 </div>
                 <ol className="backlog-list">
-                  {backlog.map((task) => (
+                  {backlog.slice(0, 3).map((task) => (
                     <li key={task.id}>
                       <strong>{task.title}</strong>
                       <span>{task.description}</span>
                     </li>
                   ))}
                 </ol>
+                {!backlog.length && (
+                  <p>Все запланированные задачи выполнены.</p>
+                )}
+                <a className="backlog-link" href="/backlog">
+                  Полный беклог ({backlog.length}) →
+                </a>
               </section>
               <section className="panel market-pulse">
                 <div className="section-heading">
@@ -1190,6 +1197,7 @@ function PairWorkspace({
           <div className="chart-stage">
             <MarketChart
               key={symbol}
+              symbol={symbol}
               bars={bars}
               timeframe={tf}
               palette={palette}

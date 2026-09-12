@@ -1,0 +1,966 @@
+diff --git a/app/backlog/page.tsx b/app/backlog/page.tsx
+new file mode 100644
+index 0000000..f6fb4d5
+--- /dev/null
++++ b/app/backlog/page.tsx
+@@ -0,0 +1,2 @@
++import { BacklogPage } from "@/src/components/backlog-page";
++export default BacklogPage;
+diff --git a/app/globals.css b/app/globals.css
+index 013bffa..ed27dc4 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -2010,3 +2010,93 @@ h1 {
+     margin: 12px;
+   }
+ }
++
++.backlog-list > li + li {
++  border-top: 1px solid var(--border);
++  padding-top: 16px;
++  margin-top: 16px;
++}
++.backlog-link {
++  display: block;
++  padding: 16px 20px;
++  border-top: 1px solid var(--border);
++  color: var(--brand);
++}
++.backlog-page {
++  max-width: 1100px;
++  margin: auto;
++}
++.backlog-page .panel {
++  padding: 24px;
++  margin-bottom: 24px;
++}
++.backlog-page h2 {
++  font-size: 18px;
++}
++.backlog-page p {
++  color: var(--muted-foreground);
++  line-height: 1.6;
++}
++.drawing-toolbar {
++  padding: 12px;
++  border-bottom: 1px solid var(--border);
++  background: var(--card);
++}
++.drawing-actions {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  gap: 6px;
++}
++.drawing-toolbar button {
++  border: 1px solid var(--border);
++  border-radius: 5px;
++  padding: 6px 9px;
++  font-size: 12px;
++}
++.drawing-toolbar button[aria-pressed="true"] {
++  background: var(--accent);
++  outline: 1px solid var(--brand);
++}
++.drawing-toolbar button:disabled {
++  opacity: 0.45;
++}
++.drawing-toolbar label {
++  display: flex;
++  align-items: center;
++  gap: 6px;
++  font-size: 12px;
++}
++.drawing-toolbar input[type="color"] {
++  width: 34px;
++  height: 28px;
++  cursor: pointer;
++}
++.drawing-toolbar p,
++.drawing-toolbar summary {
++  font-size: 12px;
++  color: var(--muted-foreground);
++  margin-top: 8px;
++}
++.drawing-toolbar summary {
++  cursor: pointer;
++}
++.drawing-toolbar ul {
++  max-height: 160px;
++  overflow: auto;
++  padding: 0;
++  list-style: none;
++}
++.drawing-toolbar li {
++  display: flex;
++  gap: 12px;
++  align-items: center;
++  padding: 4px;
++}
++.drawing-input {
++  position: absolute;
++  inset: 0;
++  z-index: 20;
++  touch-action: none;
++  cursor: crosshair;
++}
+diff --git a/docs/APPLY_DRAWINGS_BACKLOG_PATCH.md b/docs/APPLY_DRAWINGS_BACKLOG_PATCH.md
+new file mode 100644
+index 0000000..6a9c1c9
+--- /dev/null
++++ b/docs/APPLY_DRAWINGS_BACKLOG_PATCH.md
+@@ -0,0 +1,39 @@
++# Рисование на графике и страница беклога
++
++Патч tradingapp-drawings-backlog.patch рассчитан на проект после применения tradingapp-preferences.patch и tradingapp-symbol-search.patch (исходная база main: 126c1fbe90e233c5c614ada5549aa18c2502a763). Применять прежние патчи повторно не нужно.
++
++В корне проекта выполните последовательно:
++
++```bash
++git apply --check tradingapp-drawings-backlog.patch
++git apply tradingapp-drawings-backlog.patch
++npm run typecheck
++npm run test:core
++npm run build:standalone
++```
++
++Остановите старый процесс сервера и запустите `npm run start:standalone`. Для Docker используйте `docker compose up -d --build`.
++
++## Беклог
++
++Полный список задач находится на /backlog. Страница поддерживает прямое открытие и перезагрузку в standalone и имеет маршрут app/backlog/page.tsx для основной сборки. На главной показаны первые три пункта с разделителями и ссылкой «Полный беклог». Ссылка также добавлена в навигацию.
++
++Единственный источник списка — массив backlog в src/domain/backlog.ts. Добавляйте, удаляйте и переставляйте объекты с уникальным id, title и description, затем пересобирайте приложение. Обе страницы используют этот массив. Выполненные backlog-section и chart-drawing-tools удалены; осталась интеграция CoinGlass. Для пустого списка предусмотрено отдельное сообщение.
++
++## Разметка графика
++
++Над графиком доступны «Навигация», «Кисть», горизонтальная и вертикальная линии, прямоугольник и Фибоначчи.
++
++Выберите цвет и инструмент. Для линии достаточно нажатия в области свечей; можно удерживать и перемещать указатель перед отпусканием. Для кисти, прямоугольника и Фибоначчи нажмите, перетащите и отпустите указатель. Кисть поддерживает мышь, перо и сенсорный ввод через Pointer Events. Область рисования ограничена основной панелью свечей; панели индикаторов и шкалы не являются областью разметки.
++
++Фибоначчи рисует уровни 0%, 23,6%, 38,2%, 50%, 61,8%, 78,6% и 100% с ценами, от начальной точки к конечной. Обратное направление также поддерживается. Горизонтальная и вертикальная линии продолжаются на всю область свечей.
++
++Esc отменяет текущий незавершённый рисунок и включает навигацию. Кнопка «Навигация» возвращает обычное масштабирование и прокрутку. «Отменить добавление» удаляет последний оставшийся объект. В разделе «Объекты» можно изменить цвет конкретного объекта или удалить его. Перетаскивание уже созданных объектов и изменение их геометрии не входят в эту версию: удалите объект и нарисуйте заново.
++
++Разметка хранится в localStorage браузера отдельно для каждой пары и таймфрейма: vector.drawings.v1:<symbol>:<timeframe>. Spot/Futures имеют разные идентификаторы. Переход между парами и таймфреймами не удаляет разметку; возвращение восстанавливает её. Координаты хранятся как время и цена, а не пиксели. Обновление свечей, масштаба и количества истории сохраняет положение объектов. Для точек между свечами используется интерполяция, за пределами загруженной истории — интервал текущего таймфрейма. Объекты вне текущего видимого диапазона могут быть не видны.
++
++Лимиты: 200 объектов на пару/таймфрейм и 2000 точек на мазок кисти. При заполнении или блокировке localStorage появляется предупреждение; текущая разметка остаётся в памяти вкладки. Между браузерами и вкладками синхронизации нет. Очистка данных сайта удаляет сохранённую разметку. Общие настройки индикаторов из предыдущего патча сохраняются независимо от рисунков.
++
++## Проверки
++
++Пройдены TypeScript, 44 автоматических теста, standalone-сборка и HTTP smoke-тест, включая /backlog и /backlog/. В Chromium на демонстрационных свечах проверены прямое открытие беклога, создание всех пяти типов рисунков, восстановление после перезагрузки, изоляция по паре и таймфрейму, изменение цвета, удаление и отмена добавления. Ошибок JavaScript на страницах не выявлено. Визуально проверена отрисовка на графике. Для патча отдельно выполнен git apply --check на чистой базе после предыдущего патча.
+diff --git a/src/components/backlog-page.tsx b/src/components/backlog-page.tsx
+new file mode 100644
+index 0000000..83176b7
+--- /dev/null
++++ b/src/components/backlog-page.tsx
+@@ -0,0 +1,43 @@
++import { backlog } from "../domain/backlog";
++export function BacklogPage() {
++  return (
++    <div className="terminal-shell">
++      <header className="topbar">
++        <a className="brand" href="/">
++          VECTOR TERMINAL
++        </a>
++        <nav>
++          <a href="/">Рынки</a>
++          <a className="active" href="/backlog">
++            Беклог
++          </a>
++        </nav>
++      </header>
++      <main className="dashboard backlog-page">
++        <div className="page-heading">
++          <div>
++            <div className="eyebrow">ROADMAP</div>
++            <h1>Беклог проекта</h1>
++            <p>Запланированные доработки: {backlog.length}</p>
++          </div>
++        </div>
++        <section className="panel">
++          <ol className="backlog-list">
++            {backlog.map((task) => (
++              <li key={task.id}>
++                <h2>{task.title}</h2>
++                <p>{task.description}</p>
++              </li>
++            ))}
++          </ol>
++          {!backlog.length && (
++            <p className="empty-state">Все запланированные задачи выполнены.</p>
++          )}
++        </section>
++        <a className="button" href="/">
++          Вернуться к рынкам
++        </a>
++      </main>
++    </div>
++  );
++}
+diff --git a/src/components/chart.tsx b/src/components/chart.tsx
+index 6873fc2..1ffe9f7 100644
+--- a/src/components/chart.tsx
++++ b/src/components/chart.tsx
+@@ -1,4 +1,5 @@
+ "use client";
++import { DrawingTools, type DrawingChart } from "./drawing-tools";
+ import { useEffect, useRef, useState } from "react";
+ import {
+   createChart,
+@@ -51,6 +52,7 @@ export const defaultPalette: ChartPalette = {
+ };
+ export function MarketChart({
+   bars,
++  symbol,
+   palette,
+   timeframe,
+   resetKey,
+@@ -60,6 +62,7 @@ export function MarketChart({
+   historyCount,
+ }: {
+   bars: Candle[];
++  symbol: string;
+   palette: ChartPalette;
+   timeframe: Timeframe;
+   resetKey: number;
+@@ -68,6 +71,7 @@ export function MarketChart({
+   priceOverlays: PriceOverlay[];
+   historyCount: number;
+ }) {
++  const [drawingApi, setDrawingApi] = useState<DrawingChart>();
+   const host = useRef<HTMLDivElement>(null),
+     chart = useRef<IChartApi | null>(null),
+     series = useRef<ISeriesApi<"Candlestick"> | null>(null),
+@@ -162,6 +166,12 @@ export function MarketChart({
+     chart.current = c;
+     series.current = s;
+     volume.current = v;
++    const drawingContext: DrawingChart = {
++      chart: c,
++      series: s,
++      container: host.current.parentElement!,
++    };
++    setDrawingApi(drawingContext);
+     const obRenderer = new OrderBlocksRenderer();
+     s.attachPrimitive(obRenderer);
+     orderBlocksRenderer.current = obRenderer;
+@@ -197,6 +207,7 @@ export function MarketChart({
+       );
+     });
+     return () => {
++      drawingContext.disposed = true;
+       vmcSeries.current.clear();
+       s.detachPrimitive(obRenderer);
+       s.detachPrimitive(overlaysRenderer);
+@@ -334,6 +345,15 @@ export function MarketChart({
+   const b = ohlc ?? bars.at(-1);
+   return (
+     <>
++      {drawingApi && (
++        <DrawingTools
++          key={`${symbol}:${timeframe}`}
++          api={drawingApi}
++          bars={bars}
++          symbol={symbol}
++          timeframe={timeframe}
++        />
++      )}
+       <div
+         className="chart-container"
+         style={{
+diff --git a/src/components/drawing-tools.tsx b/src/components/drawing-tools.tsx
+new file mode 100644
+index 0000000..ab04dac
+--- /dev/null
++++ b/src/components/drawing-tools.tsx
+@@ -0,0 +1,265 @@
++"use client";
++import { useEffect, useRef, useState, type PointerEvent } from "react";
++import { createPortal } from "react-dom";
++import type { IChartApi, ISeriesApi } from "lightweight-charts";
++import {
++  drawingTools,
++  readDrawings,
++  timeAtLogical,
++  type Drawing,
++  type DrawingTool,
++  type DrawingPoint,
++} from "../domain/drawings";
++import { candleIntervals, type Candle, type Timeframe } from "../domain/market";
++import { DrawingsRenderer } from "./drawings-renderer";
++export interface DrawingChart {
++  disposed?: boolean;
++  chart: IChartApi;
++  series: ISeriesApi<"Candlestick">;
++  container: HTMLElement;
++}
++export function DrawingTools({
++  api,
++  bars,
++  symbol,
++  timeframe,
++}: {
++  api: DrawingChart;
++  bars: Candle[];
++  symbol: string;
++  timeframe: Timeframe;
++}) {
++  const [tool, setTool] = useState<DrawingTool | "navigate">("navigate");
++  const [color, setColor] = useState("#99a5ff");
++  const [drawings, setDrawings] = useState<Drawing[]>([]);
++  const [ready, setReady] = useState(false);
++  const [storageError, setStorageError] = useState("");
++  const [draft, setDraft] = useState<Drawing>();
++  const active = useRef<Drawing | undefined>(undefined);
++  const pointer = useRef<number | null>(null);
++  const renderer = useRef(new DrawingsRenderer());
++  const key = `vector.drawings.v1:${symbol}:${timeframe}`;
++  useEffect(() => {
++    try {
++      setDrawings(readDrawings(JSON.parse(localStorage.getItem(key) || "[]")));
++    } catch {
++      setStorageError("Не удалось прочитать сохранённую разметку.");
++    }
++    setReady(true);
++  }, [key]);
++  useEffect(() => {
++    if (!ready) return;
++    try {
++      localStorage.setItem(key, JSON.stringify(drawings));
++    } catch {
++      setStorageError(
++        "Разметка доступна в этой вкладке, но не сохранена: хранилище недоступно или заполнено.",
++      );
++    }
++  }, [drawings, ready, key]);
++  useEffect(() => {
++    const r = renderer.current;
++    if (api.disposed) return;
++    api.series.attachPrimitive(r);
++    return () => {
++      if (!api.disposed) api.series.detachPrimitive(r);
++      else r.detached();
++    };
++  }, [api]);
++  useEffect(() => {
++    renderer.current.configure(
++      draft ? [...drawings, draft] : drawings,
++      bars,
++      candleIntervals[timeframe],
++    );
++  }, [drawings, draft, bars, timeframe]);
++  function cancel() {
++    active.current = undefined;
++    pointer.current = null;
++    setDraft(undefined);
++  }
++  useEffect(() => {
++    const escape = (e: KeyboardEvent) => {
++      if (e.key === "Escape") {
++        cancel();
++        setTool("navigate");
++      }
++    };
++    window.addEventListener("keydown", escape);
++    return () => window.removeEventListener("keydown", escape);
++  }, []);
++  function point(e: PointerEvent<HTMLDivElement>): DrawingPoint | undefined {
++    if (!bars.length) return;
++    const rect = e.currentTarget.getBoundingClientRect(),
++      x = e.clientX - rect.left,
++      y = e.clientY - rect.top;
++    if (
++      x < 0 ||
++      x > api.chart.timeScale().width() ||
++      y < 0 ||
++      y > api.series.getPane().getHeight()
++    )
++      return;
++    const logical = api.chart.timeScale().coordinateToLogical(x),
++      price = api.series.coordinateToPrice(y);
++    if (logical === null || price === null) return;
++    return {
++      time: timeAtLogical(bars, logical, candleIntervals[timeframe]),
++      price,
++    };
++  }
++  function down(e: PointerEvent<HTMLDivElement>) {
++    if (
++      tool === "navigate" ||
++      e.button !== 0 ||
++      pointer.current !== null ||
++      drawings.length >= 200
++    )
++      return;
++    const p = point(e);
++    if (!p) return;
++    e.preventDefault();
++    e.currentTarget.setPointerCapture(e.pointerId);
++    pointer.current = e.pointerId;
++    active.current = {
++      id:
++        globalThis.crypto?.randomUUID?.() ??
++        `${Date.now()}-${Math.random().toString(36).slice(2)}`,
++      tool,
++      color,
++      points: [p],
++    };
++    setDraft(active.current);
++  }
++  function move(e: PointerEvent<HTMLDivElement>) {
++    const d = active.current;
++    if (!d || pointer.current !== e.pointerId) return;
++    const p = point(e);
++    if (!p) return;
++    const points =
++      d.tool === "brush"
++        ? d.points.length < 2000
++          ? [...d.points, p]
++          : d.points
++        : d.tool === "horizontal" || d.tool === "vertical"
++          ? [p]
++          : [d.points[0], p];
++    active.current = { ...d, points };
++    setDraft(active.current);
++  }
++  function up(e: PointerEvent<HTMLDivElement>) {
++    if (pointer.current !== e.pointerId) return;
++    move(e);
++    const d = active.current;
++    if (d && readDrawings([d]).length) setDrawings((prev) => [...prev, d]);
++    cancel();
++    if (e.currentTarget.hasPointerCapture(e.pointerId))
++      e.currentTarget.releasePointerCapture(e.pointerId);
++  }
++  return (
++    <div className="drawing-toolbar">
++      <div
++        className="drawing-actions"
++        role="group"
++        aria-label="Инструменты рисования"
++      >
++        <button
++          type="button"
++          aria-pressed={tool === "navigate"}
++          onClick={() => {
++            cancel();
++            setTool("navigate");
++          }}
++        >
++          Навигация
++        </button>
++        {Object.entries(drawingTools).map(([id, label]) => (
++          <button
++            type="button"
++            key={id}
++            disabled={!ready || !bars.length}
++            aria-pressed={tool === id}
++            onClick={() => {
++              cancel();
++              setTool(id as DrawingTool);
++            }}
++          >
++            {label}
++          </button>
++        ))}
++        <label>
++          Цвет{" "}
++          <input
++            type="color"
++            aria-label="Цвет новых элементов"
++            value={color}
++            onChange={(e) => setColor(e.target.value)}
++          />
++        </label>
++        <button
++          type="button"
++          disabled={!drawings.length}
++          onClick={() => setDrawings((prev) => prev.slice(0, -1))}
++        >
++          Отменить добавление
++        </button>
++      </div>
++      <p>
++        {tool === "navigate"
++          ? "Выберите инструмент для разметки графика."
++          : "Нажмите и перетащите в области свечей. Esc — отмена и возврат к навигации."}{" "}
++        Сохранение: {symbol}, {timeframe}.
++      </p>
++      {storageError && <p role="status">{storageError}</p>}
++      {drawings.length >= 200 && (
++        <p role="status">Достигнут лимит 200 объектов. Удалите ненужные.</p>
++      )}
++      <details>
++        <summary>Объекты ({drawings.length})</summary>
++        <ul>
++          {drawings.map((d, i) => (
++            <li key={d.id}>
++              <span style={{ color: d.color }}>
++                {i + 1}. {drawingTools[d.tool]}
++              </span>
++              <input
++                type="color"
++                aria-label={`Цвет объекта ${i + 1}`}
++                value={d.color}
++                onChange={(e) =>
++                  setDrawings((prev) =>
++                    prev.map((x) =>
++                      x.id === d.id ? { ...x, color: e.target.value } : x,
++                    ),
++                  )
++                }
++              />
++              <button
++                type="button"
++                aria-label={`Удалить объект ${i + 1}`}
++                onClick={() =>
++                  setDrawings((prev) => prev.filter((x) => x.id !== d.id))
++                }
++              >
++                Удалить
++              </button>
++            </li>
++          ))}
++        </ul>
++      </details>
++      {tool !== "navigate" &&
++        createPortal(
++          <div
++            className="drawing-input"
++            aria-label="Область рисования"
++            onPointerDown={down}
++            onPointerMove={move}
++            onPointerUp={up}
++            onPointerCancel={cancel}
++            onLostPointerCapture={cancel}
++          />,
++          api.container,
++        )}
++    </div>
++  );
++}
+diff --git a/src/components/drawings-renderer.ts b/src/components/drawings-renderer.ts
+new file mode 100644
+index 0000000..b768afc
+--- /dev/null
++++ b/src/components/drawings-renderer.ts
+@@ -0,0 +1,98 @@
++import type {
++  ISeriesPrimitive,
++  IPrimitivePaneView,
++  IPrimitivePaneRenderer,
++  SeriesAttachedParameter,
++  Time,
++  Logical,
++} from "lightweight-charts";
++import { fibLevels, logicalAtTime, type Drawing } from "../domain/drawings";
++import type { Candle } from "../domain/market";
++export class DrawingsRenderer implements ISeriesPrimitive<Time> {
++  private attachment: SeriesAttachedParameter<Time> | null = null;
++  private drawings: Drawing[] = [];
++  private bars: Candle[] = [];
++  private interval = 3600;
++  private view: IPrimitivePaneView = {
++    zOrder: () => "top",
++    renderer: () => this.renderer,
++  };
++  private renderer: IPrimitivePaneRenderer = {
++    draw: (target) => {
++      const a = this.attachment;
++      if (!a || !this.bars.length) return;
++      target.useMediaCoordinateSpace(({ context: c, mediaSize: size }) => {
++        c.save();
++        c.beginPath();
++        c.rect(0, 0, size.width, size.height);
++        c.clip();
++        for (const d of this.drawings) {
++          const points = d.points.map((p) => ({
++            x: a.chart
++              .timeScale()
++              .logicalToCoordinate(
++                logicalAtTime(this.bars, p.time, this.interval) as Logical,
++              ),
++            y: a.series.priceToCoordinate(p.price),
++          }));
++          if (points.some((p) => p.x === null || p.y === null)) continue;
++          const [p, q = p] = points as { x: number; y: number }[];
++          c.strokeStyle = d.color;
++          c.fillStyle = d.color;
++          c.lineWidth = 2;
++          c.lineJoin = "round";
++          c.lineCap = "round";
++          const line = (x: number, y: number, x2: number, y2: number) => {
++            c.beginPath();
++            c.moveTo(x, y);
++            c.lineTo(x2, y2);
++            c.stroke();
++          };
++          if (d.tool === "horizontal") line(0, p.y, size.width, p.y);
++          if (d.tool === "vertical") line(p.x, 0, p.x, size.height);
++          if (d.tool === "brush") {
++            c.beginPath();
++            points.forEach((v, i) =>
++              i ? c.lineTo(v.x!, v.y!) : c.moveTo(v.x!, v.y!),
++            );
++            c.stroke();
++          }
++          if (d.tool === "rectangle") {
++            c.globalAlpha = 0.15;
++            c.fillRect(p.x, p.y, q.x - p.x, q.y - p.y);
++            c.globalAlpha = 1;
++            c.strokeRect(p.x, p.y, q.x - p.x, q.y - p.y);
++          }
++          if (d.tool === "fibonacci")
++            for (const ratio of fibLevels) {
++              const y = p.y + (q.y - p.y) * ratio;
++              line(Math.min(p.x, q.x), y, Math.max(p.x, q.x), y);
++              c.font = "11px ui-monospace, monospace";
++              c.fillText(
++                `${(ratio * 100).toFixed(1)}% · ${(d.points[0].price + ((d.points[1] ?? d.points[0]).price - d.points[0].price) * ratio).toPrecision(6)}`,
++                Math.max(2, Math.min(p.x, q.x) + 4),
++                y - 4,
++              );
++            }
++        }
++        c.restore();
++      });
++    },
++  };
++  attached(a: SeriesAttachedParameter<Time>) {
++    this.attachment = a;
++    a.requestUpdate();
++  }
++  detached() {
++    this.attachment = null;
++  }
++  paneViews() {
++    return [this.view];
++  }
++  configure(drawings: Drawing[], bars: Candle[], interval: number) {
++    this.drawings = drawings;
++    this.bars = bars;
++    this.interval = interval;
++    this.attachment?.requestUpdate();
++  }
++}
+diff --git a/src/components/terminal.tsx b/src/components/terminal.tsx
+index 7f2c291..7707840 100644
+--- a/src/components/terminal.tsx
++++ b/src/components/terminal.tsx
+@@ -367,6 +367,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
+           VECTOR<span className="brand-tag">TERMINAL</span>
+         </a>
+         <nav>
++          <a href="/backlog">Беклог</a>
+           <a className={!symbol ? "active" : ""} href="/">
+             <LayoutGrid size={16} /> Рынки
+           </a>
+@@ -799,13 +800,19 @@ export default function Terminal({ symbol }: { symbol?: string }) {
+                   </h2>
+                 </div>
+                 <ol className="backlog-list">
+-                  {backlog.map((task) => (
++                  {backlog.slice(0, 3).map((task) => (
+                     <li key={task.id}>
+                       <strong>{task.title}</strong>
+                       <span>{task.description}</span>
+                     </li>
+                   ))}
+                 </ol>
++                {!backlog.length && (
++                  <p>Все запланированные задачи выполнены.</p>
++                )}
++                <a className="backlog-link" href="/backlog">
++                  Полный беклог ({backlog.length}) →
++                </a>
+               </section>
+               <section className="panel market-pulse">
+                 <div className="section-heading">
+@@ -1190,6 +1197,7 @@ function PairWorkspace({
+           <div className="chart-stage">
+             <MarketChart
+               key={symbol}
++              symbol={symbol}
+               bars={bars}
+               timeframe={tf}
+               palette={palette}
+diff --git a/src/domain/backlog.ts b/src/domain/backlog.ts
+index 90d064a..abff9cb 100644
+--- a/src/domain/backlog.ts
++++ b/src/domain/backlog.ts
+@@ -1,17 +1,5 @@
+ /** Edit this array to change the visible roadmap on the home page. */
+ export const backlog = [
+-  {
+-    id: "chart-drawing-tools",
+-    title: "Инструменты рисования на графике",
+-    description:
+-      "Добавить инструменты технической разметки графика: свободное рисование, вертикальные и горизонтальные линии, прямоугольные области, уровни Фибоначчи и настройку цвета создаваемых элементов.",
+-  },
+-  {
+-    id: "backlog-section",
+-    title: "Отдельный раздел беклога",
+-    description:
+-      "Создать отдельную страницу с полным беклогом проекта. Доработать блок беклога на главной странице: добавить визуальное разделение пунктов и ссылку для перехода к полному списку задач.",
+-  },
+   {
+     id: "coinglass-liquidation-map",
+     title: "Интеграция карты ликвидаций CoinGlass",
+diff --git a/src/domain/drawings.ts b/src/domain/drawings.ts
+new file mode 100644
+index 0000000..1baa807
+--- /dev/null
++++ b/src/domain/drawings.ts
+@@ -0,0 +1,72 @@
++import type { Candle } from "./market";
++export const drawingTools = {
++  brush: "Кисть",
++  horizontal: "Горизонтальная линия",
++  vertical: "Вертикальная линия",
++  rectangle: "Прямоугольник",
++  fibonacci: "Фибоначчи",
++} as const;
++export type DrawingTool = keyof typeof drawingTools;
++export interface DrawingPoint {
++  time: number;
++  price: number;
++}
++export interface Drawing {
++  id: string;
++  tool: DrawingTool;
++  color: string;
++  points: DrawingPoint[];
++}
++export const fibLevels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
++/** Interpolate in candle space, preserving anchors as timestamps across history updates. */
++export function timeAtLogical(
++  bars: Candle[],
++  logical: number,
++  interval: number,
++): number {
++  const index = Math.floor(logical);
++  const at = (i: number) =>
++    i < 0
++      ? bars[0].time + i * interval
++      : i >= bars.length
++        ? bars.at(-1)!.time + (i - bars.length + 1) * interval
++        : bars[i].time;
++  return at(index) + (at(index + 1) - at(index)) * (logical - index);
++}
++export function logicalAtTime(
++  bars: Candle[],
++  time: number,
++  interval: number,
++): number {
++  if (time < bars[0].time) return (time - bars[0].time) / interval;
++  if (time >= bars.at(-1)!.time)
++    return bars.length - 1 + (time - bars.at(-1)!.time) / interval;
++  let lo = 0,
++    hi = bars.length - 1;
++  while (hi - lo > 1) {
++    const mid = Math.floor((hi + lo) / 2);
++    if (bars[mid].time <= time) lo = mid;
++    else hi = mid;
++  }
++  return lo + (time - bars[lo].time) / (bars[hi].time - bars[lo].time);
++}
++export function readDrawings(raw: unknown): Drawing[] {
++  if (!Array.isArray(raw)) return [];
++  return raw
++    .filter(
++      (d): d is Drawing =>
++        !!d &&
++        typeof d.id === "string" &&
++        Object.hasOwn(drawingTools, d.tool) &&
++        /^#[0-9a-f]{6}$/i.test(d.color) &&
++        Array.isArray(d.points) &&
++        d.points.length >=
++          (d.tool === "horizontal" || d.tool === "vertical" ? 1 : 2) &&
++        d.points.length <= 2000 &&
++        d.points.every(
++          (p: DrawingPoint) =>
++            p && Number.isFinite(p.time) && Number.isFinite(p.price),
++        ),
++    )
++    .slice(-200);
++}
+diff --git a/standalone/main.tsx b/standalone/main.tsx
+index 959069c..5a8ac0a 100644
+--- a/standalone/main.tsx
++++ b/standalone/main.tsx
+@@ -1,3 +1,4 @@
++import { BacklogPage } from "../src/components/backlog-page";
+ import React from "react";
+ import { createRoot } from "react-dom/client";
+ import Terminal from "../src/components/terminal";
+@@ -5,6 +6,10 @@ import "../app/globals.css";
+ const match = location.pathname.match(/^\/pair\/([^/]+)\/?$/);
+ createRoot(document.getElementById("root")!).render(
+   <React.StrictMode>
+-    <Terminal symbol={match ? decodeURIComponent(match[1]) : undefined} />
++    {location.pathname.replace(/\/$/, "") === "/backlog" ? (
++      <BacklogPage />
++    ) : (
++      <Terminal symbol={match ? decodeURIComponent(match[1]) : undefined} />
++    )}
+   </React.StrictMode>,
+ );
+diff --git a/standalone/server.ts b/standalone/server.ts
+index 3912635..a9851e8 100644
+--- a/standalone/server.ts
++++ b/standalone/server.ts
+@@ -43,7 +43,11 @@ const server = createServer(async (req, res) => {
+     try {
+       if (!(await stat(file)).isFile()) throw Error();
+     } catch {
+-      if (url.pathname === "/" || /^\/pair\/[^/]+\/?$/.test(url.pathname))
++      if (
++        url.pathname === "/" ||
++        /^\/backlog\/?$/.test(url.pathname) ||
++        /^\/pair\/[^/]+\/?$/.test(url.pathname)
++      )
+         file = resolve(root, "index.html");
+       else {
+         res.writeHead(404);
+diff --git a/tests/core.test.ts b/tests/core.test.ts
+index 3b17f7a..d8883c6 100644
+--- a/tests/core.test.ts
++++ b/tests/core.test.ts
+@@ -1,3 +1,4 @@
++import "./drawings.test";
+ import "./symbol-search.test";
+ import "./shared-indicators.test";
+ import { test } from "node:test";
+diff --git a/tests/drawings.test.ts b/tests/drawings.test.ts
+new file mode 100644
+index 0000000..d0e6f7d
+--- /dev/null
++++ b/tests/drawings.test.ts
+@@ -0,0 +1,113 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import {
++  logicalAtTime,
++  timeAtLogical,
++  readDrawings,
++  type Drawing,
++} from "../src/domain/drawings";
++import { DrawingsRenderer } from "../src/components/drawings-renderer";
++import type { Candle } from "../src/domain/market";
++import type { SeriesAttachedParameter, Time } from "lightweight-charts";
++const bars = [100, 160, 280, 340].map((time) => ({
++  time,
++  open: 10,
++  high: 12,
++  low: 8,
++  close: 11,
++  volume: 1,
++})) as Candle[];
++test("drawing anchors round-trip across gaps, fractional candles and history growth", () => {
++  for (const logical of [-2, 0, 0.25, 1.5, 2, 3, 5.75]) {
++    const time = timeAtLogical(bars, logical, 60);
++    assert.ok(Math.abs(logicalAtTime(bars, time, 60) - logical) < 1e-9);
++  }
++  const time = timeAtLogical(bars, 1.5, 60);
++  const grown = [{ ...bars[0], time: 40 }, ...bars];
++  assert.equal(logicalAtTime(grown, time, 60), 2.5);
++});
++test("stored drawing validation rejects corrupt and unbounded objects", () => {
++  const d: Drawing = {
++    id: "a",
++    tool: "rectangle",
++    color: "#ff0000",
++    points: [
++      { time: 100, price: 10 },
++      { time: 160, price: 20 },
++    ],
++  };
++  assert.deepEqual(
++    readDrawings([
++      d,
++      null,
++      { ...d, tool: "unknown" },
++      { ...d, color: "red" },
++      { ...d, points: [{ time: NaN, price: 2 }] },
++    ]),
++    [d],
++  );
++  assert.equal(readDrawings(Array(250).fill(d)).length, 200);
++  assert.equal(
++    readDrawings([{ ...d, points: Array(2001).fill(d.points[0]) }]).length,
++    0,
++  );
++});
++test("drawing primitive paints every tool and a one-point Fibonacci preview without errors", () => {
++  const renderer = new DrawingsRenderer();
++  const calls: string[] = [];
++  const ctx = new Proxy(
++    {},
++    {
++      set: () => true,
++      get:
++        (_, name) =>
++        (...args: unknown[]) => {
++          for (const arg of args)
++            if (typeof arg === "number") assert.ok(Number.isFinite(arg));
++          calls.push(String(name));
++        },
++    },
++  );
++  let offset = 0;
++  renderer.attached({
++    chart: {
++      timeScale: () => ({
++        logicalToCoordinate: (x: number) => x * 20 + offset,
++      }),
++    },
++    series: { priceToCoordinate: (p: number) => p * 2 },
++    requestUpdate: () => {},
++  } as unknown as SeriesAttachedParameter<Time>);
++  const drawings = (
++    ["brush", "horizontal", "vertical", "rectangle", "fibonacci"] as const
++  ).map((tool) => ({
++    id: tool,
++    tool,
++    color: "#ff0000",
++    points: [
++      { time: 100, price: 10 },
++      { time: 280, price: 30 },
++    ],
++  }));
++  renderer.configure(
++    [...drawings, { ...drawings[4], points: [drawings[4].points[0]] }],
++    bars,
++    60,
++  );
++  const draw = renderer.paneViews()[0].renderer()!.draw;
++  const target = {
++    useMediaCoordinateSpace: (callback: any) =>
++      callback({ context: ctx, mediaSize: { width: 500, height: 300 } }),
++  } as any;
++  draw(target);
++  offset = 50;
++  draw(target);
++  assert.ok(calls.includes("fillText"));
++  assert.ok(calls.includes("strokeRect"));
++  assert.ok(calls.includes("clip"));
++  renderer.configure([], bars, 60);
++  calls.length = 0;
++  draw(target);
++  assert.ok(!calls.includes("stroke"));
++  renderer.detached();
++});
+diff --git a/tests/smoke.mjs b/tests/smoke.mjs
+index 5563851..d0e7362 100644
+--- a/tests/smoke.mjs
++++ b/tests/smoke.mjs
+@@ -26,6 +26,8 @@ try {
+   const latest = await get("/api/candles/latest?symbol=BTCUSDT&demo=1");
+   assert.equal(latest.status, 200);
+   assert.equal((await latest.json()).data.length, 2);
++  assert.equal((await get("/backlog")).status, 200);
++  assert.equal((await get("/backlog/")).status, 200);
+   const root = await get("/");
+   assert.equal(root.status, 200);
+   const html = await root.text();

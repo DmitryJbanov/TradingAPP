@@ -1,4 +1,5 @@
 "use client";
+import { DrawingTools, type DrawingChart } from "./drawing-tools";
 import { useEffect, useRef, useState } from "react";
 import {
   createChart,
@@ -51,6 +52,7 @@ export const defaultPalette: ChartPalette = {
 };
 export function MarketChart({
   bars,
+  symbol,
   palette,
   timeframe,
   resetKey,
@@ -60,6 +62,7 @@ export function MarketChart({
   historyCount,
 }: {
   bars: Candle[];
+  symbol: string;
   palette: ChartPalette;
   timeframe: Timeframe;
   resetKey: number;
@@ -68,6 +71,7 @@ export function MarketChart({
   priceOverlays: PriceOverlay[];
   historyCount: number;
 }) {
+  const [drawingApi, setDrawingApi] = useState<DrawingChart>();
   const host = useRef<HTMLDivElement>(null),
     chart = useRef<IChartApi | null>(null),
     series = useRef<ISeriesApi<"Candlestick"> | null>(null),
@@ -162,6 +166,12 @@ export function MarketChart({
     chart.current = c;
     series.current = s;
     volume.current = v;
+    const drawingContext: DrawingChart = {
+      chart: c,
+      series: s,
+      container: host.current.parentElement!,
+    };
+    setDrawingApi(drawingContext);
     const obRenderer = new OrderBlocksRenderer();
     s.attachPrimitive(obRenderer);
     orderBlocksRenderer.current = obRenderer;
@@ -197,6 +207,7 @@ export function MarketChart({
       );
     });
     return () => {
+      drawingContext.disposed = true;
       vmcSeries.current.clear();
       s.detachPrimitive(obRenderer);
       s.detachPrimitive(overlaysRenderer);
@@ -334,6 +345,15 @@ export function MarketChart({
   const b = ohlc ?? bars.at(-1);
   return (
     <>
+      {drawingApi && (
+        <DrawingTools
+          key={`${symbol}:${timeframe}`}
+          api={drawingApi}
+          bars={bars}
+          symbol={symbol}
+          timeframe={timeframe}
+        />
+      )}
       <div
         className="chart-container"
         style={{

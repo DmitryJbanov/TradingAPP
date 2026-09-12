@@ -43,7 +43,11 @@ const server = createServer(async (req, res) => {
     try {
       if (!(await stat(file)).isFile()) throw Error();
     } catch {
-      if (url.pathname === "/" || /^\/pair\/[^/]+\/?$/.test(url.pathname))
+      if (
+        url.pathname === "/" ||
+        /^\/backlog\/?$/.test(url.pathname) ||
+        /^\/pair\/[^/]+\/?$/.test(url.pathname)
+      )
         file = resolve(root, "index.html");
       else {
         res.writeHead(404);
