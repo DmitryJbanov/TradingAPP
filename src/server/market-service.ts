@@ -248,7 +248,10 @@ export async function candles(
   force = false,
   count = DEFAULT_CANDLE_COUNT,
 ): Promise<CandleResponse> {
-  if (!validCandleCount(count)) throw Error("Invalid candle count");
+  // The short polling route fetches only the two newest candles. The public
+  // history route still validates its own 300–4000 range below.
+  if (!validCandleCount(count) && count !== 2)
+    throw Error("Invalid candle count");
   const item = instrument(symbol);
   if (!item) throw Error("Unknown symbol");
   return cached(
@@ -269,24 +272,25 @@ export async function candles(
                 json,
               );
             let tickSize: number | undefined;
-            try {
-              const info = await cached(
-                `tick:${endpoint.name}:${symbol}`,
-                3600000,
-                false,
-                () =>
-                  json(
-                    `${endpoint.root}${endpoint.path}/exchangeInfo${symbol === "HYPEUSDT" ? "" : "?symbol=" + encodeURIComponent(symbol)}`,
-                  ),
-              );
-              const f = info.symbols
-                ?.find((s: any) => s.symbol === symbol)
-                ?.filters?.find((f: any) => f.filterType === "PRICE_FILTER");
-              if (f && Number.isFinite(+f.tickSize) && +f.tickSize > 0)
-                tickSize = +f.tickSize;
-            } catch {
-              /* History remains usable without exchange metadata. */
-            }
+            if (count !== 2)
+              try {
+                const info = await cached(
+                  `tick:${endpoint.name}:${symbol}`,
+                  3600000,
+                  false,
+                  () =>
+                    json(
+                      `${endpoint.root}${endpoint.path}/exchangeInfo${symbol === "HYPEUSDT" ? "" : "?symbol=" + encodeURIComponent(symbol)}`,
+                    ),
+                );
+                const f = info.symbols
+                  ?.find((s: any) => s.symbol === symbol)
+                  ?.filters?.find((f: any) => f.filterType === "PRICE_FILTER");
+                if (f && Number.isFinite(+f.tickSize) && +f.tickSize > 0)
+                  tickSize = +f.tickSize;
+              } catch {
+                /* History remains usable without exchange metadata. */
+              }
             status(endpoint.name, true);
             log(
               "INFO",
@@ -373,7 +377,12 @@ export async function candles(
           log("WARN", `${symbol} ${tf}: request failed; demo fallback`);
         }
       return {
-        data: demoCandles(item, tf, Date.parse(asOf), count),
+        data: demoCandles(
+          item,
+          tf,
+          Date.parse(asOf),
+          Math.max(count, 300),
+        ).slice(-count),
         source: "demo",
         provider: "Demo",
         asOf,
@@ -424,6 +433,25 @@ export async function handleApi(
             : config,
           force,
           count,
+        );
+        break;
+      }
+      case "/api/candles/latest": {
+        const symbol = u.searchParams.get("symbol") ?? "BTCUSDT";
+        const tf = u.searchParams.get("interval") ?? "1h";
+        if (!instrument(symbol) || !Object.hasOwn(candleIntervals, tf))
+          return Response.json(
+            { error: "Неизвестный symbol или interval" },
+            { status: 400 },
+          );
+        result = await candles(
+          symbol,
+          tf as CandleInterval,
+          u.searchParams.get("demo") === "1"
+            ? { ...config, DATA_MODE: "demo" }
+            : config,
+          force,
+          2,
         );
         break;
       }

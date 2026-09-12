@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { demoCandles } from "../src/domain/demo";
 import { catalog } from "../src/domain/catalog";
 import { candleCount } from "../src/domain/history";
+import { mergeLatestCandles } from "../src/domain/latest-candles";
 import { handleApi, markets } from "../src/server/market-service";
 import {
   binanceEndpoint,
@@ -58,6 +59,72 @@ test("history count boundaries and consistent demo overlaps", async () => {
   assert.deepEqual(
     demoCandles(catalog[0], "1h", now, 300),
     demoCandles(catalog[0], "1h", now, 4000).slice(-300),
+  );
+});
+test("two-bar polling updates the current candle and keeps a continuous history", async () => {
+  const response = await handleApi(
+    new Request(
+      "http://local/api/candles/latest?symbol=BTCUSDT&interval=1h&demo=1",
+    ),
+  );
+  assert.equal(response.status, 200);
+  assert.equal(((await response.json()) as any).data.length, 2);
+  assert.equal(
+    (
+      await handleApi(
+        new Request("http://local/api/candles/latest?symbol=INVALID"),
+      )
+    ).status,
+    400,
+  );
+  const history = {
+    data: [bar(0, 9, 11, 8, 10), bar(1, 10, 12, 9, 11)],
+    source: "live" as const,
+    provider: "Binance",
+    asOf: "2026-09-12T10:00:00Z",
+  };
+  const latest = {
+    ...history,
+    data: [bar(1, 10, 14, 9, 13), bar(2, 13, 15, 12, 14)],
+    asOf: "2026-09-12T10:00:30Z",
+  };
+  const merged = mergeLatestCandles(history, latest, 3, 3600);
+  assert.equal(merged.needsReload, false);
+  let rolling = merged.response!;
+  for (let i = 3; i < 20; i++) {
+    const tick = {
+      ...latest,
+      data: [bar(i - 1, 10, 12, 9, 11), bar(i, 11, 13, 10, 12)],
+      asOf: `2026-09-12T10:01:${String(i).padStart(2, "0")}Z`,
+    };
+    const next = mergeLatestCandles(rolling, tick, 3, 3600);
+    assert.equal(next.needsReload, false);
+    rolling = next.response!;
+    assert.equal(rolling.data.length, 3);
+    assert.equal(rolling.data.at(-1)!.time, i * 3600);
+  }
+
+  assert.deepEqual(
+    merged.response?.data.map((b) => [b.time, b.close]),
+    [
+      [0, 10],
+      [3600, 13],
+      [7200, 14],
+    ],
+  );
+  assert.equal(
+    mergeLatestCandles(
+      history,
+      { ...latest, data: [bar(4, 10, 11, 9, 10)] },
+      3,
+      3600,
+    ).needsReload,
+    true,
+  );
+  assert.equal(
+    mergeLatestCandles(history, { ...latest, source: "demo" }, 3, 3600)
+      .needsReload,
+    true,
   );
 });
 test("Binance pagination and partial history do not lose recent candles", async () => {

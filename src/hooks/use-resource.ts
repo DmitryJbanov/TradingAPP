@@ -44,12 +44,15 @@ export function useResource<T>(url: string, period = 30000) {
   useEffect(() => {
     setData(undefined);
     void refresh();
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible" && !inFlight.current)
-        void refresh();
-    }, period);
+    const timer =
+      period > 0
+        ? setInterval(() => {
+            if (document.visibilityState === "visible" && !inFlight.current)
+              void refresh();
+          }, period)
+        : null;
     return () => {
-      clearInterval(timer);
+      if (timer !== null) clearInterval(timer);
       controller.current?.abort();
       version.current++;
     };

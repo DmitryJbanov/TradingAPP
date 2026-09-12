@@ -921,6 +921,28 @@ h1 {
 .market-pulse {
   padding-bottom: 18px;
 }
+.backlog-list {
+  margin: 0;
+  padding: 0 20px 18px 42px;
+  display: grid;
+  gap: 13px;
+  font-size: 12px;
+}
+.backlog-list li::marker {
+  color: var(--muted-foreground);
+}
+.backlog-list strong,
+.backlog-list span {
+  display: block;
+}
+.backlog-list strong {
+  font-weight: 600;
+}
+.backlog-list span {
+  margin-top: 3px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
 .pulse-number {
   font-size: 30px;
   padding: 0 20px;

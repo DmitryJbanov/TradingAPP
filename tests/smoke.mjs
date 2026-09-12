@@ -23,6 +23,9 @@ try {
   }
   assert.ok(ready, "server starts");
   const get = (path) => fetch(`http://127.0.0.1:${port}${path}`);
+  const latest = await get("/api/candles/latest?symbol=BTCUSDT&demo=1");
+  assert.equal(latest.status, 200);
+  assert.equal((await latest.json()).data.length, 2);
   const root = await get("/");
   assert.equal(root.status, 200);
   const html = await root.text();

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ArrowDownUp,
@@ -13,6 +13,7 @@ import {
   Globe2,
   Layers3,
   LayoutGrid,
+  ListTodo,
   Maximize2,
   Palette,
   Plus,
@@ -70,6 +71,9 @@ import { OrderBlocksSettingsDialog } from "./order-blocks-settings-dialog";
 import { orderBlockDefaults } from "../indicators/order-blocks-settings";
 import { HistoryCount } from "./history-count";
 import { candleCount, DEFAULT_CANDLE_COUNT } from "../domain/history";
+import { candleIntervals } from "../domain/market";
+import { mergeLatestCandles } from "../domain/latest-candles";
+import { backlog } from "../domain/backlog";
 import { useOverlays } from "../hooks/use-overlays";
 import { OverlaySettingsDialog } from "./overlay-settings-dialog";
 import { drzDefaults } from "../indicators/drz-settings";
@@ -782,6 +786,24 @@ export default function Terminal({ symbol }: { symbol?: string }) {
             </div>
             <aside className="right-column">
               <Backend />
+              <section
+                className="panel backlog-panel"
+                aria-labelledby="backlog-title"
+              >
+                <div className="section-heading">
+                  <h2 id="backlog-title">
+                    <ListTodo size={16} /> Следующие доработки
+                  </h2>
+                </div>
+                <ol className="backlog-list">
+                  {backlog.map((task) => (
+                    <li key={task.id}>
+                      <strong>{task.title}</strong>
+                      <span>{task.description}</span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
               <section className="panel market-pulse">
                 <div className="section-heading">
                   <h2>
@@ -936,21 +958,66 @@ function PairWorkspace({
       tf +
       "&count=" +
       historyCount,
-    15000,
+    0,
   );
+  const latest = useResource<CandleResponse>(
+    "/api/candles/latest?symbol=" +
+      encodeURIComponent(symbol) +
+      "&interval=" +
+      tf,
+    30000,
+  );
+  const [candleState, setCandleState] = useState<{
+    base: CandleResponse | undefined;
+    response: CandleResponse | undefined;
+  }>();
+  const accumulated = useRef<typeof candleState>(undefined);
+  const candleData =
+    candleState?.base === resource.data ? candleState?.response : resource.data;
+  const lastBackfill = useRef("");
+  useEffect(() => {
+    const history =
+      accumulated.current?.base === resource.data
+        ? accumulated.current?.response
+        : resource.data;
+    const { response, needsReload } = mergeLatestCandles(
+      history,
+      latest.data,
+      historyCount,
+      candleIntervals[tf],
+    );
+    if ((needsReload || (!resource.data && !resource.loading)) && latest.data) {
+      const key = `${symbol}:${tf}:${historyCount}:${latest.data.asOf}`;
+      if (lastBackfill.current !== key) {
+        lastBackfill.current = key;
+        void resource.refresh(true);
+      }
+      return;
+    }
+    accumulated.current = { base: resource.data, response };
+    setCandleState(accumulated.current);
+  }, [
+    symbol,
+    tf,
+    historyCount,
+    latest.data,
+    resource.data,
+    resource.loading,
+    resource.refresh,
+  ]);
   const vmc = useVmc(
     symbol,
     tf,
-    resource.data,
+    candleData,
     indicators,
     indicatorRefresh,
     historyCount,
   );
-  const orderBlocks = useOrderBlocks(tf, resource.data, indicators);
+  const orderBlocks = useOrderBlocks(tf, candleData, indicators);
   const overlays = useOverlays(
     symbol,
     tf,
-    resource.data,
+    candleData,
     indicators,
     historyCount,
     indicatorRefresh,
@@ -962,7 +1029,7 @@ function PairWorkspace({
   }
   const q = rows.find((x) => x.symbol === symbol),
     item = catalog.find((x) => x.symbol === symbol);
-  const bars = resource.data?.data ?? [],
+  const bars = candleData?.data ?? [],
     last = bars.at(-1);
   const list = rows.filter(
     (x) =>
@@ -1004,7 +1071,7 @@ function PairWorkspace({
               </h1>
               <p>
                 {item.name}{" "}
-                <span>· {resource.data?.provider ?? "Подключение"}</span>
+                <span>· {candleData?.provider ?? "Подключение"}</span>
               </p>
             </div>
             <div className="pair-price">
@@ -1013,10 +1080,8 @@ function PairWorkspace({
               </strong>
               {q && <Change value={q.change} />}
             </div>
-            <span
-              className={"source-badge " + (resource.data?.source ?? "demo")}
-            >
-              {resource.data?.source === "live" ? "API" : "DEMO"}
+            <span className={"source-badge " + (candleData?.source ?? "demo")}>
+              {candleData?.source === "live" ? "API" : "DEMO"}
             </span>
             <button
               className={
@@ -1092,22 +1157,22 @@ function PairWorkspace({
               </button>
             </div>
           </div>
-          {resource.error && (
+          {(resource.error || latest.error) && (
             <div className="notice error">
-              Ошибка загрузки: {resource.error}.{" "}
+              Ошибка загрузки: {resource.error || latest.error}.{" "}
               {bars.length
                 ? "Отображены устаревшие свечи."
                 : "Повторите запрос."}
             </div>
           )}
-          {resource.data?.source === "demo" && (
+          {candleData?.source === "demo" && (
             <div className="demo-banner">
               <span className="source-badge demo">DEMO</span>
-              {resource.data.warning}. Данные не являются рыночными.
+              {candleData.warning}. Данные не являются рыночными.
             </div>
           )}
-          {resource.data?.source !== "demo" && resource.data?.warning && (
-            <div className="notice">{resource.data.warning}</div>
+          {candleData?.source !== "demo" && candleData?.warning && (
+            <div className="notice">{candleData.warning}</div>
           )}
           <div className="chart-stage">
             <MarketChart
@@ -1123,7 +1188,7 @@ function PairWorkspace({
             />
             {!bars.length && (
               <div className="chart-loading">
-                {resource.error
+                {resource.error || latest.error
                   ? "Не удалось загрузить график"
                   : "Загружаем свечи…"}
               </div>
