@@ -1,0 +1,1718 @@
+{
+  "source": "https://www.coinglass.com/ru/pro/futures/LiquidationMap",
+  "symbol": "BTC",
+  "range_days": 90,
+  "started_utc": "2026-09-05T13:37:42.007798+00:00",
+  "finished_utc": "2026-09-05T13:41:29.710072+00:00",
+  "current_price": "79634",
+  "price_source": "chart_ocr",
+  "levels": [
+    {
+      "price": "68041",
+      "intensity": "48240000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "15060000.00",
+        "OKX": "13240000.00",
+        "Bybit": "19940000.00"
+      }
+    },
+    {
+      "price": "68158",
+      "intensity": "206040000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "92880000.00",
+        "OKX": "45800000.00",
+        "Bybit": "67360000.00"
+      }
+    },
+    {
+      "price": "68275",
+      "intensity": "65720000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "29010000.00",
+        "OKX": "36710000.00"
+      }
+    },
+    {
+      "price": "68392",
+      "intensity": "61870000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "28980000.00",
+        "OKX": "16450000.00",
+        "Bybit": "16440000.00"
+      }
+    },
+    {
+      "price": "68509",
+      "intensity": "33530000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "10240000.00",
+        "OKX": "13580000.00",
+        "Bybit": "9710000.00"
+      }
+    },
+    {
+      "price": "68626",
+      "intensity": "20710000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "3570000.00",
+        "OKX": "6900000.00",
+        "Bybit": "10240000.00"
+      }
+    },
+    {
+      "price": "68743",
+      "intensity": "72370000.00",
+      "side": "long",
+      "exchanges": {
+        "OKX": "36630000.00",
+        "Bybit": "35740000.00"
+      }
+    },
+    {
+      "price": "68860",
+      "intensity": "141990000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "92060000.00",
+        "OKX": "48320000.00",
+        "Bybit": "1610000.00"
+      }
+    },
+    {
+      "price": "68977",
+      "intensity": "87340000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "32190000.00",
+        "OKX": "55150000.00"
+      }
+    },
+    {
+      "price": "69094",
+      "intensity": "53990000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "15790000.00",
+        "OKX": "22700000.00",
+        "Bybit": "15500000.00"
+      }
+    },
+    {
+      "price": "69211",
+      "intensity": "55340000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "38680000.00",
+        "OKX": "1570000.00",
+        "Bybit": "15090000.00"
+      }
+    },
+    {
+      "price": "69328",
+      "intensity": "14780000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "8650000.00",
+        "OKX": "1860000.00",
+        "Bybit": "4270000.00"
+      }
+    },
+    {
+      "price": "69445",
+      "intensity": "15050000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "6690000.00",
+        "OKX": "3420000.00",
+        "Bybit": "4940000.00"
+      }
+    },
+    {
+      "price": "69562",
+      "intensity": "8210000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "4890000.00",
+        "OKX": "2230000.00",
+        "Bybit": "1090000.00"
+      }
+    },
+    {
+      "price": "69679",
+      "intensity": "10927420.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "1180000.00",
+        "OKX": "367420.00",
+        "Bybit": "9380000.00"
+      }
+    },
+    {
+      "price": "69796",
+      "intensity": "30250000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "5490000.00",
+        "Bybit": "24760000.00"
+      }
+    },
+    {
+      "price": "69913",
+      "intensity": "38160000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "19590000.00",
+        "OKX": "9750000.00",
+        "Bybit": "8820000.00"
+      }
+    },
+    {
+      "price": "70030",
+      "intensity": "113740000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "53260000.00",
+        "OKX": "2000000.00",
+        "Bybit": "58480000.00"
+      }
+    },
+    {
+      "price": "70147",
+      "intensity": "104920000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "6310000.00",
+        "OKX": "45290000.00",
+        "Bybit": "53320000.00"
+      }
+    },
+    {
+      "price": "70264",
+      "intensity": "199880000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "124230000.00",
+        "OKX": "44920000.00",
+        "Bybit": "30730000.00"
+      }
+    },
+    {
+      "price": "70381",
+      "intensity": "128390000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "52630000.00",
+        "OKX": "41800000.00",
+        "Bybit": "33960000.00"
+      }
+    },
+    {
+      "price": "70498",
+      "intensity": "107770000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "43330000.00",
+        "OKX": "40070000.00",
+        "Bybit": "24370000.00"
+      }
+    },
+    {
+      "price": "70615",
+      "intensity": "46440000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "17740000.00",
+        "OKX": "9150000.00",
+        "Bybit": "19550000.00"
+      }
+    },
+    {
+      "price": "70732",
+      "intensity": "69820000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "35240000.00",
+        "OKX": "13810000.00",
+        "Bybit": "20770000.00"
+      }
+    },
+    {
+      "price": "70849",
+      "intensity": "79640000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "24630000.00",
+        "OKX": "23050000.00",
+        "Bybit": "31960000.00"
+      }
+    },
+    {
+      "price": "70966",
+      "intensity": "159020000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "119600000.00",
+        "OKX": "23830000.00",
+        "Bybit": "15590000.00"
+      }
+    },
+    {
+      "price": "71083",
+      "intensity": "79280000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "30160000.00",
+        "OKX": "23310000.00",
+        "Bybit": "25810000.00"
+      }
+    },
+    {
+      "price": "71200",
+      "intensity": "77510000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "26580000.00",
+        "OKX": "14790000.00",
+        "Bybit": "36140000.00"
+      }
+    },
+    {
+      "price": "71317",
+      "intensity": "68170000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "22660000.00",
+        "OKX": "22180000.00",
+        "Bybit": "23330000.00"
+      }
+    },
+    {
+      "price": "71434",
+      "intensity": "56960000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "11330000.00",
+        "OKX": "7600000.00",
+        "Bybit": "38030000.00"
+      }
+    },
+    {
+      "price": "71551",
+      "intensity": "43160000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "10500000.00",
+        "OKX": "12080000.00",
+        "Bybit": "20580000.00"
+      }
+    },
+    {
+      "price": "71668",
+      "intensity": "16560000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "1090000.00",
+        "OKX": "4880000.00",
+        "Bybit": "10590000.00"
+      }
+    },
+    {
+      "price": "71785",
+      "intensity": "63870000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "22620000.00",
+        "OKX": "12250000.00",
+        "Bybit": "29000000.00"
+      }
+    },
+    {
+      "price": "71902",
+      "intensity": "49780000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "6680000.00",
+        "OKX": "2940000.00",
+        "Bybit": "40160000.00"
+      }
+    },
+    {
+      "price": "72019",
+      "intensity": "65570000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "10580000.00",
+        "OKX": "38430000.00",
+        "Bybit": "16560000.00"
+      }
+    },
+    {
+      "price": "72136",
+      "intensity": "23890000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "6130000.00",
+        "OKX": "2850000.00",
+        "Bybit": "14910000.00"
+      }
+    },
+    {
+      "price": "72253",
+      "intensity": "42998490.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "17150000.00",
+        "OKX": "25140000.00",
+        "Bybit": "708490.00"
+      }
+    },
+    {
+      "price": "72370",
+      "intensity": "52340000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "31520000.00",
+        "OKX": "12760000.00",
+        "Bybit": "8060000.00"
+      }
+    },
+    {
+      "price": "72487",
+      "intensity": "71840000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "58040000.00",
+        "OKX": "12690000.00",
+        "Bybit": "1110000.00"
+      }
+    },
+    {
+      "price": "72604",
+      "intensity": "14550000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "12000000.00",
+        "OKX": "2550000.00"
+      }
+    },
+    {
+      "price": "72721",
+      "intensity": "51510000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "5800000.00",
+        "OKX": "45710000.00"
+      }
+    },
+    {
+      "price": "72838",
+      "intensity": "20182230.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "10640000.00",
+        "OKX": "682230.00",
+        "Bybit": "8860000.00"
+      }
+    },
+    {
+      "price": "72955",
+      "intensity": "19601630.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "18360000.00",
+        "OKX": "537950.00",
+        "Bybit": "703680.00"
+      }
+    },
+    {
+      "price": "73072",
+      "intensity": "69470000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "39910000.00",
+        "OKX": "16290000.00",
+        "Bybit": "13270000.00"
+      }
+    },
+    {
+      "price": "73189",
+      "intensity": "42350000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "26500000.00",
+        "OKX": "1580000.00",
+        "Bybit": "14270000.00"
+      }
+    },
+    {
+      "price": "73306",
+      "intensity": "101230000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "28430000.00",
+        "OKX": "9120000.00",
+        "Bybit": "63680000.00"
+      }
+    },
+    {
+      "price": "73423",
+      "intensity": "16067950.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "5620000.00",
+        "OKX": "457950.00",
+        "Bybit": "9990000.00"
+      }
+    },
+    {
+      "price": "73540",
+      "intensity": "19030000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "3960000.00",
+        "Bybit": "15070000.00"
+      }
+    },
+    {
+      "price": "73657",
+      "intensity": "22930000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "8650000.00",
+        "OKX": "4250000.00",
+        "Bybit": "10030000.00"
+      }
+    },
+    {
+      "price": "73774",
+      "intensity": "147320000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "71460000.00",
+        "OKX": "61440000.00",
+        "Bybit": "14420000.00"
+      }
+    },
+    {
+      "price": "73891",
+      "intensity": "8430000.00",
+      "side": "long",
+      "exchanges": {
+        "OKX": "3320000.00",
+        "Bybit": "5110000.00"
+      }
+    },
+    {
+      "price": "74008",
+      "intensity": "152390000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "52610000.00",
+        "OKX": "17530000.00",
+        "Bybit": "82250000.00"
+      }
+    },
+    {
+      "price": "74125",
+      "intensity": "81000000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "24420000.00",
+        "OKX": "16860000.00",
+        "Bybit": "39720000.00"
+      }
+    },
+    {
+      "price": "74242",
+      "intensity": "89920000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "24100000.00",
+        "OKX": "57480000.00",
+        "Bybit": "8340000.00"
+      }
+    },
+    {
+      "price": "74359",
+      "intensity": "16830000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "8640000.00",
+        "OKX": "3630000.00",
+        "Bybit": "4560000.00"
+      }
+    },
+    {
+      "price": "74476",
+      "intensity": "132660000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "55250000.00",
+        "OKX": "59910000.00",
+        "Bybit": "17500000.00"
+      }
+    },
+    {
+      "price": "74593",
+      "intensity": "88970000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "35780000.00",
+        "OKX": "13260000.00",
+        "Bybit": "39930000.00"
+      }
+    },
+    {
+      "price": "74710",
+      "intensity": "43310000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "13090000.00",
+        "OKX": "15770000.00",
+        "Bybit": "14450000.00"
+      }
+    },
+    {
+      "price": "74827",
+      "intensity": "97870000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "21670000.00",
+        "OKX": "30910000.00",
+        "Bybit": "45290000.00"
+      }
+    },
+    {
+      "price": "74944",
+      "intensity": "81870000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "16250000.00",
+        "OKX": "33170000.00",
+        "Bybit": "32450000.00"
+      }
+    },
+    {
+      "price": "75061",
+      "intensity": "48080000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "12890000.00",
+        "OKX": "5870000.00",
+        "Bybit": "29320000.00"
+      }
+    },
+    {
+      "price": "75178",
+      "intensity": "75430000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "17710000.00",
+        "OKX": "18360000.00",
+        "Bybit": "39360000.00"
+      }
+    },
+    {
+      "price": "75295",
+      "intensity": "84650000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "34230000.00",
+        "OKX": "8390000.00",
+        "Bybit": "42030000.00"
+      }
+    },
+    {
+      "price": "75412",
+      "intensity": "100720000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "21570000.00",
+        "OKX": "13040000.00",
+        "Bybit": "66110000.00"
+      }
+    },
+    {
+      "price": "75529",
+      "intensity": "298800000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "97620000.00",
+        "OKX": "36620000.00",
+        "Bybit": "164560000.00"
+      }
+    },
+    {
+      "price": "75646",
+      "intensity": "233880000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "106160000.00",
+        "OKX": "67330000.00",
+        "Bybit": "60390000.00"
+      }
+    },
+    {
+      "price": "75763",
+      "intensity": "145920000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "55130000.00",
+        "OKX": "34400000.00",
+        "Bybit": "56390000.00"
+      }
+    },
+    {
+      "price": "75880",
+      "intensity": "125440000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "38940000.00",
+        "OKX": "27240000.00",
+        "Bybit": "59260000.00"
+      }
+    },
+    {
+      "price": "75997",
+      "intensity": "283720000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "89350000.00",
+        "OKX": "85140000.00",
+        "Bybit": "109230000.00"
+      }
+    },
+    {
+      "price": "76114",
+      "intensity": "159120000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "61440000.00",
+        "OKX": "23430000.00",
+        "Bybit": "74250000.00"
+      }
+    },
+    {
+      "price": "76231",
+      "intensity": "76460000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "16400000.00",
+        "OKX": "32840000.00",
+        "Bybit": "27220000.00"
+      }
+    },
+    {
+      "price": "76348",
+      "intensity": "164440000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "73480000.00",
+        "OKX": "77870000.00",
+        "Bybit": "13090000.00"
+      }
+    },
+    {
+      "price": "76465",
+      "intensity": "172170000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "106330000.00",
+        "OKX": "4430000.00",
+        "Bybit": "61410000.00"
+      }
+    },
+    {
+      "price": "76582",
+      "intensity": "19070000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "19070000.00"
+      }
+    },
+    {
+      "price": "76699",
+      "intensity": "2890000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "1230000.00",
+        "OKX": "1660000.00"
+      }
+    },
+    {
+      "price": "76933",
+      "intensity": "6570000.00",
+      "side": "long",
+      "exchanges": {
+        "Bybit": "6570000.00"
+      }
+    },
+    {
+      "price": "77050",
+      "intensity": "41670000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "41670000.00"
+      }
+    },
+    {
+      "price": "77167",
+      "intensity": "74540000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "61930000.00",
+        "OKX": "12610000.00"
+      }
+    },
+    {
+      "price": "77284",
+      "intensity": "1620000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "1620000.00"
+      }
+    },
+    {
+      "price": "77518",
+      "intensity": "51050000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "32220000.00",
+        "OKX": "18830000.00"
+      }
+    },
+    {
+      "price": "77635",
+      "intensity": "35300000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "20770000.00",
+        "OKX": "14530000.00"
+      }
+    },
+    {
+      "price": "77752",
+      "intensity": "31100000.00",
+      "side": "long",
+      "exchanges": {
+        "OKX": "8590000.00",
+        "Bybit": "22510000.00"
+      }
+    },
+    {
+      "price": "77869",
+      "intensity": "77570000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "21090000.00",
+        "OKX": "56480000.00"
+      }
+    },
+    {
+      "price": "77986",
+      "intensity": "179080000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "59930000.00",
+        "OKX": "46120000.00",
+        "Bybit": "73030000.00"
+      }
+    },
+    {
+      "price": "78103",
+      "intensity": "123710000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "68870000.00",
+        "OKX": "2370000.00",
+        "Bybit": "52470000.00"
+      }
+    },
+    {
+      "price": "78220",
+      "intensity": "98270000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "17450000.00",
+        "OKX": "41940000.00",
+        "Bybit": "38880000.00"
+      }
+    },
+    {
+      "price": "78337",
+      "intensity": "134030000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "62230000.00",
+        "OKX": "34420000.00",
+        "Bybit": "37380000.00"
+      }
+    },
+    {
+      "price": "78454",
+      "intensity": "48940000.00",
+      "side": "long",
+      "exchanges": {
+        "OKX": "24490000.00",
+        "Bybit": "24450000.00"
+      }
+    },
+    {
+      "price": "78571",
+      "intensity": "9540000.00",
+      "side": "long",
+      "exchanges": {
+        "Bybit": "9540000.00"
+      }
+    },
+    {
+      "price": "78688",
+      "intensity": "11720000.00",
+      "side": "long",
+      "exchanges": {
+        "Bybit": "11720000.00"
+      }
+    },
+    {
+      "price": "78805",
+      "intensity": "21550000.00",
+      "side": "long",
+      "exchanges": {
+        "OKX": "7490000.00",
+        "Bybit": "14060000.00"
+      }
+    },
+    {
+      "price": "78922",
+      "intensity": "63260000.00",
+      "side": "long",
+      "exchanges": {
+        "OKX": "2440000.00",
+        "Bybit": "60820000.00"
+      }
+    },
+    {
+      "price": "79039",
+      "intensity": "20740000.00",
+      "side": "long",
+      "exchanges": {
+        "OKX": "12240000.00",
+        "Bybit": "8500000.00"
+      }
+    },
+    {
+      "price": "79156",
+      "intensity": "2050000.00",
+      "side": "long",
+      "exchanges": {
+        "Bybit": "2050000.00"
+      }
+    },
+    {
+      "price": "79273",
+      "intensity": "43460000.00",
+      "side": "long",
+      "exchanges": {
+        "OKX": "9310000.00",
+        "Bybit": "34150000.00"
+      }
+    },
+    {
+      "price": "79390",
+      "intensity": "57330000.00",
+      "side": "long",
+      "exchanges": {
+        "OKX": "35420000.00",
+        "Bybit": "21910000.00"
+      }
+    },
+    {
+      "price": "79507",
+      "intensity": "53170000.00",
+      "side": "long",
+      "exchanges": {
+        "OKX": "53170000.00"
+      }
+    },
+    {
+      "price": "79624",
+      "intensity": "22870000.00",
+      "side": "long",
+      "exchanges": {
+        "Binance": "5660000.00",
+        "OKX": "17210000.00"
+      }
+    },
+    {
+      "price": "79634",
+      "intensity": "0",
+      "side": "reference",
+      "exchanges": {},
+      "kind": "current_price_marker"
+    },
+    {
+      "price": "79741",
+      "intensity": "72380000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "45500000.00",
+        "OKX": "26880000.00"
+      }
+    },
+    {
+      "price": "79858",
+      "intensity": "47190000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "3720000.00",
+        "OKX": "3390000.00",
+        "Bybit": "40080000.00"
+      }
+    },
+    {
+      "price": "79975",
+      "intensity": "78610000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "53840000.00",
+        "OKX": "23530000.00",
+        "Bybit": "1240000.00"
+      }
+    },
+    {
+      "price": "80092",
+      "intensity": "213410000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "106370000.00",
+        "OKX": "37670000.00",
+        "Bybit": "69370000.00"
+      }
+    },
+    {
+      "price": "80209",
+      "intensity": "62400000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "1230000.00",
+        "OKX": "27550000.00",
+        "Bybit": "33620000.00"
+      }
+    },
+    {
+      "price": "80326",
+      "intensity": "141260000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "89350000.00",
+        "OKX": "49110000.00",
+        "Bybit": "2800000.00"
+      }
+    },
+    {
+      "price": "80443",
+      "intensity": "32110000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "10930000.00",
+        "OKX": "7490000.00",
+        "Bybit": "13690000.00"
+      }
+    },
+    {
+      "price": "80560",
+      "intensity": "84750000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "80140000.00",
+        "OKX": "4610000.00"
+      }
+    },
+    {
+      "price": "80677",
+      "intensity": "94440000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "19800000.00",
+        "OKX": "4580000.00",
+        "Bybit": "70060000.00"
+      }
+    },
+    {
+      "price": "80794",
+      "intensity": "28490000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "28490000.00"
+      }
+    },
+    {
+      "price": "81145",
+      "intensity": "2100000.00",
+      "side": "short",
+      "exchanges": {
+        "Bybit": "2100000.00"
+      }
+    },
+    {
+      "price": "81262",
+      "intensity": "8490000.00",
+      "side": "short",
+      "exchanges": {
+        "OKX": "3740000.00",
+        "Bybit": "4750000.00"
+      }
+    },
+    {
+      "price": "81379",
+      "intensity": "616260.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "616260.00"
+      }
+    },
+    {
+      "price": "81496",
+      "intensity": "15680000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "15680000.00"
+      }
+    },
+    {
+      "price": "81613",
+      "intensity": "34840000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "11310000.00",
+        "OKX": "23530000.00"
+      }
+    },
+    {
+      "price": "81730",
+      "intensity": "67340000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "22960000.00",
+        "OKX": "20490000.00",
+        "Bybit": "23890000.00"
+      }
+    },
+    {
+      "price": "81847",
+      "intensity": "41890000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "12960000.00",
+        "OKX": "20570000.00",
+        "Bybit": "8360000.00"
+      }
+    },
+    {
+      "price": "81964",
+      "intensity": "222230000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "182760000.00",
+        "OKX": "35430000.00",
+        "Bybit": "4040000.00"
+      }
+    },
+    {
+      "price": "82081",
+      "intensity": "115850000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "51640000.00",
+        "OKX": "23710000.00",
+        "Bybit": "40500000.00"
+      }
+    },
+    {
+      "price": "82198",
+      "intensity": "155950000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "116090000.00",
+        "OKX": "23330000.00",
+        "Bybit": "16530000.00"
+      }
+    },
+    {
+      "price": "82315",
+      "intensity": "129760000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "51210000.00",
+        "OKX": "4580000.00",
+        "Bybit": "73970000.00"
+      }
+    },
+    {
+      "price": "82432",
+      "intensity": "95780000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "40650000.00",
+        "OKX": "21650000.00",
+        "Bybit": "33480000.00"
+      }
+    },
+    {
+      "price": "82549",
+      "intensity": "115650000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "42470000.00",
+        "OKX": "12480000.00",
+        "Bybit": "60700000.00"
+      }
+    },
+    {
+      "price": "82666",
+      "intensity": "69980000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "35130000.00",
+        "OKX": "18540000.00",
+        "Bybit": "16310000.00"
+      }
+    },
+    {
+      "price": "82783",
+      "intensity": "34770000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "9770000.00",
+        "OKX": "15520000.00",
+        "Bybit": "9480000.00"
+      }
+    },
+    {
+      "price": "82900",
+      "intensity": "70289110.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "54950000.00",
+        "OKX": "609110.00",
+        "Bybit": "14730000.00"
+      }
+    },
+    {
+      "price": "83017",
+      "intensity": "37323880.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "22120000.00",
+        "OKX": "14860000.00",
+        "Bybit": "343880.00"
+      }
+    },
+    {
+      "price": "83134",
+      "intensity": "76530000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "23570000.00",
+        "OKX": "6340000.00",
+        "Bybit": "46620000.00"
+      }
+    },
+    {
+      "price": "83251",
+      "intensity": "33930000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "18570000.00",
+        "Bybit": "15360000.00"
+      }
+    },
+    {
+      "price": "83368",
+      "intensity": "12898080.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "4750000.00",
+        "OKX": "878080.00",
+        "Bybit": "7270000.00"
+      }
+    },
+    {
+      "price": "83485",
+      "intensity": "5610000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "4020000.00",
+        "OKX": "1590000.00"
+      }
+    },
+    {
+      "price": "83602",
+      "intensity": "38610000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "19710000.00",
+        "OKX": "11640000.00",
+        "Bybit": "7260000.00"
+      }
+    },
+    {
+      "price": "83719",
+      "intensity": "22640000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "20800000.00",
+        "Bybit": "1840000.00"
+      }
+    },
+    {
+      "price": "83836",
+      "intensity": "16600000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "6630000.00",
+        "OKX": "7180000.00",
+        "Bybit": "2790000.00"
+      }
+    },
+    {
+      "price": "83953",
+      "intensity": "18640000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "11460000.00",
+        "OKX": "3040000.00",
+        "Bybit": "4140000.00"
+      }
+    },
+    {
+      "price": "84070",
+      "intensity": "6940000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "1060000.00",
+        "OKX": "5880000.00"
+      }
+    },
+    {
+      "price": "84187",
+      "intensity": "46260000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "19710000.00",
+        "OKX": "5150000.00",
+        "Bybit": "21400000.00"
+      }
+    },
+    {
+      "price": "84304",
+      "intensity": "27520000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "17570000.00",
+        "OKX": "8850000.00",
+        "Bybit": "1100000.00"
+      }
+    },
+    {
+      "price": "84421",
+      "intensity": "14490000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "4520000.00",
+        "OKX": "4440000.00",
+        "Bybit": "5530000.00"
+      }
+    },
+    {
+      "price": "84538",
+      "intensity": "24290000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "23140000.00",
+        "OKX": "1150000.00"
+      }
+    },
+    {
+      "price": "84655",
+      "intensity": "1510000.00",
+      "side": "short",
+      "exchanges": {
+        "Bybit": "1510000.00"
+      }
+    },
+    {
+      "price": "84772",
+      "intensity": "29940000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "2970000.00",
+        "OKX": "6190000.00",
+        "Bybit": "20780000.00"
+      }
+    },
+    {
+      "price": "84889",
+      "intensity": "16576780.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "11410000.00",
+        "OKX": "226780.00",
+        "Bybit": "4940000.00"
+      }
+    },
+    {
+      "price": "85006",
+      "intensity": "8274570.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "3850000.00",
+        "OKX": "634570.00",
+        "Bybit": "3790000.00"
+      }
+    },
+    {
+      "price": "85123",
+      "intensity": "2030000.00",
+      "side": "short",
+      "exchanges": {
+        "OKX": "2030000.00"
+      }
+    },
+    {
+      "price": "85240",
+      "intensity": "5097420.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "4730000.00",
+        "OKX": "367420.00"
+      }
+    },
+    {
+      "price": "85357",
+      "intensity": "9310000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "2960000.00",
+        "Bybit": "6350000.00"
+      }
+    },
+    {
+      "price": "85474",
+      "intensity": "12510000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "4320000.00",
+        "OKX": "4780000.00",
+        "Bybit": "3410000.00"
+      }
+    },
+    {
+      "price": "85591",
+      "intensity": "7614470.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "464470.00",
+        "OKX": "1760000.00",
+        "Bybit": "5390000.00"
+      }
+    },
+    {
+      "price": "85708",
+      "intensity": "11090000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "2600000.00",
+        "OKX": "5970000.00",
+        "Bybit": "2520000.00"
+      }
+    },
+    {
+      "price": "85825",
+      "intensity": "23760000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "5560000.00",
+        "OKX": "6160000.00",
+        "Bybit": "12040000.00"
+      }
+    },
+    {
+      "price": "85942",
+      "intensity": "3380480.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "1090000.00",
+        "OKX": "230480.00",
+        "Bybit": "2060000.00"
+      }
+    },
+    {
+      "price": "86059",
+      "intensity": "12290000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "3070000.00",
+        "OKX": "1050000.00",
+        "Bybit": "8170000.00"
+      }
+    },
+    {
+      "price": "86176",
+      "intensity": "5530000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "1550000.00",
+        "OKX": "3980000.00"
+      }
+    },
+    {
+      "price": "86410",
+      "intensity": "14410000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "5870000.00",
+        "Bybit": "8540000.00"
+      }
+    },
+    {
+      "price": "86644",
+      "intensity": "20670000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "17140000.00",
+        "OKX": "2520000.00",
+        "Bybit": "1010000.00"
+      }
+    },
+    {
+      "price": "86761",
+      "intensity": "12190000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "8360000.00",
+        "Bybit": "3830000.00"
+      }
+    },
+    {
+      "price": "86878",
+      "intensity": "10340000.00",
+      "side": "short",
+      "exchanges": {
+        "OKX": "2990000.00",
+        "Bybit": "7350000.00"
+      }
+    },
+    {
+      "price": "86995",
+      "intensity": "11585410.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "7580000.00",
+        "OKX": "245410.00",
+        "Bybit": "3760000.00"
+      }
+    },
+    {
+      "price": "87112",
+      "intensity": "13440000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "5410000.00",
+        "OKX": "2600000.00",
+        "Bybit": "5430000.00"
+      }
+    },
+    {
+      "price": "87229",
+      "intensity": "7070000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "1830000.00",
+        "Bybit": "5240000.00"
+      }
+    },
+    {
+      "price": "87463",
+      "intensity": "5976650.00",
+      "side": "short",
+      "exchanges": {
+        "OKX": "336650.00",
+        "Bybit": "5640000.00"
+      }
+    },
+    {
+      "price": "87580",
+      "intensity": "5082350.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "1090000.00",
+        "OKX": "992350.00",
+        "Bybit": "3000000.00"
+      }
+    },
+    {
+      "price": "87697",
+      "intensity": "14280000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "5950000.00",
+        "OKX": "2440000.00",
+        "Bybit": "5890000.00"
+      }
+    },
+    {
+      "price": "87814",
+      "intensity": "10040000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "7120000.00",
+        "OKX": "2920000.00"
+      }
+    },
+    {
+      "price": "87931",
+      "intensity": "5610000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "5610000.00"
+      }
+    },
+    {
+      "price": "88048",
+      "intensity": "7870000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "1730000.00",
+        "Bybit": "6140000.00"
+      }
+    },
+    {
+      "price": "88165",
+      "intensity": "4811990.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "1900000.00",
+        "OKX": "2170000.00",
+        "Bybit": "741990.00"
+      }
+    },
+    {
+      "price": "88399",
+      "intensity": "7865080.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "7400000.00",
+        "OKX": "465080.00"
+      }
+    },
+    {
+      "price": "88516",
+      "intensity": "11090000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "7730000.00",
+        "OKX": "3360000.00"
+      }
+    },
+    {
+      "price": "88633",
+      "intensity": "3980000.00",
+      "side": "short",
+      "exchanges": {
+        "OKX": "2870000.00",
+        "Bybit": "1110000.00"
+      }
+    },
+    {
+      "price": "88750",
+      "intensity": "4590000.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "4590000.00"
+      }
+    },
+    {
+      "price": "88867",
+      "intensity": "2350000.00",
+      "side": "short",
+      "exchanges": {
+        "OKX": "2350000.00"
+      }
+    },
+    {
+      "price": "88984",
+      "intensity": "14034060.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "7890000.00",
+        "OKX": "384060.00",
+        "Bybit": "5760000.00"
+      }
+    },
+    {
+      "price": "89101",
+      "intensity": "273680.00",
+      "side": "short",
+      "exchanges": {
+        "OKX": "273680.00"
+      }
+    },
+    {
+      "price": "89218",
+      "intensity": "8694270.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "8430000.00",
+        "OKX": "264270.00"
+      }
+    },
+    {
+      "price": "89452",
+      "intensity": "8470510.00",
+      "side": "short",
+      "exchanges": {
+        "Binance": "8010000.00",
+        "OKX": "460510.00"
+      }
+    },
+    {
+      "price": "89686",
+      "intensity": "7467950.00",
+      "side": "short",
+      "exchanges": {
+        "OKX": "457950.00",
+        "Bybit": "7010000.00"
+      }
+    },
+    {
+      "price": "89803",
+      "intensity": "1080000.00",
+      "side": "short",
+      "exchanges": {
+        "Bybit": "1080000.00"
+      }
+    },
+    {
+      "price": "90271",
+      "intensity": "2510000.00",
+      "side": "short",
+      "exchanges": {
+        "OKX": "2510000.00"
+      }
+    }
+  ],
+  "min_relative": "0.50",
+  "side": "both",
+  "min_prominence": "0.25",
+  "limit": 5,
+  "selection_method": "local_maxima_with_height_and_prominence",
+  "precision": "Rounded values displayed in website tooltips"
+}

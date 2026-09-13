@@ -15,7 +15,7 @@ export function supportedIndicators(value: unknown): IndicatorInstance[] {
         (definition) =>
           definition.id === item.definitionId &&
           definition.implemented &&
-          definition.compute,
+          (definition.compute || definition.dataSource === "remote"),
       ),
   );
 }

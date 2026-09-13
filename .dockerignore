@@ -8,3 +8,10 @@ node_modules
 dist
 release
 .next
+coinglass-secrets
+coinglass-data
+services/coinglass/.venv
+services/coinglass/credentials.txt
+services/coinglass/.coinglass-session.json
+services/coinglass/output
+**/__pycache__

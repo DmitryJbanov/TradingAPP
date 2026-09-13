@@ -46,3 +46,12 @@ release/
 *.tsbuildinfo
 
 !.env.example
+
+# CoinGlass account state and parser output (never commit).
+coinglass-secrets/
+coinglass-data/
+services/coinglass/credentials.txt
+services/coinglass/.coinglass-session.json
+services/coinglass/output/
+services/coinglass/.venv/
+**/__pycache__/

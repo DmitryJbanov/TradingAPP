@@ -1,3 +1,4 @@
+import type { CoinglassParams } from "./coinglass";
 import { computeVmc } from "../indicators/vmc";
 import type { VmcParams, VmcStyle } from "../indicators/vmc-settings";
 import { computeOrderBlocks } from "../indicators/order-blocks";
@@ -19,7 +20,8 @@ export interface IndicatorInstance {
     | Partial<VmcParams>
     | Partial<OrderBlockParams>
     | Partial<DrzParams>
-    | Partial<SmcParams>;
+    | Partial<SmcParams>
+    | Partial<CoinglassParams>;
   style?: Partial<VmcStyle>;
   timeframes?: Timeframe[];
 }
@@ -46,9 +48,18 @@ export interface IndicatorDefinition {
   name: string;
   description: string;
   implemented: boolean;
+  dataSource?: "remote";
   compute?: (bars: Candle[], params: Record<string, unknown>) => unknown;
 }
 export const indicatorRegistry: IndicatorDefinition[] = [
+  {
+    id: "coinglass",
+    name: "CoinGlass · Уровни ликвидаций",
+    description:
+      "Значимые пики 90-дневной карты. Фоновый парсинг и повторное обновление по кнопке.",
+    implemented: true,
+    dataSource: "remote",
+  },
   {
     id: "drz",
     name: "DRZ · Delta Reaction Zones",

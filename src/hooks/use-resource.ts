@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 /** Abort and generation guard prevent a slow previous symbol from replacing the active one. */
-export function useResource<T>(url: string, period = 30000) {
+export function useResource<T>(url: string, period = 30000, enabled = true) {
   const [data, setData] = useState<T>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -46,6 +46,10 @@ export function useResource<T>(url: string, period = 30000) {
   );
   useEffect(() => {
     setData(undefined);
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     void refresh();
     const timer =
       period > 0
@@ -59,7 +63,7 @@ export function useResource<T>(url: string, period = 30000) {
       controller.current?.abort();
       version.current++;
     };
-  }, [refresh, period]);
+  }, [refresh, period, enabled]);
   return {
     data: loadedUrl.current === url ? data : undefined,
     error,

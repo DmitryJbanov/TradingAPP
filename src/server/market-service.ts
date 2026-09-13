@@ -1,4 +1,9 @@
 import {
+  handleCoinglass,
+  coinglassRequest,
+  type CoinglassConfig,
+} from "./coinglass-service";
+import {
   resolveInstrument,
   searchSymbols,
   SymbolError,
@@ -16,7 +21,7 @@ import {
   type LogEntry,
   type CandleInterval,
 } from "../domain/market";
-export interface Config {
+export interface Config extends CoinglassConfig {
   DATA_MODE?: string;
   TWELVE_DATA_API_KEY?: string;
 }
@@ -410,6 +415,8 @@ export async function handleApi(
   config: Config = {},
 ): Promise<Response> {
   const u = new URL(request.url);
+  if (u.pathname.startsWith("/api/coinglass/"))
+    return handleCoinglass(request, config);
   if (request.method !== "GET")
     return Response.json(
       { error: "Method not allowed" },
@@ -486,12 +493,26 @@ export async function handleApi(
           logScope: "current process / worker isolate",
         };
         break;
-      case "/api/logs":
+      case "/api/logs": {
+        let remote: LogEntry[] = [];
+        if (config.COINGLASS_SERVICE_URL)
+          try {
+            const events = await coinglassRequest("/events", config);
+            remote = events.data.map((event: LogEntry) => ({
+              ...event,
+              id: -event.id,
+            }));
+          } catch {
+            /* CoinGlass status panel reports the connection failure. */
+          }
         result = {
-          data: logs.slice(-60),
-          scope: "current process / worker isolate",
+          data: [...logs, ...remote]
+            .sort((a, b) => a.time.localeCompare(b.time))
+            .slice(-60),
+          scope: "current process / worker isolate + CoinGlass service",
         };
         break;
+      }
       default:
         return Response.json({ error: "Not found" }, { status: 404 });
     }

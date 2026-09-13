@@ -1,0 +1,9 @@
+__pycache__
+*.pyc
+credentials.txt
+session.json
+.coinglass-session.json
+output
+coinglass-data
+test_*.py
+examples

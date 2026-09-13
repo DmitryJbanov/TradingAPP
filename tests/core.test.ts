@@ -1,3 +1,4 @@
+import "./coinglass.test";
 import "./drawings.test";
 import "./symbol-search.test";
 import "./shared-indicators.test";

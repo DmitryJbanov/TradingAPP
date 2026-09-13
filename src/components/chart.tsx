@@ -1,4 +1,6 @@
 "use client";
+import type { CoinglassOverlay } from "../domain/coinglass";
+import type { LineWidth } from "lightweight-charts";
 import { DrawingTools, type DrawingChart } from "./drawing-tools";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -60,6 +62,7 @@ export function MarketChart({
   orderBlocks,
   priceOverlays,
   historyCount,
+  coinglass = [],
 }: {
   bars: Candle[];
   symbol: string;
@@ -70,6 +73,7 @@ export function MarketChart({
   orderBlocks: OrderBlockOverlay[];
   priceOverlays: PriceOverlay[];
   historyCount: number;
+  coinglass?: CoinglassOverlay[];
 }) {
   const [drawingApi, setDrawingApi] = useState<DrawingChart>();
   const host = useRef<HTMLDivElement>(null),
@@ -342,6 +346,31 @@ export function MarketChart({
     });
     if (!hadPanes && vmcPanes.length) c.panes()[0]?.setStretchFactor(2.5);
   }, [vmcPanes, palette]);
+  useEffect(() => {
+    const s = series.current;
+    if (!s) return;
+    const lines = coinglass.flatMap((overlay) =>
+      overlay.result.levels
+        .filter((level) => Number.isFinite(level.price) && level.price > 0)
+        .map((level, index) =>
+          s.createPriceLine({
+            price: level.price,
+            color:
+              level.price >= overlay.result.currentPrice
+                ? overlay.params.aboveColor
+                : overlay.params.belowColor,
+            lineWidth: overlay.params.lineWidth as LineWidth,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: overlay.params.showLabels,
+            title: overlay.params.showLabels ? `CG 90d #${index + 1}` : "",
+          }),
+        ),
+    );
+    return () => {
+      if (series.current === s)
+        lines.forEach((line) => s.removePriceLine(line));
+    };
+  }, [coinglass]);
   const b = ohlc ?? bars.at(-1);
   return (
     <>

@@ -18,9 +18,34 @@ const server = createServer(async (req, res) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     if (url.pathname.startsWith("/api/")) {
+      let body: Buffer | undefined;
+      if (req.method === "POST" && url.pathname === "/api/coinglass/run") {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of req) {
+          size += chunk.length;
+          if (size > 8192) {
+            res.writeHead(413);
+            res.end("Request too large");
+            return;
+          }
+          chunks.push(chunk);
+        }
+        body = Buffer.concat(chunks);
+      }
+      const requestHeaders = new Headers();
+      for (const key of ["content-type", "origin", "host"])
+        if (typeof req.headers[key] === "string")
+          requestHeaders.set(key, req.headers[key]);
       const response = await handleApi(
-        new Request(url, { method: req.method }),
+        new Request(url, {
+          method: req.method,
+          headers: requestHeaders,
+          body: body?.toString("utf-8"),
+        }),
         {
+          COINGLASS_SERVICE_URL: process.env.COINGLASS_SERVICE_URL,
+          COINGLASS_TOKEN: process.env.COINGLASS_TOKEN,
           DATA_MODE: process.env.DATA_MODE,
           TWELVE_DATA_API_KEY: process.env.TWELVE_DATA_API_KEY,
         },

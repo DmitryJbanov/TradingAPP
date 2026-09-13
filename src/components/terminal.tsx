@@ -1,4 +1,11 @@
 "use client";
+import {
+  CoinglassMonitor,
+  CoinglassPanel,
+  CoinglassSettingsDialog,
+} from "./coinglass";
+import { useCoinglass } from "../hooks/use-coinglass";
+import { coinglassDefaults } from "../domain/coinglass";
 import { SymbolSearch } from "./symbol-search";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -81,7 +88,7 @@ import { OverlaySettingsDialog } from "./overlay-settings-dialog";
 import { drzDefaults } from "../indicators/drz-settings";
 import { smcDefaults } from "../indicators/smc-settings";
 const hasIndicatorSettings = (id: string) =>
-  ["vmc", "sonarlab-ob", "drz", "smc"].includes(id);
+  ["vmc", "sonarlab-ob", "drz", "smc", "coinglass"].includes(id);
 
 function Change({ value }: { value: number }) {
   return (
@@ -204,6 +211,7 @@ function Backend() {
           <span className="muted">Источники ещё не опрошены</span>
         )}
       </div>
+      <CoinglassMonitor />
       <div className="logs-heading">
         <span>
           <TerminalSquare size={15} /> Журнал событий
@@ -1029,6 +1037,7 @@ function PairWorkspace({
     historyCount,
     indicatorRefresh,
   );
+  const coinglass = useCoinglass(symbol, indicators, tf);
   const editingIndicator = indicators.find((i) => i.id === settingsId);
   function openIndicatorSettings(id: string) {
     setManager(false);
@@ -1206,6 +1215,7 @@ function PairWorkspace({
               orderBlocks={orderBlocks}
               priceOverlays={overlays.overlays}
               historyCount={historyCount}
+              coinglass={coinglass.overlays}
             />
             {!bars.length && (
               <div className="chart-loading">
@@ -1215,6 +1225,10 @@ function PairWorkspace({
               </div>
             )}
           </div>
+          <CoinglassPanel
+            state={coinglass}
+            openSettings={openIndicatorSettings}
+          />
           {vmc.loading && (
             <div className="notice" role="status">
               Загрузка таймфреймов индикатора…
@@ -1279,6 +1293,7 @@ function PairWorkspace({
                   {hasIndicatorSettings(i.definitionId) ? (
                     <small>
                       {[
+                        ...coinglass.overlays,
                         ...vmc.panes,
                         ...orderBlocks,
                         ...overlays.overlays,
@@ -1381,6 +1396,10 @@ function PairWorkspace({
                   </div>
                   <button
                     className="icon-button"
+                    disabled={
+                      d.id === "coinglass" &&
+                      indicators.some((i) => i.definitionId === "coinglass")
+                    }
                     aria-label={"Добавить " + d.name}
                     onClick={() =>
                       changeIndicators([
@@ -1406,7 +1425,9 @@ function PairWorkspace({
                                 ? { params: { ...drzDefaults } }
                                 : d.id === "smc"
                                   ? { params: { ...smcDefaults } }
-                                  : {}),
+                                  : d.id === "coinglass"
+                                    ? { params: { ...coinglassDefaults } }
+                                    : {}),
                         },
                       ])
                     }
@@ -1551,6 +1572,18 @@ function PairWorkspace({
             }
           />
         )}
+      {editingIndicator?.definitionId === "coinglass" && (
+        <CoinglassSettingsDialog
+          key={editingIndicator.id}
+          instance={editingIndicator}
+          onClose={() => setSettingsId(null)}
+          onApply={(next) =>
+            changeIndicators(
+              indicators.map((i) => (i.id === next.id ? next : i)),
+            )
+          }
+        />
+      )}
       {editingIndicator?.definitionId === "vmc" && (
         <VmcSettingsDialog
           key={editingIndicator.id}
