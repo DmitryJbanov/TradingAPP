@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 from browser_runtime import AUTH_REVISION
+from selection import preview
 
 
 def now():
@@ -48,6 +49,31 @@ class Manager:
             except (ValueError,KeyError,OSError): pass
         self.event('INFO', f'Фоновый сервис запущен; {AUTH_REVISION}; Chromium headless')
         if start_worker: threading.Thread(target=self.loop, daemon=True).start()
+
+    def snapshot(self, asset, snapshot_id=None):
+        if not isinstance(asset, str) or not re.fullmatch(r'[A-Z0-9]{1,20}', asset):
+            raise ValueError('Неверный актив')
+        if not snapshot_id:
+            with self.lock:
+                snapshot_id = (self.jobs.get(asset, {}).get('result') or {}).get('snapshotId')
+        if not snapshot_id:
+            raise FileNotFoundError('Для старого результата нужен новый сбор карты')
+        if not isinstance(snapshot_id, str) or not re.fullmatch(r'[a-f0-9]{32}', snapshot_id):
+            raise ValueError('Неверный снимок')
+        record = json.loads((self.directory / 'snapshots' / (snapshot_id+'.json')).read_text(encoding='utf-8'))
+        if record.get('asset') != asset or record.get('schemaVersion') != 1 or record.get('complete') is not True:
+            raise ValueError('Снимок не соответствует активу или не завершён')
+        return record
+
+    def save_snapshot(self, job, snapshot):
+        if snapshot.get('snapshotId') != job['id'] or snapshot.get('asset') != job['asset'] or snapshot.get('complete') is not True:
+            raise ValueError('Некорректный снимок обработчика')
+        directory = self.directory / 'snapshots'
+        directory.mkdir(exist_ok=True)
+        path = directory / (job['id']+'.json')
+        temporary = path.with_suffix('.tmp')
+        temporary.write_text(json.dumps(snapshot, ensure_ascii=False), encoding='utf-8')
+        os.replace(temporary, path)
 
     def event(self, level, message):
         with self.lock:
@@ -99,7 +125,7 @@ class Manager:
                 try: output.put(json.loads(line))
                 except ValueError: pass
         reader=threading.Thread(target=consume,daemon=True); reader.start()
-        deadline=time.monotonic()+self.timeout; result=None; failure=None
+        deadline=time.monotonic()+self.timeout; result=None; failure=None; snapshot=None
         try:
             while process.poll() is None or reader.is_alive() or not output.empty():
                 if self.stopping or time.monotonic()>deadline:
@@ -107,7 +133,8 @@ class Manager:
                     self.kill(process); break
                 try: item=output.get(timeout=.2)
                 except queue.Empty: continue
-                if item.get('kind')=='result': result=item['result']
+                if item.get('kind')=='result':
+                    result=item['result']; snapshot=item.get('snapshot')
                 elif item.get('kind')=='error': failure=item['message']; self.event('ERROR',job['asset']+': '+failure)
                 elif item.get('kind') in ('log','progress'):
                     message=item.get('message','')
@@ -115,6 +142,7 @@ class Manager:
                     self.event('INFO',job['asset']+': '+message)
             code=process.wait(timeout=10)
             if code==0 and result and not failure:
+                if snapshot is not None: self.save_snapshot(job, snapshot)
                 self.update(job,state='done',progress=100,message='Уровни обновлены',result=result)
                 self.event('INFO',f"{job['asset']}: готово, значимых уровней: {len(result['levels'])}")
             else:
@@ -165,19 +193,32 @@ class Handler(BaseHTTPRequestHandler):
                 if asset: body={'job':self.manager.jobs.get(asset)}
                 else: body={'jobs':[{k:v for k,v in j.items() if k!='result'} for j in sorted(self.manager.jobs.values(),key=lambda j:j['updatedAt'],reverse=True)[:30]],'headless':True}
                 self.respond(200,body)
+            elif url.path=='/snapshot':
+                try:
+                    query=parse_qs(url.query)
+                    self.respond(200, {'snapshot': self.manager.snapshot(query.get('asset',[''])[0], query.get('snapshotId',[None])[0])})
+                except FileNotFoundError: self.respond(404, {'error':'Полная карта недоступна. Запустите новый сбор.'})
+                except (ValueError, KeyError): self.respond(400, {'error':'Некорректный снимок'})
             elif url.path=='/events': self.respond(200,{'data':list(self.manager.events)})
             else: self.respond(404,{'error':'Not found'})
     def do_POST(self):
         if not self.authorized(): return
-        if self.path!='/jobs': self.respond(404,{'error':'Not found'}); return
+        if self.path not in ('/jobs', '/preview'): self.respond(404,{'error':'Not found'}); return
         try:
             size=int(self.headers.get('Content-Length','0'))
             if not 0<size<=8192: raise ValueError('Неверный размер запроса')
             data=json.loads(self.rfile.read(size))
             if not isinstance(data,dict): raise ValueError('Неверный запрос')
+            if self.path == '/preview':
+                settings=params(data.get('params'))
+                if not data.get('snapshotId'): raise ValueError('Не указан снимок')
+                snapshot=self.manager.snapshot(data.get('asset'), data['snapshotId'])
+                self.respond(200, preview(snapshot, settings))
+                return
             job,created=self.manager.submit(data.get('asset'),data.get('params',{}))
             self.respond(202 if created else 409,{'job':job,'error':None if created else 'Для актива уже выполняется задание'})
-        except (ValueError,TypeError): self.respond(400,{'error':'Некорректные параметры или очередь заполнена'})
+        except FileNotFoundError: self.respond(404, {'error':'Снимок недоступен. Загрузите карту заново.'})
+        except (ValueError,TypeError,KeyError): self.respond(400,{'error':'Некорректные параметры или очередь заполнена'})
 
 
 if __name__=='__main__':

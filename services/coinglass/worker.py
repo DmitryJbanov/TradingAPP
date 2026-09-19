@@ -50,10 +50,18 @@ def run(request):
                          report=lambda message: emit('log', message=message))
             with contextlib.redirect_stdout(Messages()):
                 current, peaks = collect_symbol(args, folder, page, context, request['asset'])
-            emit('result', result=dict(asset=request['asset'], rangeDays=90, currentPrice=float(current),
-                collectedAt=json.loads((folder/'observations.json').read_text(encoding='utf-8'))['finished_utc'],
-                params=p, levels=[dict(price=float(point['price']), intensity=float(point['intensity']),
-                    prominence=float(point['prominence']), distancePercent=float(distance)) for point,distance in peaks]))
+            from selection import preview
+            record = json.loads((folder / 'observations.json').read_text(encoding='utf-8'))
+            snapshot = dict(schemaVersion=1, snapshotId=request['id'], asset=request['asset'],
+                rangeDays=90, currentPrice=str(current), collectedAt=record['finished_utc'],
+                points=record['levels'], precision=record['precision'], complete=True,
+                hoverMs=p['hoverMs'])
+            # Only the chart crop, never a whole page, credentials or browser state.
+            chart = folder / 'chart-after.png'
+            if chart.is_file() and chart.stat().st_size <= 2_000_000:
+                import base64
+                snapshot['imageDataUrl'] = 'data:image/png;base64,' + base64.b64encode(chart.read_bytes()).decode('ascii')
+            emit('result', result=preview(snapshot, p)['result'], snapshot=snapshot)
         finally:
             browser.close()
 

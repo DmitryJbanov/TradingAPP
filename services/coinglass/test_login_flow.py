@@ -429,7 +429,7 @@ class LoginFlowTests(unittest.TestCase):
         api = SimpleNamespace(sync_playwright=lambda: manager)
         settings = dict(hoverMs=180, minRelative=.5, minProminence=.35, side='both', limit=5)
         def collected(args, folder, *_):
-            (folder / 'observations.json').write_text(json.dumps({'finished_utc': '2026-01-01T00:00:00Z'}))
+            (folder / 'observations.json').write_text(json.dumps({'finished_utc': '2026-01-01T00:00:00Z', 'levels': [], 'precision': 'Rounded tooltip values'}))
             return Decimal('100'), []
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.dict('sys.modules', {'playwright.sync_api': api}), \

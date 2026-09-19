@@ -19,7 +19,10 @@ const server = createServer(async (req, res) => {
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     if (url.pathname.startsWith("/api/")) {
       let body: Buffer | undefined;
-      if (req.method === "POST" && url.pathname === "/api/coinglass/run") {
+      if (
+        req.method === "POST" &&
+        ["/api/coinglass/run", "/api/coinglass/preview"].includes(url.pathname)
+      ) {
         const chunks: Buffer[] = [];
         let size = 0;
         for await (const chunk of req) {

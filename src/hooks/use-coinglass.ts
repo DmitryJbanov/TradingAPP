@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useCoinglassPreview } from "./use-coinglass-preview";
 import { useResource } from "./use-resource";
 import type { IndicatorInstance } from "../domain/workspace";
 import {
@@ -46,23 +47,35 @@ export function useCoinglass(
     }
   }
   const job = resource.data?.job;
-  const overlays: CoinglassOverlay[] = job?.result
+  const settings = coinglassParams(instances[0]?.params);
+  const snapshotId = job?.asset
+    ? (settings.snapshotIds?.[job.asset] ?? job.result?.snapshotId)
+    : undefined;
+  const preview = useCoinglassPreview(
+    symbol,
+    snapshotId,
+    settings,
+    instances.length > 0,
+  );
+  // Older installations keep their legacy levels until a full snapshot is collected.
+  const result = snapshotId ? preview.data?.result : job?.result;
+  const overlays: CoinglassOverlay[] = result
     ? instances
         .filter(
           (i) =>
             i.enabled && (!i.timeframes || i.timeframes.includes(timeframe)),
         )
-        .map((i) => ({
-          id: i.id,
-          result: job.result!,
-          params: coinglassParams(i.params),
-        }))
+        .map((i) => ({ id: i.id, result, params: coinglassParams(i.params) }))
     : [];
   return {
     instances,
+    result,
+    snapshotId,
+    recalculating: preview.loading,
+    retryPreview: preview.retry,
     job,
     overlays,
-    error: error || resource.error,
+    error: error || preview.error || resource.error,
     submitting,
     loading: resource.loading,
     run,

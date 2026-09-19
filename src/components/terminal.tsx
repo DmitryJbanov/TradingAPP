@@ -1574,7 +1574,13 @@ function PairWorkspace({
         )}
       {editingIndicator?.definitionId === "coinglass" && (
         <CoinglassSettingsDialog
-          key={editingIndicator.id}
+          key={symbol + editingIndicator.id}
+          symbol={symbol}
+          state={coinglass}
+          bars={bars}
+          palette={palette}
+          timeframe={tf}
+          candleSource={candleData?.source}
           instance={editingIndicator}
           onClose={() => setSettingsId(null)}
           onApply={(next) =>

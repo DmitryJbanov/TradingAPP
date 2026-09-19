@@ -1,20 +1,11 @@
 "use client";
-import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import type { IndicatorInstance } from "../domain/workspace";
 import {
   coinglassParams,
   calculationParams,
   jobState,
   type CoinglassJob,
-  type CoinglassParams,
 } from "../domain/coinglass";
+import { useSnapshotClock } from "../hooks/use-coinglass-preview";
 import { useResource } from "../hooks/use-resource";
 import type { useCoinglass } from "../hooks/use-coinglass";
 
@@ -56,8 +47,10 @@ export function CoinglassPanel({
   state: ReturnType<typeof useCoinglass>;
   openSettings: (id: string) => void;
 }) {
+  const now = useSnapshotClock();
   if (!state.instances.length) return null;
   const job = state.job;
+  const result = state.result;
   return (
     <section
       className="coinglass-panel"
@@ -72,6 +65,19 @@ export function CoinglassPanel({
               ? "Проверка состояния…"
               : "Запустите парсинг для этого актива.")}
       </p>
+      {state.recalculating && (
+        <p role="status">Пересчёт уровней по сохранённому снимку…</p>
+      )}
+      {state.error && state.snapshotId && (
+        <button className="button" onClick={state.retryPreview}>
+          Повторить расчёт
+        </button>
+      )}
+      {state.snapshotId && job?.result?.snapshotId !== state.snapshotId && (
+        <p>
+          Выбран закреплённый снимок. Новую карту можно выбрать в настройках.
+        </p>
+      )}
       {job && (
         <progress
           aria-label="Прогресс парсинга"
@@ -79,14 +85,14 @@ export function CoinglassPanel({
           value={job.progress}
         />
       )}
-      {job?.result && (
+      {result && (
         <p>
-          Снимок: {new Date(job.result.collectedAt).toLocaleString("ru-RU")} ·
-          уровней: {job.result.levels.length}. Цены карты — USD; наложение на
+          Снимок: {new Date(result.collectedAt).toLocaleString("ru-RU")} ·
+          уровней: {result.levels.length}. Цены карты — USD; наложение на
           USD/USDT/USDC.
         </p>
       )}
-      {job?.state === "error" && job.result && (
+      {job?.state === "error" && result && (
         <p className="warning">
           Обновление не удалось. На графике остаётся предыдущий снимок.
         </p>
@@ -94,15 +100,14 @@ export function CoinglassPanel({
       {state.instances.map((i) => {
         const params = coinglassParams(i.params);
         const stale =
-          job?.result &&
-          Date.now() - Date.parse(job.result.collectedAt) >
-            params.staleHours * 3600000;
+          result &&
+          now - Date.parse(result.collectedAt) > params.staleHours * 3600000;
         const changed =
-          job?.result &&
+          !state.snapshotId &&
+          result &&
           Object.entries(calculationParams(params)).some(
             ([key, value]) =>
-              job.result!.params[key as keyof typeof job.result.params] !==
-              value,
+              result!.params[key as keyof typeof result.params] !== value,
           );
         return (
           <div key={i.id}>
@@ -123,7 +128,7 @@ export function CoinglassPanel({
               className="button"
               onClick={() => openSettings(i.id)}
             >
-              Настройки CoinGlass
+              Визуальная настройка
             </button>{" "}
             <button
               type="button"
@@ -143,116 +148,4 @@ export function CoinglassPanel({
     </section>
   );
 }
-export function CoinglassSettingsDialog({
-  instance,
-  onClose,
-  onApply,
-}: {
-  instance: IndicatorInstance;
-  onClose: () => void;
-  onApply: (i: IndicatorInstance) => void;
-}) {
-  const [params, setParams] = useState(() => coinglassParams(instance.params));
-  const [error, setError] = useState("");
-  const fields: [keyof CoinglassParams, string, number, number, number][] = [
-    ["minRelative", "Минимальная высота / максимум карты", 0, 1, 0.05],
-    ["minProminence", "Минимальная выраженность пика", 0, 1, 0.05],
-    ["limit", "Количество ближайших значимых уровней", 1, 50, 1],
-    ["hoverMs", "Задержка сбора, мс", 50, 250, 10],
-    ["lineWidth", "Толщина линий", 1, 4, 1],
-    ["staleHours", "Считать снимок устаревшим через, ч", 1, 720, 1],
-  ];
-  function apply() {
-    const next = coinglassParams(params);
-    if (fields.some(([key]) => params[key] !== next[key])) {
-      setError("Проверьте диапазоны числовых настроек.");
-      return;
-    }
-    onApply({ ...instance, params: next, color: next.aboveColor });
-    onClose();
-  }
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="coinglass-dialog">
-        <DialogHeader>
-          <DialogTitle>CoinGlass · настройки</DialogTitle>
-          <DialogDescription>
-            Отбор значимых пиков 90-дневной карты выполняется парсером.
-            Изменение цвета применяется сразу после сохранения, расчёт — при
-            следующем запуске.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="coinglass-fields">
-          {fields.map(([key, label, min, max, step]) => (
-            <label key={key}>
-              {label}
-              <input
-                type="number"
-                min={min}
-                max={max}
-                step={step}
-                value={Number.isNaN(params[key]) ? "" : (params[key] as number)}
-                onChange={(e) =>
-                  setParams((p) => ({
-                    ...p,
-                    [key]: e.target.value === "" ? NaN : Number(e.target.value),
-                  }))
-                }
-              />
-            </label>
-          ))}
-          <label>
-            Отбор относительно цены снимка
-            <select
-              value={params.side}
-              onChange={(e) =>
-                setParams((p) => ({
-                  ...p,
-                  side: e.target.value as CoinglassParams["side"],
-                }))
-              }
-            >
-              <option value="both">С обеих сторон</option>
-              <option value="above">Выше цены</option>
-              <option value="below">Ниже цены</option>
-            </select>
-          </label>
-          <label>
-            Цвет выше цены снимка
-            <input
-              type="color"
-              value={params.aboveColor}
-              onChange={(e) =>
-                setParams((p) => ({ ...p, aboveColor: e.target.value }))
-              }
-            />
-          </label>
-          <label>
-            Цвет ниже цены снимка
-            <input
-              type="color"
-              value={params.belowColor}
-              onChange={(e) =>
-                setParams((p) => ({ ...p, belowColor: e.target.value }))
-              }
-            />
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={params.showLabels}
-              onChange={(e) =>
-                setParams((p) => ({ ...p, showLabels: e.target.checked }))
-              }
-            />{" "}
-            Подписи уровней
-          </label>
-        </div>
-        {error && <p role="alert">{error}</p>}
-        <button type="button" className="button" onClick={apply}>
-          Сохранить настройки
-        </button>
-      </DialogContent>
-    </Dialog>
-  );
-}
+export { CoinglassSettingsDialog } from "./coinglass-settings-dialog";

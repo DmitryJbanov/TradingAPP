@@ -97,64 +97,19 @@ def select_level(levels, current, relative=Decimal(0), side='both'):
 
 
 def significant_peaks(levels, relative=Decimal('0.50'), min_prominence=Decimal('0.35')):
-    """Local maxima with height and topographic prominence relative to map maximum.
-
-    The current-price marker is not a liquidation bin, so remove it BEFORE
-    finding neighbours/valleys. A plateau is represented by one actual bin.
-    """
-    for threshold in (relative, min_prominence):
-        if not threshold.is_finite() or not Decimal(0) <= threshold <= Decimal(1):
-            raise ValueError('Пороги высоты и выраженности пика должны быть от 0 до 1')
-    points = sorted((p for p in levels if p.get('kind') != 'current_price_marker'),
-                    key=lambda p: p['price'])
-    if len(points) < 3:
-        return []
-    heights = [p['intensity'] for p in points]
-    maximum = max(heights)
-    if maximum <= 0:
-        return []
-    peaks, i = [], 1
-    while i < len(points) - 1:
-        start = end = i
-        height = heights[i]
-        while end + 1 < len(points) and heights[end + 1] == height:
-            end += 1
-        if (end < len(points) - 1 and height > heights[start - 1]
-                and height > heights[end + 1] and height > 0):
-            left_min = right_min = height
-            for j in range(start - 1, -1, -1):
-                if heights[j] > height:
-                    break
-                left_min = min(left_min, heights[j])
-            for j in range(end + 1, len(points)):
-                if heights[j] > height:
-                    break
-                right_min = min(right_min, heights[j])
-            prominence = height - max(left_min, right_min)
-            if height >= maximum * relative and prominence >= maximum * min_prominence:
-                point = dict(points[(start + end) // 2])
-                point['prominence'] = prominence
-                peaks.append(point)
-        i = end + 1
-    return peaks
+    from selection import explain_selection
+    report = explain_selection(levels, Decimal(1), relative, min_prominence, limit=50)
+    return [{**{k: v for k, v in p.items() if k in {'price', 'intensity', 'side', 'exchanges', 'kind'}},
+             'prominence': p['prominence']} for p in report['points'] if p['isPeak'] and not any(r in p['reasons'] for r in ('height', 'prominence'))]
 
 
 def select_significant_levels(levels, current, relative=Decimal('0.50'),
                               min_prominence=Decimal('0.35'), side='both', limit=5):
-    if not current.is_finite() or current <= 0:
-        raise ValueError('Текущая цена должна быть положительной')
-    if side not in {'both', 'above', 'below'} or limit < 1:
-        raise ValueError('Некорректная сторона или количество уровней')
-    peaks = significant_peaks(levels, relative, min_prominence)
-    peaks = [p for p in peaks if side == 'both'
-             or (side == 'above' and p['price'] > current)
-             or (side == 'below' and p['price'] < current)]
-    if not peaks:
-        raise ValueError('Значимых пиков с указанными порогами не найдено. '
-                         'Проверьте карту или измените --min-relative / --min-prominence. '
-                         'Обычные ближайшие столбцы вместо пиков не подставляются.')
-    peaks.sort(key=lambda p: (abs(p['price'] - current), -p['intensity'], p['price']))
-    return [(p, abs(p['price'] - current) / current * 100) for p in peaks[:limit]]
+    from selection import explain_selection
+    report = explain_selection(levels, current, relative, min_prominence, side, limit)
+    return [(dict(price=p['price'], intensity=p['intensity'], side=p.get('side', ''),
+                  exchanges=p.get('exchanges', {}), prominence=p['prominence']),
+             p['distancePercent']) for p in report['selected']]
 
 
 def write_csv(path, current, selected, symbol="BTC"):
@@ -498,6 +453,7 @@ def collect_symbol(args, run, page, context, symbol):
         if getattr(args, "progress", None): args.progress(95, "Проверка полноты и расчёт значимых пиков")
         stage = 'coverage_validation'
         validate_coverage(points, current)
+        record['complete'] = True
         stage = 'peak_selection'
         selected_peaks = select_significant_levels(
             points, current, Decimal(args.min_relative), Decimal(args.min_prominence),

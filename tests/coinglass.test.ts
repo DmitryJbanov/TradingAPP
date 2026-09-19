@@ -122,3 +122,81 @@ test("CoinGlass validates proxy requests, submits jobs and merges worker logs", 
     globalThis.fetch = original;
   }
 });
+
+test("CoinGlass preview is pinned, stateless and protected by proxy validation", async () => {
+  const original = globalThis.fetch;
+  const calls: { url: string; body: unknown }[] = [];
+  const config = {
+    DATA_MODE: "demo",
+    COINGLASS_SERVICE_URL: "http://collector:8090",
+  };
+  const id = "a".repeat(32);
+  globalThis.fetch = async (url, init) => {
+    calls.push({
+      url: String(url),
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+    });
+    return Response.json({ result: { snapshotId: id, levels: [] } });
+  };
+  const call = (path: string, body?: unknown, origin = "http://local") =>
+    handleApi(
+      new Request("http://local" + path, {
+        method: body ? "POST" : "GET",
+        headers: { "Content-Type": "application/json", Origin: origin },
+        body: body ? JSON.stringify(body) : undefined,
+      }),
+      config,
+    );
+  try {
+    const body = {
+      symbol: "BTCUSDT",
+      snapshotId: id,
+      params: calculationParams(coinglassDefaults),
+    };
+    assert.equal((await call("/api/coinglass/preview", body)).status, 200);
+    assert.equal(calls.at(-1)?.url, "http://collector:8090/preview");
+    assert.deepEqual(calls.at(-1)?.body, {
+      asset: "BTC",
+      snapshotId: id,
+      params: body.params,
+    });
+    assert.equal(
+      (
+        await call("/api/coinglass/preview", {
+          ...body,
+          snapshotId: "../session",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await call("/api/coinglass/preview", {
+          ...body,
+          params: { ...body.params, minProminence: 2 },
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (await call("/api/coinglass/preview", body, "http://evil")).status,
+      403,
+    );
+    assert.equal(calls.length, 1);
+    assert.equal(
+      (await call(`/api/coinglass/snapshot?symbol=BTCUSDT&snapshotId=${id}`))
+        .status,
+      200,
+    );
+    assert.equal(
+      calls.at(-1)?.url,
+      `http://collector:8090/snapshot?asset=BTC&snapshotId=${id}`,
+    );
+    assert.equal((await call("/api/coinglass/snapshot")).status, 400);
+    globalThis.fetch = async () =>
+      Response.json({ error: "Снимок недоступен" }, { status: 404 });
+    assert.equal((await call("/api/coinglass/preview", body)).status, 404);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

@@ -1,0 +1,2449 @@
+diff --git a/app/globals.css b/app/globals.css
+index f8928e782cddf6702cb5a60de0836729d4cb0363..03ee202c3556fa949768d131bf9d9b8ec977e48d 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -2157,3 +2157,211 @@ h1 {
+   border-radius: 5px;
+   padding: 6px;
+ }
++
++/* CoinGlass visual selection workspace. */
++.cg-visual-dialog {
++  width: calc(100vw - 32px);
++  max-width: 1440px !important;
++  max-height: 94vh;
++  padding: 20px;
++}
++.cg-layout {
++  display: grid;
++  grid-template-columns: minmax(0, 1fr) 290px;
++  gap: 22px;
++}
++.cg-main {
++  min-width: 0;
++  display: flex;
++  flex-direction: column;
++  gap: 12px;
++}
++.cg-source {
++  padding: 12px;
++  border: 1px solid var(--border);
++  border-radius: 8px;
++}
++.cg-source p {
++  margin: 0 0 8px;
++  font-size: 13px;
++}
++.cg-source button {
++  margin-right: 8px;
++}
++.cg-source progress {
++  width: 100%;
++  height: 6px;
++}
++.cg-settings {
++  display: flex;
++  flex-direction: column;
++  gap: 15px;
++  border-left: 1px solid var(--border);
++  padding-left: 20px;
++}
++.cg-settings h3 {
++  font-weight: 600;
++}
++.cg-settings summary {
++  cursor: pointer;
++  margin-bottom: 12px;
++  font-weight: 600;
++}
++.cg-field {
++  display: flex;
++  flex-direction: column;
++  gap: 7px;
++  font-size: 13px;
++  margin-bottom: 8px;
++}
++.cg-field > div {
++  display: flex;
++  gap: 10px;
++}
++.cg-field input[type="number"] {
++  width: 85px;
++}
++.cg-field input[type="range"] {
++  width: 100%;
++  min-width: 0;
++}
++.cg-field input:not([type="range"]):not([type="color"]),
++.cg-field select {
++  background: var(--card);
++  border: 1px solid var(--border);
++  border-radius: 5px;
++  padding: 6px;
++}
++.cg-field input[type="color"] {
++  width: 60px;
++  height: 30px;
++}
++.cg-help {
++  font-size: 12px;
++  color: var(--muted-foreground);
++}
++.cg-toolbar,
++.cg-legend,
++.cg-map-controls {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  gap: 12px;
++  font-size: 12px;
++}
++.cg-toolbar button[aria-pressed="true"] {
++  border-color: var(--brand);
++}
++.cg-legend span {
++  display: inline-flex;
++  align-items: center;
++  gap: 5px;
++}
++.cg-legend i {
++  width: 10px;
++  height: 10px;
++  border-radius: 2px;
++}
++.cg-map {
++  min-width: 0;
++}
++.cg-map svg {
++  display: block;
++  width: 100%;
++  min-height: 200px;
++  background: var(--card);
++  border-radius: 8px;
++  margin-top: 10px;
++}
++.cg-map-controls label {
++  display: flex;
++  align-items: center;
++  gap: 6px;
++}
++.cg-inspector {
++  border: 1px solid var(--border);
++  border-radius: 8px;
++  padding: 12px;
++  margin: 12px 0;
++  font-size: 12px;
++  min-height: 105px;
++}
++.cg-inspector p {
++  margin-top: 5px;
++}
++.cg-table-wrap {
++  overflow: auto;
++  max-height: 290px;
++  margin-top: 10px;
++  border: 1px solid var(--border);
++  border-radius: 6px;
++}
++.cg-table {
++  width: 100%;
++  border-collapse: collapse;
++  font-size: 12px;
++}
++.cg-table caption {
++  text-align: left;
++  padding: 10px;
++}
++.cg-table th,
++.cg-table td {
++  padding: 9px;
++  border-bottom: 1px solid var(--border);
++  text-align: left;
++}
++.cg-table th {
++  background: var(--card);
++  position: sticky;
++  top: 0;
++}
++.cg-table td button {
++  color: var(--brand);
++  text-decoration: underline;
++  cursor: pointer;
++}
++.cg-table tr[data-selected="true"] td:last-child {
++  font-weight: 700;
++}
++.cg-footer {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 12px;
++  align-items: center;
++  border-top: 1px solid var(--border);
++  padding-top: 12px;
++}
++.cg-footer > span:first-child {
++  margin-right: auto;
++  font-size: 13px;
++}
++.cg-source-image {
++  width: 100%;
++  height: auto;
++}
++.cg-candles {
++  height: 320px;
++  width: 100%;
++  margin-top: 10px;
++}
++@media (max-width: 900px) {
++  .cg-layout {
++    grid-template-columns: 1fr;
++  }
++  .cg-settings {
++    border-left: 0;
++    border-top: 1px solid var(--border);
++    padding: 16px 0 0;
++  }
++  .cg-visual-dialog {
++    padding: 16px;
++  }
++  .cg-map svg {
++    min-height: 160px;
++  }
++}
++.cg-pending {
++  opacity: 0.55;
++  pointer-events: none;
++}
+diff --git a/docs/COINGLASS.md b/docs/COINGLASS.md
+index 6902120dde1ebcc698eeb42194d5ab50ac9541b8..c6406ba39b1145bcc0614a69d768d1abb489ca45 100644
+--- a/docs/COINGLASS.md
++++ b/docs/COINGLASS.md
+@@ -1,5 +1,7 @@
+ # CoinGlass: фоновый парсинг и индикатор
+ 
++Обновление: [визуальная настройка карты и пересчёт без парсинга](COINGLASS_VISUAL_SETTINGS.md). Для новых полных снимков изменение параметров больше не требует повторного сбора; пустая выборка допустима. Ниже сохранена история предыдущих версий.
++
+ ## Что добавлено
+ 
+ Скрипты из coinglass_btc90 (3).zip интегрированы в services/coinglass. Сохранены исходные алгоритмы сбора tooltip-данных, OCR, проверки полноты карты, отбора локальных максимумов по высоте и выраженности. Добавлены HTTP-сервис, очередь заданий, протокол прогресса, хранение последнего успешного снимка и отображение на графике. Учётные данные из архива не включены в код или патч.
+diff --git a/docs/COINGLASS_VISUAL_SETTINGS.md b/docs/COINGLASS_VISUAL_SETTINGS.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..df6d5a56a306a7e1712e6be44c2d06d531b2f6ea
+--- /dev/null
++++ b/docs/COINGLASS_VISUAL_SETTINGS.md
+@@ -0,0 +1,106 @@
++# CoinGlass: визуальная настройка отбора
++
++Базовая версия патча: `8fb643ac3a848ff5099cb2184358b6e86c33d032` (`main`).
++
++## Использование
++
++1. Добавьте CoinGlass к инструменту и откройте «Визуальная настройка» под графиком.
++2. При первом запуске после обновления нажмите «Обновить данные CoinGlass». Старые результаты содержат только отобранные уровни; исходная карта для них через API недоступна. Старые линии остаются доступны до получения полного снимка.
++3. После завершения первого сбора нажмите «Открыть собранную карту». При последующих обновлениях появится «Перейти на новый снимок». Во время настройки карта сама не заменяется.
++4. Меняйте пороги и сторону. Пересчёт сохранённых данных выполняется без браузера CoinGlass, после паузы 180 мс. Пока он идёт, предыдущая карта приглушена; применение недоступно. Ошибка расчёта не выдаётся за пустую выборку.
++5. Наведите на столбец или выберите цену в таблице. Показаны фактическая высота, выраженность, основание, расстояние от цены снимка и причины исключения. Переключатель «Все столбцы» позволяет посмотреть и обычные столбцы, не являющиеся пиками.
++6. «Сравнить с сохранёнными параметрами» сравнивает два набора параметров на одном и том же снимке. Плюс означает новый уровень, минус — исчезающий. Это не сравнение двух дат рынка.
++7. «Показать уровни на свечном графике» показывает свечи текущего инструмента и предполагаемые линии; исчезающие линии обозначены отдельно. Проекция снимка на исторические свечи не означает, что эти уровни были известны в прошлом.
++8. «Применить» сохраняет параметры и закрепляет выбранный снимок для этого актива. «Отмена» и закрытие окна оставляют сохранённые параметры и линии без изменений. Явно запущенное обновление данных продолжает выполняться на сервере и при закрытии окна.
++
++Карта отображается по числовой оси цены, с сегментами Binance / OKX / Bybit. Источник использует округлённые tooltip-значения. Ширина обзора и положение меняют только видимую область: максимум для порогов остаётся максимумом всей карты.
++
++Вкладка «Снимок CoinGlass» показывает только снимок canvas карты (`chart-after.png`), если он был сохранён и не превышает 2 MB. Она не меняется при изменении параметров. Кумулятивные кривые доступны на исходном изображении, но не реконструируются на интерактивной карте: их числовые значения текущий сборщик не сохраняет.
++
++## Параметры и алгоритм
++
++- `minRelative`: интенсивность пика / максимум всей карты, диапазон 0–1.
++- `minProminence`: (высота пика − основание) / максимум всей карты. Основание — большая из двух минимальных высот слева/справа, поиск прекращается у более высокого пика или края. Порог показан численно, фактическая выраженность выбранного столбца — оранжевым отрезком.
++- `side`: выше/ниже цены снимка CoinGlass; текущая цена биржи в отборе не участвует.
++- `limit`: общее число ближайших подходящих пиков, не отдельный лимит на каждую сторону. При равных расстояниях выше приоритет у более интенсивного пика, затем у меньшей цены.
++- Плато представлено одним фактическим средним столбцом (для чётного числа — левым из двух средних). Маркер текущей цены исключается до поиска соседей. Края карты не считаются локальными максимумами.
++- `hoverMs`: только задержка следующего сбора, не фильтр.
++- Цвета, ширина и подписи меняют оформление; `staleHours` — только предупреждение об актуальности.
++- Ноль выбранных уровней — успешный результат. Не подставляются обычные ближайшие столбцы.
++
++## Архитектура и данные
++
++`selection.py` — общий Decimal-расчёт для коллектора, CLI и API предпросмотра. Формулы не дублируются в TypeScript.
++
++После успешной проверки полноты карты worker отдаёт снимок и результат. Сервис атомарно сохраняет полную карту в `/data/snapshots/<id>.json` (локальный запуск: `COINGLASS_DATA_DIR/snapshots`). Полные снимки не зависят от очистки последних 20 диагностических запусков. Версия схемы — 1, `snapshotId` — 32 шестнадцатеричных символа. В снимок входят только данные карты и необязательное изображение canvas; учётные данные и browser storage в API не попадают.
++
++Снимки этой версии автоматически не удаляются: они могут быть закреплены пользователями. Рост каталога зависит от числа сборов и размеров изображений. Для будущей очистки нужна отдельная политика хранения с учётом закреплённых ссылок. `docker compose down -v` по-прежнему удаляет том вместе со снимками.
++
++Новые внешние маршруты:
++
++- `GET /api/coinglass/snapshot?symbol=BTCUSDT&snapshotId=<id>` — полная карта; без `snapshotId` возвращается последняя успешная.
++- `POST /api/coinglass/preview` — `{symbol, snapshotId, params}`; возвращает выбранные уровни, все столбцы, причины и значения порогов. `params` содержит прежние пять полей расчёта.
++
++Внутренние маршруты Python: `GET /snapshot?asset=BTC&snapshotId=<id>`, `POST /preview` с `asset` вместо `symbol`. Они используют существующую авторизацию `COINGLASS_TOKEN`. Node проверяет Origin, размер, параметры и формат идентификатора; Python проверяет соответствие актива и завершённость снимка. Предпросмотр не меняет очередь, статус задания или общий результат.
++
++Выбор снимка хранится в `snapshotIds` настроек индикатора отдельно для каждого актива. Остальные параметры остаются общими согласно существующей модели проекта. Настройки сохраняются в браузере, серверного профиля пользователя проект не добавляет. Новый общий снимок другого пользователя не заменяет закреплённый. Для другого актива без закрепления используется его последний успешный снимок. Старые конфигурации без `snapshotIds` совместимы.
++
++Новые зависимости не требуются: карта реализована SVG/React, свечи — существующим Lightweight Charts. Для Node standalone добавлена обработка тела POST нового маршрута. Маршруты приложения также доступны через существующий динамический Next API handler.
++
++## Применение и сборка
++
++Замените `<...>` своими значениями. Рабочее дерево должно быть чистым. Не продолжайте после ошибки команды.
++
++```bash
++cd "<PROJECT_DIR>"
++git status --short
++git switch main
++git pull --ff-only <PRIMARY_REMOTE> main
++git rev-parse HEAD
++git apply --check "<PATCH_FILE>"
++git apply "<PATCH_FILE>"
++git diff --check
++```
++
++Проверки и автономная Node-сборка (Node 22.13+; Python 3 с зависимостями сервиса для его тестов):
++
++```bash
++npm ci
++npm run typecheck
++npm test
++python -m unittest discover -s services/coinglass -p "test_*.py"
++npm run build:standalone
++npm run test:smoke
++npm run start:standalone
++```
++
++При запуске без Docker Python-сервис запускается отдельно существующим способом; `.env` содержит `COINGLASS_SERVICE_URL` и при необходимости `COINGLASS_TOKEN`.
++
++Docker: пересобрать **оба** сервиса, не только парсер. Существующие secrets, `.env` и том сохраняются:
++
++```bash
++docker compose -f compose.yaml -f compose.coinglass.yaml build
++docker compose -f compose.yaml -f compose.coinglass.yaml up -d
++docker compose -f compose.yaml -f compose.coinglass.yaml ps
++docker compose -f compose.yaml -f compose.coinglass.yaml logs --tail=100 terminal coinglass
++```
++
++Проверка изменений, коммит и обычный push одной истории в обе `main`:
++
++```bash
++git diff --stat
++git diff
++git add -- app/globals.css services/coinglass/collector.py services/coinglass/selection.py services/coinglass/service.py services/coinglass/worker.py services/coinglass/test_collector.py services/coinglass/test_login_flow.py services/coinglass/test_selection_preview.py src/components/coinglass.tsx src/components/coinglass-map.tsx src/components/coinglass-candles.tsx src/components/coinglass-settings-dialog.tsx src/components/terminal.tsx src/domain/coinglass.ts src/hooks/use-coinglass.ts src/hooks/use-coinglass-preview.ts src/server/coinglass-service.ts standalone/server.ts tests/coinglass.test.ts docs/COINGLASS_VISUAL_SETTINGS.md docs/COINGLASS.md
++git diff --cached
++git commit -m "<COMMIT_MESSAGE>"
++git push <GITLAB_REMOTE> main
++git push <GITHUB_REMOTE> main
++```
++
++Имена remote проверьте через `git remote -v`. При необходимости добавьте отсутствующий remote: `git remote add <REMOTE_NAME> "<REPOSITORY_URL>"`. При расхождении историй сначала согласуйте их; не используйте force push. Защищённая main может требовать MR/PR.
++
++## Проверки патча
++
++Проверены: TypeScript typecheck, 47 Node-тестов, 87 Python-тестов, standalone production build и HTTP smoke. Дополнительно проверена связка собранного Node-сервера с Python API на контрольной карте из репозитория: полный снимок, те же пять уровней, пустая выборка, неизменность общего результата и отклонение чужого Origin. Тесты покрывают выраженность, плато, равные расстояния, стороны, лимит, исключение маркера цены, закреплённые снимки после перезапуска и проверки новых маршрутов.
++
++Реальный вход и сбор с CoinGlass, Docker build и визуальная проверка в Chromium в среде подготовки не выполнялись. Chromium отсутствует, загрузка браузера завершилась сетевой ошибкой. После развёртывания проверьте интерфейс: изменение порогов без нового парсинга, сравнение, отмену, применение (включая 0 уровней), сохранение после перезагрузки страницы и явный переход на новый снимок.
+diff --git a/services/coinglass/collector.py b/services/coinglass/collector.py
+index 3852c8b478270429439018e834dbd6f6274728d0..17c6e71181a84e95d6aeba895e66b2050d5b97d8 100644
+--- a/services/coinglass/collector.py
++++ b/services/coinglass/collector.py
+@@ -97,64 +97,19 @@ def select_level(levels, current, relative=Decimal(0), side='both'):
+ 
+ 
+ def significant_peaks(levels, relative=Decimal('0.50'), min_prominence=Decimal('0.35')):
+-    """Local maxima with height and topographic prominence relative to map maximum.
+-
+-    The current-price marker is not a liquidation bin, so remove it BEFORE
+-    finding neighbours/valleys. A plateau is represented by one actual bin.
+-    """
+-    for threshold in (relative, min_prominence):
+-        if not threshold.is_finite() or not Decimal(0) <= threshold <= Decimal(1):
+-            raise ValueError('Пороги высоты и выраженности пика должны быть от 0 до 1')
+-    points = sorted((p for p in levels if p.get('kind') != 'current_price_marker'),
+-                    key=lambda p: p['price'])
+-    if len(points) < 3:
+-        return []
+-    heights = [p['intensity'] for p in points]
+-    maximum = max(heights)
+-    if maximum <= 0:
+-        return []
+-    peaks, i = [], 1
+-    while i < len(points) - 1:
+-        start = end = i
+-        height = heights[i]
+-        while end + 1 < len(points) and heights[end + 1] == height:
+-            end += 1
+-        if (end < len(points) - 1 and height > heights[start - 1]
+-                and height > heights[end + 1] and height > 0):
+-            left_min = right_min = height
+-            for j in range(start - 1, -1, -1):
+-                if heights[j] > height:
+-                    break
+-                left_min = min(left_min, heights[j])
+-            for j in range(end + 1, len(points)):
+-                if heights[j] > height:
+-                    break
+-                right_min = min(right_min, heights[j])
+-            prominence = height - max(left_min, right_min)
+-            if height >= maximum * relative and prominence >= maximum * min_prominence:
+-                point = dict(points[(start + end) // 2])
+-                point['prominence'] = prominence
+-                peaks.append(point)
+-        i = end + 1
+-    return peaks
++    from selection import explain_selection
++    report = explain_selection(levels, Decimal(1), relative, min_prominence, limit=50)
++    return [{**{k: v for k, v in p.items() if k in {'price', 'intensity', 'side', 'exchanges', 'kind'}},
++             'prominence': p['prominence']} for p in report['points'] if p['isPeak'] and not any(r in p['reasons'] for r in ('height', 'prominence'))]
+ 
+ 
+ def select_significant_levels(levels, current, relative=Decimal('0.50'),
+                               min_prominence=Decimal('0.35'), side='both', limit=5):
+-    if not current.is_finite() or current <= 0:
+-        raise ValueError('Текущая цена должна быть положительной')
+-    if side not in {'both', 'above', 'below'} or limit < 1:
+-        raise ValueError('Некорректная сторона или количество уровней')
+-    peaks = significant_peaks(levels, relative, min_prominence)
+-    peaks = [p for p in peaks if side == 'both'
+-             or (side == 'above' and p['price'] > current)
+-             or (side == 'below' and p['price'] < current)]
+-    if not peaks:
+-        raise ValueError('Значимых пиков с указанными порогами не найдено. '
+-                         'Проверьте карту или измените --min-relative / --min-prominence. '
+-                         'Обычные ближайшие столбцы вместо пиков не подставляются.')
+-    peaks.sort(key=lambda p: (abs(p['price'] - current), -p['intensity'], p['price']))
+-    return [(p, abs(p['price'] - current) / current * 100) for p in peaks[:limit]]
++    from selection import explain_selection
++    report = explain_selection(levels, current, relative, min_prominence, side, limit)
++    return [(dict(price=p['price'], intensity=p['intensity'], side=p.get('side', ''),
++                  exchanges=p.get('exchanges', {}), prominence=p['prominence']),
++             p['distancePercent']) for p in report['selected']]
+ 
+ 
+ def write_csv(path, current, selected, symbol="BTC"):
+@@ -498,6 +453,7 @@ def collect_symbol(args, run, page, context, symbol):
+         if getattr(args, "progress", None): args.progress(95, "Проверка полноты и расчёт значимых пиков")
+         stage = 'coverage_validation'
+         validate_coverage(points, current)
++        record['complete'] = True
+         stage = 'peak_selection'
+         selected_peaks = select_significant_levels(
+             points, current, Decimal(args.min_relative), Decimal(args.min_prominence),
+diff --git a/services/coinglass/selection.py b/services/coinglass/selection.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3ccd1011fa71950e42eb4614d158e2101b6dbdde
+--- /dev/null
++++ b/services/coinglass/selection.py
+@@ -0,0 +1,73 @@
++"""Pure, Decimal-based selection shared by collection, CLI and visual preview."""
++from decimal import Decimal
++
++
++def explain_selection(levels, current, relative=Decimal('.5'), min_prominence=Decimal('.35'), side='both', limit=5):
++    if not current.is_finite() or current <= 0:
++        raise ValueError('Текущая цена должна быть положительной')
++    if side not in {'both', 'above', 'below'} or type(limit) is not int or not 1 <= limit <= 50:
++        raise ValueError('Некорректная сторона или количество уровней')
++    for threshold in (relative, min_prominence):
++        if not threshold.is_finite() or not 0 <= threshold <= 1:
++            raise ValueError('Пороги должны быть от 0 до 1')
++    points = sorted((p for p in levels if p.get('kind') != 'current_price_marker'), key=lambda p: p['price'])
++    maximum = max((p['intensity'] for p in points), default=Decimal(0))
++    rows = [dict(p, isPeak=False, prominence=Decimal(0), base=Decimal(0),
++                 relativeHeight=p['intensity'] / maximum if maximum else Decimal(0),
++                 relativeProminence=Decimal(0), distancePercent=abs(p['price']-current)/current*100,
++                 reasons=['not_peak'], rank=None, selected=False) for p in points]
++    i = 1
++    while i < len(points)-1:
++        start = end = i
++        height = points[i]['intensity']
++        while end+1 < len(points) and points[end+1]['intensity'] == height:
++            end += 1
++        if end < len(points)-1 and height > points[start-1]['intensity'] and height > points[end+1]['intensity'] and height > 0:
++            left_min = right_min = height
++            for j in range(start-1, -1, -1):
++                if points[j]['intensity'] > height: break
++                left_min = min(left_min, points[j]['intensity'])
++            for j in range(end+1, len(points)):
++                if points[j]['intensity'] > height: break
++                right_min = min(right_min, points[j]['intensity'])
++            base = max(left_min, right_min)
++            row = rows[(start+end)//2]
++            reasons = []
++            if height < maximum * relative: reasons.append('height')
++            if height-base < maximum * min_prominence: reasons.append('prominence')
++            if (side == 'above' and row['price'] <= current) or (side == 'below' and row['price'] >= current): reasons.append('side')
++            row.update(isPeak=True, base=base, prominence=height-base,
++                       relativeProminence=(height-base)/maximum, reasons=reasons)
++            for j in range(start, end+1):
++                if j != (start+end)//2: rows[j]['reasons'] = ['plateau']
++        i = end+1
++    eligible = sorted((r for r in rows if r['isPeak'] and not r['reasons']),
++                      key=lambda r: (abs(r['price']-current), -r['intensity'], r['price']))
++    for rank, row in enumerate(eligible, 1):
++        row['rank'] = rank
++        row['selected'] = rank <= limit
++        if rank > limit: row['reasons'] = ['limit']
++    return dict(maximum=maximum, heightThreshold=maximum*relative,
++                prominenceThreshold=maximum*min_prominence, points=rows,
++                selected=[r for r in eligible if r['selected']])
++
++
++def numeric(value):
++    if isinstance(value, Decimal): return float(value)
++    if isinstance(value, dict): return {k: numeric(v) for k, v in value.items()}
++    if isinstance(value, list): return [numeric(v) for v in value]
++    return value
++
++
++def preview(snapshot, settings):
++    points = []
++    for item in snapshot['points']:
++        point = dict(item)
++        for key in ('price', 'intensity'): point[key] = Decimal(str(point[key]))
++        points.append(point)
++    report = explain_selection(points, Decimal(str(snapshot['currentPrice'])),
++        Decimal(str(settings['minRelative'])), Decimal(str(settings['minProminence'])), settings['side'], settings['limit'])
++    result = {k: snapshot[k] for k in ('asset', 'rangeDays', 'currentPrice', 'collectedAt', 'snapshotId')}
++    result['currentPrice'] = float(snapshot['currentPrice'])
++    result.update(params=settings, levels=[{k: p[k] for k in ('price', 'intensity', 'prominence', 'distancePercent')} for p in report['selected']])
++    return numeric(dict(result=result, **{k: v for k, v in report.items() if k != 'selected'}))
+diff --git a/services/coinglass/service.py b/services/coinglass/service.py
+index 518e461be9cba4947a29d5bcbd86a80fd61037e2..72f6c827322ddbd43a6e3ed500eef9ac15246e1b 100644
+--- a/services/coinglass/service.py
++++ b/services/coinglass/service.py
+@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+ from pathlib import Path
+ from urllib.parse import urlsplit, parse_qs
+ from browser_runtime import AUTH_REVISION
++from selection import preview
+ 
+ 
+ def now():
+@@ -49,6 +50,31 @@ class Manager:
+         self.event('INFO', f'Фоновый сервис запущен; {AUTH_REVISION}; Chromium headless')
+         if start_worker: threading.Thread(target=self.loop, daemon=True).start()
+ 
++    def snapshot(self, asset, snapshot_id=None):
++        if not isinstance(asset, str) or not re.fullmatch(r'[A-Z0-9]{1,20}', asset):
++            raise ValueError('Неверный актив')
++        if not snapshot_id:
++            with self.lock:
++                snapshot_id = (self.jobs.get(asset, {}).get('result') or {}).get('snapshotId')
++        if not snapshot_id:
++            raise FileNotFoundError('Для старого результата нужен новый сбор карты')
++        if not isinstance(snapshot_id, str) or not re.fullmatch(r'[a-f0-9]{32}', snapshot_id):
++            raise ValueError('Неверный снимок')
++        record = json.loads((self.directory / 'snapshots' / (snapshot_id+'.json')).read_text(encoding='utf-8'))
++        if record.get('asset') != asset or record.get('schemaVersion') != 1 or record.get('complete') is not True:
++            raise ValueError('Снимок не соответствует активу или не завершён')
++        return record
++
++    def save_snapshot(self, job, snapshot):
++        if snapshot.get('snapshotId') != job['id'] or snapshot.get('asset') != job['asset'] or snapshot.get('complete') is not True:
++            raise ValueError('Некорректный снимок обработчика')
++        directory = self.directory / 'snapshots'
++        directory.mkdir(exist_ok=True)
++        path = directory / (job['id']+'.json')
++        temporary = path.with_suffix('.tmp')
++        temporary.write_text(json.dumps(snapshot, ensure_ascii=False), encoding='utf-8')
++        os.replace(temporary, path)
++
+     def event(self, level, message):
+         with self.lock:
+             self.sequence+=1
+@@ -99,7 +125,7 @@ class Manager:
+                 try: output.put(json.loads(line))
+                 except ValueError: pass
+         reader=threading.Thread(target=consume,daemon=True); reader.start()
+-        deadline=time.monotonic()+self.timeout; result=None; failure=None
++        deadline=time.monotonic()+self.timeout; result=None; failure=None; snapshot=None
+         try:
+             while process.poll() is None or reader.is_alive() or not output.empty():
+                 if self.stopping or time.monotonic()>deadline:
+@@ -107,7 +133,8 @@ class Manager:
+                     self.kill(process); break
+                 try: item=output.get(timeout=.2)
+                 except queue.Empty: continue
+-                if item.get('kind')=='result': result=item['result']
++                if item.get('kind')=='result':
++                    result=item['result']; snapshot=item.get('snapshot')
+                 elif item.get('kind')=='error': failure=item['message']; self.event('ERROR',job['asset']+': '+failure)
+                 elif item.get('kind') in ('log','progress'):
+                     message=item.get('message','')
+@@ -115,6 +142,7 @@ class Manager:
+                     self.event('INFO',job['asset']+': '+message)
+             code=process.wait(timeout=10)
+             if code==0 and result and not failure:
++                if snapshot is not None: self.save_snapshot(job, snapshot)
+                 self.update(job,state='done',progress=100,message='Уровни обновлены',result=result)
+                 self.event('INFO',f"{job['asset']}: готово, значимых уровней: {len(result['levels'])}")
+             else:
+@@ -165,19 +193,32 @@ class Handler(BaseHTTPRequestHandler):
+                 if asset: body={'job':self.manager.jobs.get(asset)}
+                 else: body={'jobs':[{k:v for k,v in j.items() if k!='result'} for j in sorted(self.manager.jobs.values(),key=lambda j:j['updatedAt'],reverse=True)[:30]],'headless':True}
+                 self.respond(200,body)
++            elif url.path=='/snapshot':
++                try:
++                    query=parse_qs(url.query)
++                    self.respond(200, {'snapshot': self.manager.snapshot(query.get('asset',[''])[0], query.get('snapshotId',[None])[0])})
++                except FileNotFoundError: self.respond(404, {'error':'Полная карта недоступна. Запустите новый сбор.'})
++                except (ValueError, KeyError): self.respond(400, {'error':'Некорректный снимок'})
+             elif url.path=='/events': self.respond(200,{'data':list(self.manager.events)})
+             else: self.respond(404,{'error':'Not found'})
+     def do_POST(self):
+         if not self.authorized(): return
+-        if self.path!='/jobs': self.respond(404,{'error':'Not found'}); return
++        if self.path not in ('/jobs', '/preview'): self.respond(404,{'error':'Not found'}); return
+         try:
+             size=int(self.headers.get('Content-Length','0'))
+             if not 0<size<=8192: raise ValueError('Неверный размер запроса')
+             data=json.loads(self.rfile.read(size))
+             if not isinstance(data,dict): raise ValueError('Неверный запрос')
++            if self.path == '/preview':
++                settings=params(data.get('params'))
++                if not data.get('snapshotId'): raise ValueError('Не указан снимок')
++                snapshot=self.manager.snapshot(data.get('asset'), data['snapshotId'])
++                self.respond(200, preview(snapshot, settings))
++                return
+             job,created=self.manager.submit(data.get('asset'),data.get('params',{}))
+             self.respond(202 if created else 409,{'job':job,'error':None if created else 'Для актива уже выполняется задание'})
+-        except (ValueError,TypeError): self.respond(400,{'error':'Некорректные параметры или очередь заполнена'})
++        except FileNotFoundError: self.respond(404, {'error':'Снимок недоступен. Загрузите карту заново.'})
++        except (ValueError,TypeError,KeyError): self.respond(400,{'error':'Некорректные параметры или очередь заполнена'})
+ 
+ 
+ if __name__=='__main__':
+diff --git a/services/coinglass/test_collector.py b/services/coinglass/test_collector.py
+index 1e5854c09d38d2ee3cbd6c13be4d1ef4e42cec15..1376f5163f9d29e214035e01f17be9e8a2bb506f 100644
+--- a/services/coinglass/test_collector.py
++++ b/services/coinglass/test_collector.py
+@@ -37,8 +37,7 @@ class CalculationTests(unittest.TestCase):
+ 
+     def test_no_peaks_does_not_fall_back_to_nearest_bar(self):
+         points = [{'price': D(i), 'intensity': D(i)} for i in range(1, 6)]
+-        with self.assertRaisesRegex(ValueError, 'Значимых пиков'):
+-            select_significant_levels(points, D(3))
++        self.assertEqual(select_significant_levels(points, D(3)), [])
+ 
+     def test_csv_has_one_row_per_selected_peak(self):
+         points = [{'price': D(i), 'intensity': D(h)} for i, h in enumerate([0, 100, 0, 90, 0], 1)]
+diff --git a/services/coinglass/test_login_flow.py b/services/coinglass/test_login_flow.py
+index c8f8cc4a22882f65f3bb171c1852a37b0eec990f..692e166d8a88fb03ca65337221e30c512512a6d7 100644
+--- a/services/coinglass/test_login_flow.py
++++ b/services/coinglass/test_login_flow.py
+@@ -429,7 +429,7 @@ class LoginFlowTests(unittest.TestCase):
+         api = SimpleNamespace(sync_playwright=lambda: manager)
+         settings = dict(hoverMs=180, minRelative=.5, minProminence=.35, side='both', limit=5)
+         def collected(args, folder, *_):
+-            (folder / 'observations.json').write_text(json.dumps({'finished_utc': '2026-01-01T00:00:00Z'}))
++            (folder / 'observations.json').write_text(json.dumps({'finished_utc': '2026-01-01T00:00:00Z', 'levels': [], 'precision': 'Rounded tooltip values'}))
+             return Decimal('100'), []
+         with tempfile.TemporaryDirectory() as tmp, \
+                 patch.dict('sys.modules', {'playwright.sync_api': api}), \
+diff --git a/services/coinglass/test_selection_preview.py b/services/coinglass/test_selection_preview.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..553bbb2d669604b2b2aded20139b32571b007b78
+--- /dev/null
++++ b/services/coinglass/test_selection_preview.py
+@@ -0,0 +1,117 @@
++import contextlib
++import io
++import json
++import tempfile
++import unittest
++from decimal import Decimal as D
++from pathlib import Path
++from collector import select_significant_levels
++from selection import explain_selection, preview
++from service import Manager, params
++
++
++def terrain(heights):
++    return [dict(price=D(i), intensity=D(h), side='long', exchanges={'Binance': str(h)})
++            for i, h in enumerate(heights, 1)]
++
++
++class PreviewTests(unittest.TestCase):
++    def test_actual_fixture_matches_collector(self):
++        record = json.loads(Path(__file__).with_name('examples').joinpath('observations-20260905.json').read_text())
++        snapshot = dict(asset='BTC', rangeDays=90, currentPrice=record['current_price'], collectedAt=record['finished_utc'], snapshotId='a'*32, points=record['levels'])
++        points = [{**p, 'price': D(p['price']), 'intensity': D(p['intensity'])} for p in record['levels']]
++        for side in ['both', 'above', 'below']:
++            for relative in ['0', '.5', '1']:
++                settings = params(dict(side=side, minRelative=float(relative)))
++                result = preview(snapshot, settings)
++                expected = select_significant_levels(points, D(record['current_price']), D(relative), side=side)
++                self.assertEqual([l['price'] for l in result['result']['levels']], [float(p['price']) for p, _ in expected])
++                self.assertEqual(len(result['points']), sum(p.get('kind') != 'current_price_marker' for p in points))
++
++    def test_prominence_height_plateau_ties_limit_and_side(self):
++        p = terrain([0, 100, 0, 80, 60, 75, 0])
++        report = explain_selection(p, D(3), D('.5'), D('.35'), limit=1)
++        self.assertEqual(report['points'][5]['base'], D(60))
++        self.assertEqual(report['points'][5]['reasons'], ['prominence'])
++        self.assertEqual(report['selected'][0]['price'], D(2))  # equal distance: larger intensity
++        self.assertEqual(report['points'][3]['reasons'], ['limit'])
++        report = explain_selection(terrain([0, 100, 100, 0, 100, 0]), D(3), D(1), D(1), 'above', 5)
++        self.assertEqual(report['points'][1]['reasons'], ['side'])
++        self.assertEqual(report['points'][2]['reasons'], ['plateau'])
++        self.assertEqual([p['price'] for p in report['selected']], [D(5)])
++        report = explain_selection(terrain([0, 100, 0, 100, 0]), D(3), limit=1)
++        self.assertEqual(report['selected'][0]['price'], D(2))  # equal height: lower price
++
++    def test_empty_and_reference_marker(self):
++        self.assertEqual(explain_selection(terrain([1, 2, 3]), D(2))['selected'], [])
++        self.assertEqual(explain_selection([], D(2))['maximum'], 0)
++        p = terrain([0, 100, 80, 90, 0])
++        p.append(dict(price=D('3.5'), intensity=D(0), kind='current_price_marker'))
++        report = explain_selection(p, D('3.5'))
++        self.assertEqual(report['points'][3]['prominence'], 10)
++        self.assertEqual(report['points'][3]['reasons'], ['prominence'])
++
++    def test_snapshots_survive_restart_and_previews_do_not_mutate_jobs(self):
++        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
++            manager = Manager(directory, start_worker=False)
++            job, _ = manager.submit('BTC', {})
++            snapshot = dict(schemaVersion=1, complete=True, asset='BTC', snapshotId=job['id'],
++                rangeDays=90, currentPrice='3', collectedAt='2026-09-18T00:00:00Z',
++                points=json.loads(json.dumps(terrain([0, 100, 0, 80, 0]), default=str)))
++            manager.save_snapshot(job, snapshot)
++            manager.update(job, state='done', result=preview(snapshot, params({}))['result'])
++            before = json.dumps(job, sort_keys=True)
++            preview(manager.snapshot('BTC', job['id']), params({'side': 'above', 'limit': 1}))
++            self.assertEqual(before, json.dumps(job, sort_keys=True))
++            restored = Manager(directory, start_worker=False)
++            self.assertEqual(restored.snapshot('BTC'), snapshot)
++            with self.assertRaises(ValueError): restored.snapshot('ETH', job['id'])
++            with self.assertRaises(ValueError): restored.snapshot('BTC', '../session')
++            with self.assertRaises(FileNotFoundError): restored.snapshot('ETH')
++            # A subsequent job never deletes a previously pinned snapshot.
++            restored.submit('BTC', {})
++            self.assertEqual(restored.snapshot('BTC', job['id']), snapshot)
++
++class PreviewHttpTests(unittest.TestCase):
++    def test_http_snapshot_preview_auth_and_isolation(self):
++        import threading
++        import urllib.request
++        import urllib.error
++        from http.server import ThreadingHTTPServer
++        from service import Handler
++        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
++            class TestHandler(Handler): pass
++            manager = Manager(directory, start_worker=False)
++            job, _ = manager.submit('BTC', {})
++            snapshot = dict(schemaVersion=1, complete=True, asset='BTC', snapshotId=job['id'], rangeDays=90,
++                currentPrice='3', collectedAt='2026-09-18T00:00:00Z',
++                points=json.loads(json.dumps(terrain([0, 100, 0, 80, 0]), default=str)))
++            manager.save_snapshot(job, snapshot)
++            manager.update(job, state='done', result=preview(snapshot, params({}))['result'])
++            TestHandler.manager = manager
++            TestHandler.token = 'test'
++            server = ThreadingHTTPServer(('127.0.0.1', 0), TestHandler)
++            thread = threading.Thread(target=server.serve_forever, daemon=True)
++            thread.start()
++            def call(path, body=None, token=True):
++                request = urllib.request.Request(f'http://127.0.0.1:{server.server_port}'+path,
++                    data=json.dumps(body).encode() if body is not None else None,
++                    headers={'Authorization': 'Bearer test'} if token else {})
++                try:
++                    with urllib.request.urlopen(request) as response: return response.status, json.load(response)
++                except urllib.error.HTTPError as error: return error.code, json.load(error)
++            try:
++                before = json.dumps(job, sort_keys=True)
++                self.assertEqual(call('/snapshot?asset=BTC', token=False)[0], 401)
++                self.assertEqual(call('/snapshot?asset=BTC')[1]['snapshot'], snapshot)
++                request = dict(asset='BTC', snapshotId=job['id'], params=params({'side':'above'}))
++                response = call('/preview', request)
++                self.assertEqual(response[0], 200)
++                self.assertEqual([p['price'] for p in response[1]['result']['levels']], [4])
++                self.assertEqual(call('/preview', {**request, 'snapshotId':'../session'})[0], 400)
++                self.assertEqual(call('/preview', {**request, 'asset':'ETH'})[0], 400)
++                self.assertEqual(call('/preview', {**request, 'snapshotId':'b'*32})[0], 404)
++                self.assertEqual(call('/preview', {**request, 'params':params({'side':'above','minRelative':1})})[1]['result']['levels'], [])
++                self.assertEqual(before, json.dumps(job, sort_keys=True))
++            finally:
++                server.shutdown(); server.server_close(); thread.join()
+diff --git a/services/coinglass/worker.py b/services/coinglass/worker.py
+index 1fac743c07c01429085d48f2e84fadb0edae3689..e1aea3a651d4c879bd86491adfa2c12d8091fbc8 100644
+--- a/services/coinglass/worker.py
++++ b/services/coinglass/worker.py
+@@ -50,10 +50,18 @@ def run(request):
+                          report=lambda message: emit('log', message=message))
+             with contextlib.redirect_stdout(Messages()):
+                 current, peaks = collect_symbol(args, folder, page, context, request['asset'])
+-            emit('result', result=dict(asset=request['asset'], rangeDays=90, currentPrice=float(current),
+-                collectedAt=json.loads((folder/'observations.json').read_text(encoding='utf-8'))['finished_utc'],
+-                params=p, levels=[dict(price=float(point['price']), intensity=float(point['intensity']),
+-                    prominence=float(point['prominence']), distancePercent=float(distance)) for point,distance in peaks]))
++            from selection import preview
++            record = json.loads((folder / 'observations.json').read_text(encoding='utf-8'))
++            snapshot = dict(schemaVersion=1, snapshotId=request['id'], asset=request['asset'],
++                rangeDays=90, currentPrice=str(current), collectedAt=record['finished_utc'],
++                points=record['levels'], precision=record['precision'], complete=True,
++                hoverMs=p['hoverMs'])
++            # Only the chart crop, never a whole page, credentials or browser state.
++            chart = folder / 'chart-after.png'
++            if chart.is_file() and chart.stat().st_size <= 2_000_000:
++                import base64
++                snapshot['imageDataUrl'] = 'data:image/png;base64,' + base64.b64encode(chart.read_bytes()).decode('ascii')
++            emit('result', result=preview(snapshot, p)['result'], snapshot=snapshot)
+         finally:
+             browser.close()
+ 
+diff --git a/src/components/coinglass-candles.tsx b/src/components/coinglass-candles.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..8fe1a7b48d3c3d02aa8acb1c9c67e6172e66d0fd
+--- /dev/null
++++ b/src/components/coinglass-candles.tsx
+@@ -0,0 +1,124 @@
++"use client";
++import { useEffect, useRef } from "react";
++import {
++  createChart,
++  CandlestickSeries,
++  ColorType,
++  LineStyle,
++  type IChartApi,
++  type ISeriesApi,
++  type UTCTimestamp,
++  type LineWidth,
++  type AutoscaleInfo,
++} from "lightweight-charts";
++import type { Candle } from "../domain/market";
++import type { CoinglassParams, CoinglassPreview } from "../domain/coinglass";
++import type { ChartPalette } from "./chart";
++export function CoinglassCandles({
++  bars,
++  palette,
++  params,
++  report,
++  baseline,
++}: {
++  bars: Candle[];
++  palette: ChartPalette;
++  params: CoinglassParams;
++  report: CoinglassPreview;
++  baseline?: CoinglassPreview;
++}) {
++  const host = useRef<HTMLDivElement>(null);
++  const chart = useRef<IChartApi | null>(null);
++  const series = useRef<ISeriesApi<"Candlestick"> | null>(null);
++  useEffect(() => {
++    if (!host.current) return;
++    const c = createChart(host.current, {
++      autoSize: true,
++      layout: {
++        background: { type: ColorType.Solid, color: palette.background },
++        textColor: palette.text,
++      },
++      grid: {
++        vertLines: { color: palette.grid },
++        horzLines: { color: palette.grid },
++      },
++    });
++    chart.current = c;
++    series.current = c.addSeries(CandlestickSeries, {
++      upColor: palette.up,
++      downColor: palette.down,
++      wickUpColor: palette.up,
++      wickDownColor: palette.down,
++      borderVisible: false,
++    });
++    return () => {
++      series.current = null;
++      chart.current = null;
++      c.remove();
++    };
++  }, [palette]);
++  useEffect(() => {
++    series.current?.setData(
++      bars.map((b) => ({ ...b, time: b.time as UTCTimestamp })),
++    );
++    chart.current?.timeScale().fitContent();
++  }, [bars, palette]);
++  useEffect(() => {
++    const s = series.current;
++    if (!s) return;
++    const levels = report.result.levels;
++    const previous =
++      baseline?.result.levels.filter(
++        (p) => !levels.some((v) => v.price === p.price),
++      ) ?? [];
++    const prices = [...levels, ...previous].map((l) => l.price);
++    s.applyOptions({
++      autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
++        const info = original();
++        if (!info?.priceRange || !prices.length) return info;
++        return {
++          ...info,
++          priceRange: {
++            minValue: Math.min(info.priceRange.minValue, ...prices),
++            maxValue: Math.max(info.priceRange.maxValue, ...prices),
++          },
++        };
++      },
++    });
++    const lines = [
++      ...levels.map((l, i) =>
++        s.createPriceLine({
++          price: l.price,
++          color:
++            l.price >= report.result.currentPrice
++              ? params.aboveColor
++              : params.belowColor,
++          lineWidth: params.lineWidth as LineWidth,
++          lineStyle: LineStyle.Dashed,
++          axisLabelVisible: params.showLabels,
++          title: params.showLabels ? `CG #${i + 1}` : "",
++        }),
++      ),
++      ...previous.map((l) =>
++        s.createPriceLine({
++          price: l.price,
++          color: "#94a3b8",
++          lineWidth: 1,
++          lineStyle: LineStyle.Dotted,
++          axisLabelVisible: true,
++          title: "Удалится",
++        }),
++      ),
++    ];
++    return () => {
++      if (series.current === s) lines.forEach((l) => s.removePriceLine(l));
++    };
++  }, [report, baseline, params, palette]);
++  return (
++    <div
++      className="cg-candles"
++      ref={host}
++      aria-label="Предпросмотр уровней на свечном графике"
++    />
++  );
++}
+diff --git a/src/components/coinglass-map.tsx b/src/components/coinglass-map.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..72b4a25caf9a82113e3c97bc5faefadda4de4269
+--- /dev/null
++++ b/src/components/coinglass-map.tsx
+@@ -0,0 +1,403 @@
++"use client";
++import { useState } from "react";
++import { compact, priceFormat } from "../domain/market";
++import {
++  selectionReasons,
++  type CoinglassParams,
++  type CoinglassPoint,
++  type CoinglassPreview,
++} from "../domain/coinglass";
++const exchangeColors: Record<string, string> = {
++  Binance: "#e9b949",
++  OKX: "#9b8afb",
++  Bybit: "#38bdb1",
++};
++export function CoinglassMap({
++  report,
++  params,
++  baseline,
++}: {
++  report: CoinglassPreview;
++  params: CoinglassParams;
++  baseline?: CoinglassPreview;
++}) {
++  const [focus, setFocus] = useState<number>();
++  const [all, setAll] = useState(false);
++  const [zoom, setZoom] = useState(100);
++  const [center, setCenter] = useState(50);
++  const points = report.points;
++  const min = points[0]?.price ?? 0,
++    max = points.at(-1)?.price ?? 1;
++  const span = Math.max(max - min, 1e-9);
++  const width = (span * zoom) / 100;
++  const lo = min + ((span - width) * center) / 100,
++    hi = lo + width;
++  const x = (p: number) => 65 + ((p - lo) / width) * 780;
++  const y = (h: number) => 320 - (h / Math.max(report.maximum, 1)) * 260;
++  const current = report.result.currentPrice;
++  const active = points.find((p) => p.price === focus);
++  const savedPrices = new Set(baseline?.result.levels.map((p) => p.price));
++  const chosenPrices = new Set(report.result.levels.map((p) => p.price));
++  const visible = points.filter((p) => p.price >= lo && p.price <= hi);
++  const describe = (p: CoinglassPoint) =>
++    p.selected
++      ? `Выбран #${p.rank}`
++      : p.reasons.map((r) => selectionReasons[r] ?? r).join("; ");
++  return (
++    <section className="cg-map">
++      <div className="cg-legend">
++        {Object.entries(exchangeColors).map(([name, color]) => (
++          <span key={name}>
++            <i style={{ background: color }} />
++            {name}
++          </span>
++        ))}
++        <span>Контур и номер — выбранный пик</span>
++        <span>Ромб — локальный максимум</span>
++      </div>
++      <svg
++        viewBox="0 0 900 380"
++        role="img"
++        aria-label="Карта ликвидаций: цена по горизонтали, интенсивность по вертикали"
++      >
++        <text x="65" y="20" fill="currentColor">
++          Интенсивность ликвидаций
++        </text>
++        {[0, 0.25, 0.5, 0.75, 1].map((t) => (
++          <g key={t}>
++            <line
++              x1="65"
++              x2="845"
++              y1={y(report.maximum * t)}
++              y2={y(report.maximum * t)}
++              stroke="currentColor"
++              opacity=".15"
++            />
++            <text
++              x="58"
++              y={y(report.maximum * t) + 4}
++              textAnchor="end"
++              fill="currentColor"
++              fontSize="11"
++            >
++              {compact(report.maximum * t)}
++            </text>
++          </g>
++        ))}
++        {Array.from({ length: 6 }, (_, i) => lo + (width * i) / 5).map(
++          (price) => (
++            <text
++              key={price}
++              x={x(price)}
++              y="346"
++              textAnchor="middle"
++              fontSize="11"
++              fill="currentColor"
++            >
++              {priceFormat(price)}
++            </text>
++          ),
++        )}
++        <text x="845" y="373" textAnchor="end" fill="currentColor">
++          Цена, USD
++        </text>
++        {params.side !== "both" && (
++          <rect
++            x={
++              params.side === "above"
++                ? 65
++                : Math.max(65, Math.min(845, x(current)))
++            }
++            y="60"
++            height="260"
++            width={
++              params.side === "above"
++                ? Math.max(0, Math.min(780, x(current) - 65))
++                : Math.max(0, Math.min(780, 845 - x(current)))
++            }
++            fill="currentColor"
++            opacity=".07"
++          />
++        )}
++        {visible.map((p) => {
++          const index = points.indexOf(p);
++          const gap = Math.min(
++            index ? p.price - points[index - 1].price : span / points.length,
++            index + 1 < points.length
++              ? points[index + 1].price - p.price
++              : span / points.length,
++          );
++          const bw = Math.max(0.8, Math.min(22, (gap / width) * 780 * 0.78));
++          let accumulated = 0;
++          const title = `${priceFormat(p.price)} USD · ${describe(p)} · высота ${(p.relativeHeight * 100).toFixed(1)}% · выраженность ${(p.relativeProminence * 100).toFixed(1)}%`;
++          return (
++            <g
++              key={p.price}
++              onMouseEnter={() => setFocus(p.price)}
++              onClick={() => setFocus(p.price)}
++            >
++              <title>{title}</title>
++              {Object.entries(p.exchanges).map(([name, value]) => {
++                const h = Number(value);
++                accumulated += h;
++                return (
++                  <rect
++                    key={name}
++                    x={x(p.price) - bw / 2}
++                    y={y(accumulated)}
++                    width={bw}
++                    height={Math.max(
++                      0,
++                      (h / Math.max(report.maximum, 1)) * 260,
++                    )}
++                    fill={exchangeColors[name] ?? "#8f9bab"}
++                    opacity={p.selected ? 1 : 0.4}
++                  />
++                );
++              })}
++              <rect
++                x={x(p.price) - bw / 2}
++                y={y(p.intensity)}
++                width={bw}
++                height={Math.max(2, 320 - y(p.intensity))}
++                fill="transparent"
++                stroke={
++                  focus === p.price
++                    ? "#60a5fa"
++                    : p.selected
++                      ? "currentColor"
++                      : "none"
++                }
++                strokeWidth={p.selected ? 2 : 1}
++              />
++              {p.isPeak && (
++                <path
++                  d={`M${x(p.price)} ${y(p.intensity) - 9} l4 4 l-4 4 l-4 -4 Z`}
++                  fill={p.selected ? "currentColor" : "#94a3b8"}
++                />
++              )}
++              {p.selected && (
++                <text
++                  x={x(p.price)}
++                  y={y(p.intensity) - 15}
++                  textAnchor="middle"
++                  fill="currentColor"
++                  fontSize="12"
++                >
++                  #{p.rank}
++                </text>
++              )}
++              {baseline &&
++                savedPrices.has(p.price) &&
++                !chosenPrices.has(p.price) && (
++                  <text
++                    x={x(p.price)}
++                    y={y(p.intensity) - 15}
++                    textAnchor="middle"
++                    fill="#fb7185"
++                  >
++                    −
++                  </text>
++                )}
++              {baseline &&
++                !savedPrices.has(p.price) &&
++                chosenPrices.has(p.price) && (
++                  <text
++                    x={x(p.price) + 12}
++                    y={y(p.intensity) - 15}
++                    fill="#34d399"
++                  >
++                    +
++                  </text>
++                )}
++            </g>
++          );
++        })}
++        <line
++          x1="65"
++          x2="845"
++          y1={y(report.heightThreshold)}
++          y2={y(report.heightThreshold)}
++          stroke="#60a5fa"
++          strokeWidth="2"
++          strokeDasharray="6 4"
++        />
++        <text
++          x="845"
++          y={y(report.heightThreshold) - 5}
++          textAnchor="end"
++          fill="#60a5fa"
++          fontSize="12"
++        >
++          Высота ≥ {(params.minRelative * 100).toFixed(0)}% ·{" "}
++          {compact(report.heightThreshold)}
++        </text>
++        {current >= lo && current <= hi && (
++          <g>
++            <line
++              x1={x(current)}
++              x2={x(current)}
++              y1="45"
++              y2="320"
++              stroke="currentColor"
++              strokeDasharray="4 4"
++            />
++            <text
++              x={x(current)}
++              y="39"
++              textAnchor="middle"
++              fill="currentColor"
++              fontSize="11"
++            >
++              Цена снимка {priceFormat(current)}
++            </text>
++          </g>
++        )}
++        {active?.isPeak && active.price >= lo && active.price <= hi && (
++          <g stroke="#f59e0b" strokeWidth="2">
++            <line
++              x1={x(active.price)}
++              x2={x(active.price)}
++              y1={y(active.base)}
++              y2={y(active.intensity)}
++            />
++            <line
++              x1={x(active.price) - 12}
++              x2={x(active.price) + 12}
++              y1={y(active.base)}
++              y2={y(active.base)}
++            />
++            <line
++              x1={x(active.price) - 12}
++              x2={x(active.price) + 12}
++              y1={y(active.intensity)}
++              y2={y(active.intensity)}
++            />
++          </g>
++        )}
++      </svg>
++      <div className="cg-map-controls">
++        <label>
++          Ширина обзора{" "}
++          <input
++            aria-label="Ширина обзора карты"
++            type="range"
++            min="10"
++            max="100"
++            value={zoom}
++            onChange={(e) => setZoom(Number(e.target.value))}
++          />
++          {zoom}%
++        </label>
++        <label>
++          Положение{" "}
++          <input
++            aria-label="Положение обзора карты"
++            type="range"
++            min="0"
++            max="100"
++            value={center}
++            disabled={zoom === 100}
++            onChange={(e) => setCenter(Number(e.target.value))}
++          />
++        </label>
++        <button
++          type="button"
++          className="button"
++          onClick={() => {
++            setZoom(100);
++            setCenter(50);
++          }}
++        >
++          Вся карта
++        </button>
++      </div>
++      <div className="cg-inspector" aria-live="polite">
++        {active ? (
++          <>
++            <strong>
++              {priceFormat(active.price)} USD · {describe(active)}
++            </strong>
++            <p>
++              Высота: {(active.relativeHeight * 100).toFixed(2)}% / порог{" "}
++              {(params.minRelative * 100).toFixed(0)}%. Выраженность:{" "}
++              {(active.relativeProminence * 100).toFixed(2)}% / порог{" "}
++              {(params.minProminence * 100).toFixed(0)}%.
++            </p>
++            {active.isPeak && (
++              <p>
++                Выраженность = вершина {compact(active.intensity)} − основание{" "}
++                {compact(active.base)} = {compact(active.prominence)}. Требуется
++                ≥ {compact(report.prominenceThreshold)}. Оранжевый отрезок
++                показывает фактическую выраженность.
++              </p>
++            )}
++            <p>
++              От цены снимка: {active.distancePercent.toFixed(2)}%.{" "}
++              {Object.entries(active.exchanges)
++                .map(([name, v]) => `${name}: ${compact(Number(v))}`)
++                .join(" · ")}
++            </p>
++          </>
++        ) : (
++          <p>
++            Наведите на столбец или выберите строку таблицы: здесь появится
++            объяснение отбора.
++          </p>
++        )}
++      </div>
++      <label>
++        <input
++          type="checkbox"
++          checked={all}
++          onChange={(e) => setAll(e.target.checked)}
++        />{" "}
++        Все столбцы (по умолчанию — локальные максимумы)
++      </label>
++      <div className="cg-table-wrap">
++        <table className="cg-table">
++          <caption>
++            {report.result.levels.length} выбрано ·{" "}
++            {points.filter((p) => p.isPeak).length} пиков · {points.length}{" "}
++            столбцов
++          </caption>
++          <thead>
++            <tr>
++              <th>Цена USD</th>
++              <th>Высота</th>
++              <th>Выраженность</th>
++              <th>Расстояние</th>
++              <th>Решение</th>
++            </tr>
++          </thead>
++          <tbody>
++            {points
++              .filter((p) => all || p.isPeak)
++              .map((p) => (
++                <tr key={p.price} data-selected={p.selected}>
++                  <td>
++                    <button type="button" onClick={() => setFocus(p.price)}>
++                      {priceFormat(p.price)}
++                    </button>
++                  </td>
++                  <td>{(p.relativeHeight * 100).toFixed(2)}%</td>
++                  <td>
++                    {p.isPeak
++                      ? `${(p.relativeProminence * 100).toFixed(2)}%`
++                      : "—"}
++                  </td>
++                  <td>{p.distancePercent.toFixed(2)}%</td>
++                  <td>{describe(p)}</td>
++                </tr>
++              ))}
++          </tbody>
++        </table>
++      </div>
++      {!report.result.levels.length && (
++        <p role="status">
++          Выбрано 0 уровней. Уменьшите пороги или измените сторону отбора.
++        </p>
++      )}
++    </section>
++  );
++}
+diff --git a/src/components/coinglass-settings-dialog.tsx b/src/components/coinglass-settings-dialog.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..c062ac35768463a092c851d6aab43943678f18dd
+--- /dev/null
++++ b/src/components/coinglass-settings-dialog.tsx
+@@ -0,0 +1,466 @@
++"use client";
++import { useState } from "react";
++import {
++  Dialog,
++  DialogContent,
++  DialogHeader,
++  DialogTitle,
++  DialogDescription,
++} from "@/components/ui/dialog";
++import type { IndicatorInstance } from "../domain/workspace";
++import type { Candle, Timeframe } from "../domain/market";
++import {
++  coinglassDefaults,
++  coinglassParams,
++  type CoinglassParams,
++  type CoinglassSnapshot,
++} from "../domain/coinglass";
++import type { ChartPalette } from "./chart";
++import { useResource } from "../hooks/use-resource";
++import {
++  useCoinglassPreview,
++  useSnapshotClock,
++} from "../hooks/use-coinglass-preview";
++import type { useCoinglass } from "../hooks/use-coinglass";
++import { CoinglassMap } from "./coinglass-map";
++import { CoinglassCandles } from "./coinglass-candles";
++
++export function CoinglassSettingsDialog({
++  instance,
++  symbol,
++  state,
++  bars,
++  palette,
++  timeframe,
++  candleSource,
++  onClose,
++  onApply,
++}: {
++  instance: IndicatorInstance;
++  symbol: string;
++  state: ReturnType<typeof useCoinglass>;
++  bars: Candle[];
++  palette: ChartPalette;
++  timeframe: Timeframe;
++  candleSource?: string;
++  onClose: () => void;
++  onApply: (next: IndicatorInstance) => void;
++}) {
++  const [params, setParams] = useState(() => coinglassParams(instance.params));
++  const [saved] = useState(() => coinglassParams(instance.params));
++  const [snapshotId, setSnapshotId] = useState(state.snapshotId);
++  const [compare, setCompare] = useState(false);
++  const [candles, setCandles] = useState(false);
++  const [tab, setTab] = useState("map");
++  const [error, setError] = useState("");
++  const latestId = state.job?.result?.snapshotId;
++  const now = useSnapshotClock();
++  const source = useResource<{ snapshot: CoinglassSnapshot }>(
++    `/api/coinglass/snapshot?symbol=${encodeURIComponent(symbol)}&snapshotId=${snapshotId ?? ""}`,
++    0,
++    !!snapshotId,
++  );
++  const snapshot = source.data?.snapshot;
++  const normalized = coinglassParams(params);
++  const valid = (
++    [
++      "minRelative",
++      "minProminence",
++      "limit",
++      "hoverMs",
++      "lineWidth",
++      "staleHours",
++    ] as const
++  ).every((k) => normalized[k] === params[k]);
++  const preview = useCoinglassPreview(
++    symbol,
++    snapshot?.snapshotId,
++    normalized,
++    valid,
++  );
++  const baseline = useCoinglassPreview(
++    symbol,
++    snapshot?.snapshotId,
++    saved,
++    compare,
++  );
++  const report = preview.data;
++  const displayReport =
++    report ?? (preview.loading ? preview.previousData : undefined);
++  const working =
++    state.submitting ||
++    state.job?.state === "running" ||
++    state.job?.state === "queued";
++  const editNumber = (key: keyof CoinglassParams, value: string) =>
++    setParams((p) => ({ ...p, [key]: value === "" ? NaN : Number(value) }));
++  const field = (
++    key:
++      | "minRelative"
++      | "minProminence"
++      | "limit"
++      | "hoverMs"
++      | "lineWidth"
++      | "staleHours",
++    label: string,
++    min: number,
++    max: number,
++    step: number,
++    slider = false,
++  ) => (
++    <div className="cg-field" key={key}>
++      <label htmlFor={`cg-${key}`}>{label}</label>
++      <div>
++        {slider && (
++          <input
++            aria-label={`${label}: ползунок`}
++            type="range"
++            min={min}
++            max={max}
++            step={step}
++            value={normalized[key]}
++            onChange={(e) => editNumber(key, e.target.value)}
++          />
++        )}
++        <input
++          id={`cg-${key}`}
++          type="number"
++          min={min}
++          max={max}
++          step={step}
++          value={Number.isNaN(params[key]) ? "" : params[key]}
++          onChange={(e) => editNumber(key, e.target.value)}
++        />
++      </div>
++    </div>
++  );
++  function apply() {
++    if (!valid || !snapshot || !report || preview.loading) {
++      setError("Дождитесь расчёта для текущих параметров.");
++      return;
++    }
++    onApply({
++      ...instance,
++      params: {
++        ...normalized,
++        snapshotIds: {
++          ...normalized.snapshotIds,
++          [snapshot.asset]: snapshot.snapshotId,
++        },
++      },
++      color: normalized.aboveColor,
++    });
++    onClose();
++  }
++  return (
++    <Dialog
++      open
++      onOpenChange={(open) => {
++        if (!open) onClose();
++      }}
++    >
++      <DialogContent className="coinglass-dialog cg-visual-dialog">
++        <DialogHeader>
++          <DialogTitle>CoinGlass · визуальная настройка</DialogTitle>
++          <DialogDescription>
++            Карта за 90 дней. Настройте отбор на сохранённых данных и проверьте
++            каждый выбранный уровень.
++          </DialogDescription>
++        </DialogHeader>
++        <div className="cg-source">
++          {snapshot ? (
++            <p>
++              <b>{snapshot.asset} · 90 дней</b> · снимок{" "}
++              {new Date(snapshot.collectedAt).toLocaleString("ru-RU")} · цена{" "}
++              {Number(snapshot.currentPrice).toLocaleString("en-US")} USD
++            </p>
++          ) : (
++            <p>
++              {source.loading && snapshotId
++                ? "Загрузка карты…"
++                : "Полная карта ещё не загружена. Запустите сбор данных."}
++            </p>
++          )}
++          {snapshot &&
++            now - Date.parse(snapshot.collectedAt) >
++              normalized.staleHours * 3600000 && (
++              <p className="warning">
++                Снимок старше {normalized.staleHours} ч. Пороги пересчитываются
++                по этим сохранённым данным.
++              </p>
++            )}
++          {latestId && latestId !== snapshotId && (
++            <button className="button" onClick={() => setSnapshotId(latestId)}>
++              {snapshotId
++                ? "Перейти на новый снимок от"
++                : "Открыть собранную карту от"}{" "}
++              {new Date(state.job!.result!.collectedAt).toLocaleString("ru-RU")}
++            </button>
++          )}
++          <button
++            className="button"
++            disabled={working || !valid}
++            onClick={() => void state.run({ ...instance, params: normalized })}
++          >
++            {working ? "Сбор выполняется…" : "Обновить данные CoinGlass"}
++          </button>
++          {working && (
++            <progress
++              max={100}
++              value={state.job?.progress ?? 0}
++              aria-label="Прогресс сбора карты"
++            />
++          )}
++          {state.job && <p role="status">{state.job.message}</p>}
++          {(source.error || state.error) && (
++            <p role="alert">{source.error || state.error}</p>
++          )}
++          {source.error && (
++            <button className="button" onClick={() => void source.refresh()}>
++              Повторить загрузку
++            </button>
++          )}
++        </div>
++        <div className="cg-layout">
++          <main className="cg-main">
++            <div className="cg-toolbar">
++              <button
++                type="button"
++                className="button"
++                aria-pressed={tab === "map"}
++                onClick={() => setTab("map")}
++              >
++                Интерактивная карта
++              </button>
++              <button
++                type="button"
++                className="button"
++                aria-pressed={tab === "image"}
++                onClick={() => setTab("image")}
++              >
++                Снимок CoinGlass
++              </button>
++              <label>
++                <input
++                  type="checkbox"
++                  checked={compare}
++                  onChange={(e) => setCompare(e.target.checked)}
++                />{" "}
++                Сравнить с сохранёнными параметрами
++              </label>
++            </div>
++            {compare && (
++              <p className="cg-help">
++                Сравнение на одном снимке: «+» — уровень добавится, «−» —
++                исчезнет. {baseline.loading ? "Расчёт сравнения…" : ""}
++              </p>
++            )}
++            {baseline.error && compare && (
++              <p role="alert">
++                Не удалось сравнить: {baseline.error}{" "}
++                <button onClick={baseline.retry}>Повторить</button>
++              </p>
++            )}
++            {preview.loading && <p role="status">Пересчёт…</p>}
++            {preview.error && (
++              <p role="alert">
++                {preview.error}{" "}
++                <button className="button" onClick={preview.retry}>
++                  Повторить расчёт
++                </button>
++              </p>
++            )}
++            {!valid && (
++              <p role="alert">Проверьте диапазоны числовых параметров.</p>
++            )}
++            {tab === "map" && displayReport && (
++              <div
++                aria-busy={preview.loading}
++                className={preview.loading ? "cg-pending" : ""}
++              >
++                <CoinglassMap
++                  report={displayReport}
++                  params={{ ...normalized, ...displayReport.result.params }}
++                  baseline={compare ? baseline.data : undefined}
++                />
++              </div>
++            )}
++            {tab === "image" &&
++              (snapshot?.imageDataUrl?.startsWith("data:image/png;base64,") ? (
++                <figure>
++                  {/* A local chart crop data URL; Next image optimization cannot improve it. */}
++                  {/* eslint-disable-next-line @next/next/no-img-element */}
++                  <img
++                    className="cg-source-image"
++                    src={snapshot.imageDataUrl}
++                    alt="Исходная карта CoinGlass на момент сбора"
++                  />
++                  <figcaption>
++                    Исходный снимок. Изменение параметров показано на
++                    интерактивной карте.
++                  </figcaption>
++                </figure>
++              ) : (
++                <p>
++                  Изображение для этого снимка недоступно. Числовая карта
++                  доступна на соседней вкладке.
++                </p>
++              ))}
++            <label>
++              <input
++                type="checkbox"
++                checked={candles}
++                onChange={(e) => setCandles(e.target.checked)}
++              />{" "}
++              Показать уровни на свечном графике
++            </label>
++            {candles && report && (
++              <section>
++                <p>
++                  {symbol} · {timeframe} ·{" "}
++                  {candleSource === "demo"
++                    ? "DEMO — демонстрационные свечи"
++                    : candleSource === "stale"
++                      ? "Устаревшие свечи"
++                      : "Свечной график"}
++                  . Уровни снимка проецируются на весь график; это не
++                  исторические сигналы.
++                </p>
++                {bars.length ? (
++                  <CoinglassCandles
++                    bars={bars}
++                    palette={palette}
++                    params={normalized}
++                    report={report}
++                    baseline={compare ? baseline.data : undefined}
++                  />
++                ) : (
++                  <p>Свечи не загружены.</p>
++                )}
++              </section>
++            )}
++            <p className="cg-help">
++              Интенсивности получены из округлённых подсказок CoinGlass.
++              Максимум и пороги вычисляются по всей карте, независимо от
++              масштаба. Цена снимка может отличаться от текущей цены
++              инструмента.
++            </p>
++          </main>
++          <aside className="cg-settings">
++            <h3>Отбор уровней</h3>
++            {field(
++              "minRelative",
++              "Минимальная высота / максимум",
++              0,
++              1,
++              0.01,
++              true,
++            )}
++            {field(
++              "minProminence",
++              "Минимальная выраженность / максимум",
++              0,
++              1,
++              0.01,
++              true,
++            )}
++            <p className="cg-help">
++              0.50 = 50%. Выраженность — разница между вершиной и основанием по
++              соседним впадинам, делённая на максимум карты.
++            </p>
++            {field("limit", "Количество ближайших уровней", 1, 50, 1)}
++            <label className="cg-field">
++              Относительно цены снимка
++              <select
++                value={params.side}
++                onChange={(e) =>
++                  setParams((p) => ({
++                    ...p,
++                    side: e.target.value as CoinglassParams["side"],
++                  }))
++                }
++              >
++                <option value="both">С обеих сторон</option>
++                <option value="above">Выше цены</option>
++                <option value="below">Ниже цены</option>
++              </select>
++            </label>
++            <details open>
++              <summary>Оформление</summary>
++              <label className="cg-field">
++                Выше цены
++                <input
++                  type="color"
++                  value={params.aboveColor}
++                  onChange={(e) =>
++                    setParams((p) => ({ ...p, aboveColor: e.target.value }))
++                  }
++                />
++              </label>
++              <label className="cg-field">
++                Ниже цены
++                <input
++                  type="color"
++                  value={params.belowColor}
++                  onChange={(e) =>
++                    setParams((p) => ({ ...p, belowColor: e.target.value }))
++                  }
++                />
++              </label>
++              {field("lineWidth", "Толщина линий", 1, 4, 1)}
++              <label>
++                <input
++                  type="checkbox"
++                  checked={params.showLabels}
++                  onChange={(e) =>
++                    setParams((p) => ({ ...p, showLabels: e.target.checked }))
++                  }
++                />{" "}
++                Подписи уровней
++              </label>
++            </details>
++            <details>
++              <summary>Сбор и актуальность</summary>
++              {field("hoverMs", "Задержка сбора, мс", 50, 250, 10)}
++              <p className="cg-help">
++                Используется только при следующем сборе. На отбор сохранённых
++                точек не влияет.
++                {snapshot ? ` Этот снимок: ${snapshot.hoverMs} мс.` : ""}
++              </p>
++              {field("staleHours", "Считать устаревшим через, ч", 1, 720, 1)}
++            </details>
++            <button
++              type="button"
++              className="button"
++              onClick={() =>
++                setParams({
++                  ...coinglassDefaults,
++                  snapshotIds: params.snapshotIds,
++                })
++              }
++            >
++              По умолчанию
++            </button>
++          </aside>
++        </div>
++        <footer className="cg-footer">
++          <span role="status">
++            {report
++              ? `Выбрано уровней: ${report.result.levels.length}`
++              : "Предпросмотр не готов"}
++          </span>
++          {error && <span role="alert">{error}</span>}
++          <button className="button" onClick={onClose}>
++            Отмена
++          </button>
++          <button
++            className="button"
++            disabled={!report || !snapshot || !valid || preview.loading}
++            onClick={apply}
++          >
++            Применить
++          </button>
++        </footer>
++      </DialogContent>
++    </Dialog>
++  );
++}
+diff --git a/src/components/coinglass.tsx b/src/components/coinglass.tsx
+index 2f86914c983bfad87e2a5c1ac91bb457efda351c..a2ac7b9af294b2d9f3d56fe13c6b5c2ae6f87679 100644
+--- a/src/components/coinglass.tsx
++++ b/src/components/coinglass.tsx
+@@ -1,20 +1,11 @@
+ "use client";
+-import { useState } from "react";
+-import {
+-  Dialog,
+-  DialogContent,
+-  DialogHeader,
+-  DialogTitle,
+-  DialogDescription,
+-} from "@/components/ui/dialog";
+-import type { IndicatorInstance } from "../domain/workspace";
+ import {
+   coinglassParams,
+   calculationParams,
+   jobState,
+   type CoinglassJob,
+-  type CoinglassParams,
+ } from "../domain/coinglass";
++import { useSnapshotClock } from "../hooks/use-coinglass-preview";
+ import { useResource } from "../hooks/use-resource";
+ import type { useCoinglass } from "../hooks/use-coinglass";
+ 
+@@ -56,8 +47,10 @@ export function CoinglassPanel({
+   state: ReturnType<typeof useCoinglass>;
+   openSettings: (id: string) => void;
+ }) {
++  const now = useSnapshotClock();
+   if (!state.instances.length) return null;
+   const job = state.job;
++  const result = state.result;
+   return (
+     <section
+       className="coinglass-panel"
+@@ -72,6 +65,19 @@ export function CoinglassPanel({
+               ? "Проверка состояния…"
+               : "Запустите парсинг для этого актива.")}
+       </p>
++      {state.recalculating && (
++        <p role="status">Пересчёт уровней по сохранённому снимку…</p>
++      )}
++      {state.error && state.snapshotId && (
++        <button className="button" onClick={state.retryPreview}>
++          Повторить расчёт
++        </button>
++      )}
++      {state.snapshotId && job?.result?.snapshotId !== state.snapshotId && (
++        <p>
++          Выбран закреплённый снимок. Новую карту можно выбрать в настройках.
++        </p>
++      )}
+       {job && (
+         <progress
+           aria-label="Прогресс парсинга"
+@@ -79,14 +85,14 @@ export function CoinglassPanel({
+           value={job.progress}
+         />
+       )}
+-      {job?.result && (
++      {result && (
+         <p>
+-          Снимок: {new Date(job.result.collectedAt).toLocaleString("ru-RU")} ·
+-          уровней: {job.result.levels.length}. Цены карты — USD; наложение на
++          Снимок: {new Date(result.collectedAt).toLocaleString("ru-RU")} ·
++          уровней: {result.levels.length}. Цены карты — USD; наложение на
+           USD/USDT/USDC.
+         </p>
+       )}
+-      {job?.state === "error" && job.result && (
++      {job?.state === "error" && result && (
+         <p className="warning">
+           Обновление не удалось. На графике остаётся предыдущий снимок.
+         </p>
+@@ -94,15 +100,14 @@ export function CoinglassPanel({
+       {state.instances.map((i) => {
+         const params = coinglassParams(i.params);
+         const stale =
+-          job?.result &&
+-          Date.now() - Date.parse(job.result.collectedAt) >
+-            params.staleHours * 3600000;
++          result &&
++          now - Date.parse(result.collectedAt) > params.staleHours * 3600000;
+         const changed =
+-          job?.result &&
++          !state.snapshotId &&
++          result &&
+           Object.entries(calculationParams(params)).some(
+             ([key, value]) =>
+-              job.result!.params[key as keyof typeof job.result.params] !==
+-              value,
++              result!.params[key as keyof typeof result.params] !== value,
+           );
+         return (
+           <div key={i.id}>
+@@ -123,7 +128,7 @@ export function CoinglassPanel({
+               className="button"
+               onClick={() => openSettings(i.id)}
+             >
+-              Настройки CoinGlass
++              Визуальная настройка
+             </button>{" "}
+             <button
+               type="button"
+@@ -143,116 +148,4 @@ export function CoinglassPanel({
+     </section>
+   );
+ }
+-export function CoinglassSettingsDialog({
+-  instance,
+-  onClose,
+-  onApply,
+-}: {
+-  instance: IndicatorInstance;
+-  onClose: () => void;
+-  onApply: (i: IndicatorInstance) => void;
+-}) {
+-  const [params, setParams] = useState(() => coinglassParams(instance.params));
+-  const [error, setError] = useState("");
+-  const fields: [keyof CoinglassParams, string, number, number, number][] = [
+-    ["minRelative", "Минимальная высота / максимум карты", 0, 1, 0.05],
+-    ["minProminence", "Минимальная выраженность пика", 0, 1, 0.05],
+-    ["limit", "Количество ближайших значимых уровней", 1, 50, 1],
+-    ["hoverMs", "Задержка сбора, мс", 50, 250, 10],
+-    ["lineWidth", "Толщина линий", 1, 4, 1],
+-    ["staleHours", "Считать снимок устаревшим через, ч", 1, 720, 1],
+-  ];
+-  function apply() {
+-    const next = coinglassParams(params);
+-    if (fields.some(([key]) => params[key] !== next[key])) {
+-      setError("Проверьте диапазоны числовых настроек.");
+-      return;
+-    }
+-    onApply({ ...instance, params: next, color: next.aboveColor });
+-    onClose();
+-  }
+-  return (
+-    <Dialog open onOpenChange={onClose}>
+-      <DialogContent className="coinglass-dialog">
+-        <DialogHeader>
+-          <DialogTitle>CoinGlass · настройки</DialogTitle>
+-          <DialogDescription>
+-            Отбор значимых пиков 90-дневной карты выполняется парсером.
+-            Изменение цвета применяется сразу после сохранения, расчёт — при
+-            следующем запуске.
+-          </DialogDescription>
+-        </DialogHeader>
+-        <div className="coinglass-fields">
+-          {fields.map(([key, label, min, max, step]) => (
+-            <label key={key}>
+-              {label}
+-              <input
+-                type="number"
+-                min={min}
+-                max={max}
+-                step={step}
+-                value={Number.isNaN(params[key]) ? "" : (params[key] as number)}
+-                onChange={(e) =>
+-                  setParams((p) => ({
+-                    ...p,
+-                    [key]: e.target.value === "" ? NaN : Number(e.target.value),
+-                  }))
+-                }
+-              />
+-            </label>
+-          ))}
+-          <label>
+-            Отбор относительно цены снимка
+-            <select
+-              value={params.side}
+-              onChange={(e) =>
+-                setParams((p) => ({
+-                  ...p,
+-                  side: e.target.value as CoinglassParams["side"],
+-                }))
+-              }
+-            >
+-              <option value="both">С обеих сторон</option>
+-              <option value="above">Выше цены</option>
+-              <option value="below">Ниже цены</option>
+-            </select>
+-          </label>
+-          <label>
+-            Цвет выше цены снимка
+-            <input
+-              type="color"
+-              value={params.aboveColor}
+-              onChange={(e) =>
+-                setParams((p) => ({ ...p, aboveColor: e.target.value }))
+-              }
+-            />
+-          </label>
+-          <label>
+-            Цвет ниже цены снимка
+-            <input
+-              type="color"
+-              value={params.belowColor}
+-              onChange={(e) =>
+-                setParams((p) => ({ ...p, belowColor: e.target.value }))
+-              }
+-            />
+-          </label>
+-          <label>
+-            <input
+-              type="checkbox"
+-              checked={params.showLabels}
+-              onChange={(e) =>
+-                setParams((p) => ({ ...p, showLabels: e.target.checked }))
+-              }
+-            />{" "}
+-            Подписи уровней
+-          </label>
+-        </div>
+-        {error && <p role="alert">{error}</p>}
+-        <button type="button" className="button" onClick={apply}>
+-          Сохранить настройки
+-        </button>
+-      </DialogContent>
+-    </Dialog>
+-  );
+-}
++export { CoinglassSettingsDialog } from "./coinglass-settings-dialog";
+diff --git a/src/components/terminal.tsx b/src/components/terminal.tsx
+index 8bd3f66da49313ce33db2a8872558b11202247d9..02a9ca172f1b5ade046b538a6251a15d90ae171f 100644
+--- a/src/components/terminal.tsx
++++ b/src/components/terminal.tsx
+@@ -1574,7 +1574,13 @@ function PairWorkspace({
+         )}
+       {editingIndicator?.definitionId === "coinglass" && (
+         <CoinglassSettingsDialog
+-          key={editingIndicator.id}
++          key={symbol + editingIndicator.id}
++          symbol={symbol}
++          state={coinglass}
++          bars={bars}
++          palette={palette}
++          timeframe={tf}
++          candleSource={candleData?.source}
+           instance={editingIndicator}
+           onClose={() => setSettingsId(null)}
+           onApply={(next) =>
+diff --git a/src/domain/coinglass.ts b/src/domain/coinglass.ts
+index e643c143274d81000dc27137c3141184eeacdb72..6885eb78320f615d2a900b786dd3d223cff926e6 100644
+--- a/src/domain/coinglass.ts
++++ b/src/domain/coinglass.ts
+@@ -9,6 +9,8 @@ export interface CoinglassParams {
+   lineWidth: number;
+   showLabels: boolean;
+   staleHours: number;
++  /** Pinned source per asset; selection parameters remain shared across instruments. */
++  snapshotIds?: Record<string, string>;
+ }
+ export const coinglassDefaults: CoinglassParams = {
+   minRelative: 0.5,
+@@ -45,6 +47,16 @@ export function coinglassParams(value: unknown): CoinglassParams {
+       ? (p[key] as string)
+       : coinglassDefaults[key];
+   return {
++    snapshotIds: Object.fromEntries(
++      Object.entries(
++        p.snapshotIds && typeof p.snapshotIds === "object" ? p.snapshotIds : {},
++      ).filter(
++        ([asset, id]) =>
++          /^[A-Z0-9]{1,20}$/.test(asset) &&
++          typeof id === "string" &&
++          /^[a-f0-9]{32}$/.test(id),
++      ),
++    ),
+     minRelative: numeric("minRelative", 0, 1),
+     minProminence: numeric("minProminence", 0, 1),
+     limit: numeric("limit", 1, 50, true),
+@@ -73,6 +85,7 @@ export interface LiquidationLevel {
+   distancePercent: number;
+ }
+ export interface CoinglassResult {
++  snapshotId?: string;
+   asset: string;
+   rangeDays: 90;
+   currentPrice: number;
+@@ -101,3 +114,56 @@ export interface CoinglassOverlay {
+   result: CoinglassResult;
+   params: CoinglassParams;
+ }
++
++export interface CoinglassSnapshot {
++  schemaVersion: 1;
++  snapshotId: string;
++  asset: string;
++  currentPrice: number | string;
++  collectedAt: string;
++  rangeDays: 90;
++  complete: boolean;
++  precision: string;
++  hoverMs: number;
++  imageDataUrl?: string;
++}
++export interface CoinglassPoint extends LiquidationLevel {
++  exchanges: Record<string, number | string>;
++  side: string;
++  isPeak: boolean;
++  base: number;
++  relativeHeight: number;
++  relativeProminence: number;
++  reasons: string[];
++  rank: number | null;
++  selected: boolean;
++}
++export interface CoinglassPreview {
++  result: CoinglassResult;
++  points: CoinglassPoint[];
++  maximum: number;
++  heightThreshold: number;
++  prominenceThreshold: number;
++}
++export const selectionReasons: Record<string, string> = {
++  not_peak: "Не локальный максимум (включая края карты)",
++  plateau: "Плато: выбран его средний столбец",
++  height: "Высота ниже порога",
++  prominence: "Выраженность ниже порога",
++  side: "Исключённая сторона",
++  limit: "Прошёл фильтры, вне лимита",
++};
++export function selectionKey(
++  symbol: string,
++  snapshotId: string,
++  p: CoinglassParams,
++) {
++  return JSON.stringify([
++    symbol,
++    snapshotId,
++    p.minRelative,
++    p.minProminence,
++    p.limit,
++    p.side,
++  ]);
++}
+diff --git a/src/hooks/use-coinglass-preview.ts b/src/hooks/use-coinglass-preview.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..4197c5172d7104e03a8ffcaefe9da9282c18679e
+--- /dev/null
++++ b/src/hooks/use-coinglass-preview.ts
+@@ -0,0 +1,83 @@
++"use client";
++import { useEffect, useState } from "react";
++import {
++  calculationParams,
++  selectionKey,
++  type CoinglassParams,
++  type CoinglassPreview,
++} from "../domain/coinglass";
++
++/** An obsolete response is never presented or applied for new slider values. */
++export function useCoinglassPreview(
++  symbol: string,
++  snapshotId: string | undefined,
++  params: CoinglassParams,
++  enabled = true,
++) {
++  const key =
++    snapshotId && enabled ? selectionKey(symbol, snapshotId, params) : "";
++  const source = JSON.stringify([symbol, snapshotId]);
++  const payload = JSON.stringify({
++    symbol,
++    snapshotId,
++    params: calculationParams(params),
++  });
++  const [state, setState] = useState<{
++    key: string;
++    source?: string;
++    data?: CoinglassPreview;
++    error?: string;
++  }>({ key: "" });
++  const [retry, setRetry] = useState(0);
++  useEffect(() => {
++    if (!key) return;
++    const controller = new AbortController();
++    let active = true;
++    const timer = setTimeout(async () => {
++      try {
++        const response = await fetch("/api/coinglass/preview", {
++          method: "POST",
++          headers: { "Content-Type": "application/json" },
++          body: payload,
++          signal: controller.signal,
++        });
++        const body = (await response.json()) as CoinglassPreview & {
++          error?: string;
++        };
++        if (!response.ok) throw Error(body.error || `HTTP ${response.status}`);
++        if (active) setState({ key, source, data: body });
++      } catch (e) {
++        if (active)
++          setState({
++            key,
++            error: e instanceof Error ? e.message : "Ошибка расчёта",
++          });
++      }
++    }, 180);
++    return () => {
++      active = false;
++      clearTimeout(timer);
++      controller.abort();
++    };
++  }, [key, source, payload, retry]);
++  return {
++    data: key && state.key === key ? state.data : undefined,
++    previousData: key && state.source === source ? state.data : undefined,
++    error: key && state.key === key ? state.error : undefined,
++    loading: !!key && (state.key !== key || (!state.data && !state.error)),
++    retry: () => {
++      setState({ key: "" });
++      setRetry((n) => n + 1);
++    },
++  };
++}
++
++/** Refresh age badges without impure reads during render. */
++export function useSnapshotClock() {
++  const [now, setNow] = useState(() => Date.now());
++  useEffect(() => {
++    const timer = setInterval(() => setNow(Date.now()), 60000);
++    return () => clearInterval(timer);
++  }, []);
++  return now;
++}
+diff --git a/src/hooks/use-coinglass.ts b/src/hooks/use-coinglass.ts
+index 9b76b1ba06b1f68c230459bbb2f3b5846efad893..741793490e5adb9712603ae9119575ba2434f1b2 100644
+--- a/src/hooks/use-coinglass.ts
++++ b/src/hooks/use-coinglass.ts
+@@ -1,5 +1,6 @@
+ "use client";
+ import { useState } from "react";
++import { useCoinglassPreview } from "./use-coinglass-preview";
+ import { useResource } from "./use-resource";
+ import type { IndicatorInstance } from "../domain/workspace";
+ import {
+@@ -46,23 +47,35 @@ export function useCoinglass(
+     }
+   }
+   const job = resource.data?.job;
+-  const overlays: CoinglassOverlay[] = job?.result
++  const settings = coinglassParams(instances[0]?.params);
++  const snapshotId = job?.asset
++    ? (settings.snapshotIds?.[job.asset] ?? job.result?.snapshotId)
++    : undefined;
++  const preview = useCoinglassPreview(
++    symbol,
++    snapshotId,
++    settings,
++    instances.length > 0,
++  );
++  // Older installations keep their legacy levels until a full snapshot is collected.
++  const result = snapshotId ? preview.data?.result : job?.result;
++  const overlays: CoinglassOverlay[] = result
+     ? instances
+         .filter(
+           (i) =>
+             i.enabled && (!i.timeframes || i.timeframes.includes(timeframe)),
+         )
+-        .map((i) => ({
+-          id: i.id,
+-          result: job.result!,
+-          params: coinglassParams(i.params),
+-        }))
++        .map((i) => ({ id: i.id, result, params: coinglassParams(i.params) }))
+     : [];
+   return {
+     instances,
++    result,
++    snapshotId,
++    recalculating: preview.loading,
++    retryPreview: preview.retry,
+     job,
+     overlays,
+-    error: error || resource.error,
++    error: error || preview.error || resource.error,
+     submitting,
+     loading: resource.loading,
+     run,
+diff --git a/src/server/coinglass-service.ts b/src/server/coinglass-service.ts
+index c567b2ebc8261ae8a3d898364d9437e4e8a6268c..f6d20143975d30d7636611e3446d69604a8cc0ed 100644
+--- a/src/server/coinglass-service.ts
++++ b/src/server/coinglass-service.ts
+@@ -58,18 +58,33 @@ export async function handleCoinglass(
+ ) {
+   const url = new URL(request.url);
+   try {
+-    if (url.pathname === "/api/coinglass/status" && request.method === "GET") {
++    if (
++      ["/api/coinglass/status", "/api/coinglass/snapshot"].includes(
++        url.pathname,
++      ) &&
++      request.method === "GET"
++    ) {
+       const symbol = url.searchParams.get("symbol");
+       const asset = symbol ? await coinglassAsset(symbol, config) : undefined;
++      const snapshotId = url.searchParams.get("snapshotId");
++      if (snapshotId && !/^[a-f0-9]{32}$/.test(snapshotId))
++        throw new SymbolError("Некорректный снимок", 400);
++      if (url.pathname.endsWith("/snapshot") && !asset)
++        throw new SymbolError("Не указан symbol", 400);
+       return Response.json(
+         await coinglassRequest(
+-          "/status" + (asset ? "?asset=" + encodeURIComponent(asset) : ""),
++          (url.pathname.endsWith("/snapshot") ? "/snapshot" : "/status") +
++            (asset ? "?asset=" + encodeURIComponent(asset) : "") +
++            (snapshotId ? "&snapshotId=" + snapshotId : ""),
+           config,
+         ),
+         { headers: { "Cache-Control": "no-store" } },
+       );
+     }
+-    if (url.pathname === "/api/coinglass/run" && request.method === "POST") {
++    if (
++      ["/api/coinglass/run", "/api/coinglass/preview"].includes(url.pathname) &&
++      request.method === "POST"
++    ) {
+       const origin = request.headers.get("origin");
+       if (
+         origin &&
+@@ -96,9 +111,23 @@ export async function handleCoinglass(
+         Object.entries(normalized).some(([k, v]) => body.params[k] !== v)
+       )
+         throw new SymbolError("Некорректные настройки расчёта", 400);
++      const isPreview = url.pathname.endsWith("/preview");
++      if (
++        isPreview &&
++        (typeof body.snapshotId !== "string" ||
++          !/^[a-f0-9]{32}$/.test(body.snapshotId))
++      )
++        throw new SymbolError("Не указан корректный снимок", 400);
+       return Response.json(
+-        await coinglassRequest("/jobs", config, { asset, params: normalized }),
+-        { status: 202, headers: { "Cache-Control": "no-store" } },
++        await coinglassRequest(isPreview ? "/preview" : "/jobs", config, {
++          asset,
++          params: normalized,
++          ...(isPreview ? { snapshotId: body.snapshotId } : {}),
++        }),
++        {
++          status: isPreview ? 200 : 202,
++          headers: { "Cache-Control": "no-store" },
++        },
+       );
+     }
+     return Response.json(
+diff --git a/standalone/server.ts b/standalone/server.ts
+index 096a4d14d351b4f494080f25d6a2dd08ccc2ceec..18f4371147731d624375f6019ebeb67df4553494 100644
+--- a/standalone/server.ts
++++ b/standalone/server.ts
+@@ -19,7 +19,10 @@ const server = createServer(async (req, res) => {
+     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+     if (url.pathname.startsWith("/api/")) {
+       let body: Buffer | undefined;
+-      if (req.method === "POST" && url.pathname === "/api/coinglass/run") {
++      if (
++        req.method === "POST" &&
++        ["/api/coinglass/run", "/api/coinglass/preview"].includes(url.pathname)
++      ) {
+         const chunks: Buffer[] = [];
+         let size = 0;
+         for await (const chunk of req) {
+diff --git a/tests/coinglass.test.ts b/tests/coinglass.test.ts
+index 03f60895ebf94ec55751e89d137386a6a68c7a67..2b72d083b08fcf56b99e3668f204b406324afba0 100644
+--- a/tests/coinglass.test.ts
++++ b/tests/coinglass.test.ts
+@@ -122,3 +122,81 @@ test("CoinGlass validates proxy requests, submits jobs and merges worker logs",
+     globalThis.fetch = original;
+   }
+ });
++
++test("CoinGlass preview is pinned, stateless and protected by proxy validation", async () => {
++  const original = globalThis.fetch;
++  const calls: { url: string; body: unknown }[] = [];
++  const config = {
++    DATA_MODE: "demo",
++    COINGLASS_SERVICE_URL: "http://collector:8090",
++  };
++  const id = "a".repeat(32);
++  globalThis.fetch = async (url, init) => {
++    calls.push({
++      url: String(url),
++      body: init?.body ? JSON.parse(String(init.body)) : undefined,
++    });
++    return Response.json({ result: { snapshotId: id, levels: [] } });
++  };
++  const call = (path: string, body?: unknown, origin = "http://local") =>
++    handleApi(
++      new Request("http://local" + path, {
++        method: body ? "POST" : "GET",
++        headers: { "Content-Type": "application/json", Origin: origin },
++        body: body ? JSON.stringify(body) : undefined,
++      }),
++      config,
++    );
++  try {
++    const body = {
++      symbol: "BTCUSDT",
++      snapshotId: id,
++      params: calculationParams(coinglassDefaults),
++    };
++    assert.equal((await call("/api/coinglass/preview", body)).status, 200);
++    assert.equal(calls.at(-1)?.url, "http://collector:8090/preview");
++    assert.deepEqual(calls.at(-1)?.body, {
++      asset: "BTC",
++      snapshotId: id,
++      params: body.params,
++    });
++    assert.equal(
++      (
++        await call("/api/coinglass/preview", {
++          ...body,
++          snapshotId: "../session",
++        })
++      ).status,
++      400,
++    );
++    assert.equal(
++      (
++        await call("/api/coinglass/preview", {
++          ...body,
++          params: { ...body.params, minProminence: 2 },
++        })
++      ).status,
++      400,
++    );
++    assert.equal(
++      (await call("/api/coinglass/preview", body, "http://evil")).status,
++      403,
++    );
++    assert.equal(calls.length, 1);
++    assert.equal(
++      (await call(`/api/coinglass/snapshot?symbol=BTCUSDT&snapshotId=${id}`))
++        .status,
++      200,
++    );
++    assert.equal(
++      calls.at(-1)?.url,
++      `http://collector:8090/snapshot?asset=BTC&snapshotId=${id}`,
++    );
++    assert.equal((await call("/api/coinglass/snapshot")).status, 400);
++    globalThis.fetch = async () =>
++      Response.json({ error: "Снимок недоступен" }, { status: 404 });
++    assert.equal((await call("/api/coinglass/preview", body)).status, 404);
++  } finally {
++    globalThis.fetch = original;
++  }
++});

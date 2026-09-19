@@ -37,8 +37,7 @@ class CalculationTests(unittest.TestCase):
 
     def test_no_peaks_does_not_fall_back_to_nearest_bar(self):
         points = [{'price': D(i), 'intensity': D(i)} for i in range(1, 6)]
-        with self.assertRaisesRegex(ValueError, 'Значимых пиков'):
-            select_significant_levels(points, D(3))
+        self.assertEqual(select_significant_levels(points, D(3)), [])
 
     def test_csv_has_one_row_per_selected_peak(self):
         points = [{'price': D(i), 'intensity': D(h)} for i, h in enumerate([0, 100, 0, 90, 0], 1)]

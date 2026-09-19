@@ -58,18 +58,33 @@ export async function handleCoinglass(
 ) {
   const url = new URL(request.url);
   try {
-    if (url.pathname === "/api/coinglass/status" && request.method === "GET") {
+    if (
+      ["/api/coinglass/status", "/api/coinglass/snapshot"].includes(
+        url.pathname,
+      ) &&
+      request.method === "GET"
+    ) {
       const symbol = url.searchParams.get("symbol");
       const asset = symbol ? await coinglassAsset(symbol, config) : undefined;
+      const snapshotId = url.searchParams.get("snapshotId");
+      if (snapshotId && !/^[a-f0-9]{32}$/.test(snapshotId))
+        throw new SymbolError("Некорректный снимок", 400);
+      if (url.pathname.endsWith("/snapshot") && !asset)
+        throw new SymbolError("Не указан symbol", 400);
       return Response.json(
         await coinglassRequest(
-          "/status" + (asset ? "?asset=" + encodeURIComponent(asset) : ""),
+          (url.pathname.endsWith("/snapshot") ? "/snapshot" : "/status") +
+            (asset ? "?asset=" + encodeURIComponent(asset) : "") +
+            (snapshotId ? "&snapshotId=" + snapshotId : ""),
           config,
         ),
         { headers: { "Cache-Control": "no-store" } },
       );
     }
-    if (url.pathname === "/api/coinglass/run" && request.method === "POST") {
+    if (
+      ["/api/coinglass/run", "/api/coinglass/preview"].includes(url.pathname) &&
+      request.method === "POST"
+    ) {
       const origin = request.headers.get("origin");
       if (
         origin &&
@@ -96,9 +111,23 @@ export async function handleCoinglass(
         Object.entries(normalized).some(([k, v]) => body.params[k] !== v)
       )
         throw new SymbolError("Некорректные настройки расчёта", 400);
+      const isPreview = url.pathname.endsWith("/preview");
+      if (
+        isPreview &&
+        (typeof body.snapshotId !== "string" ||
+          !/^[a-f0-9]{32}$/.test(body.snapshotId))
+      )
+        throw new SymbolError("Не указан корректный снимок", 400);
       return Response.json(
-        await coinglassRequest("/jobs", config, { asset, params: normalized }),
-        { status: 202, headers: { "Cache-Control": "no-store" } },
+        await coinglassRequest(isPreview ? "/preview" : "/jobs", config, {
+          asset,
+          params: normalized,
+          ...(isPreview ? { snapshotId: body.snapshotId } : {}),
+        }),
+        {
+          status: isPreview ? 200 : 202,
+          headers: { "Cache-Control": "no-store" },
+        },
       );
     }
     return Response.json(
