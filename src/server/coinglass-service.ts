@@ -57,6 +57,9 @@ export async function handleCoinglass(
   config: CoinglassConfig,
 ) {
   const url = new URL(request.url);
+  const heatmap = url.pathname.startsWith("/api/coinglass/heatmap-");
+  if (heatmap) url.pathname = url.pathname.replace("heatmap-", "");
+  const prefix = heatmap ? "/heatmap" : "";
   try {
     if (
       ["/api/coinglass/status", "/api/coinglass/snapshot"].includes(
@@ -73,7 +76,8 @@ export async function handleCoinglass(
         throw new SymbolError("Не указан symbol", 400);
       return Response.json(
         await coinglassRequest(
-          (url.pathname.endsWith("/snapshot") ? "/snapshot" : "/status") +
+          prefix +
+            (url.pathname.endsWith("/snapshot") ? "/snapshot" : "/status") +
             (asset ? "?asset=" + encodeURIComponent(asset) : "") +
             (snapshotId ? "&snapshotId=" + snapshotId : ""),
           config,
@@ -107,11 +111,14 @@ export async function handleCoinglass(
       const asset = await coinglassAsset(body.symbol, config);
       const normalized = calculationParams(coinglassParams(body.params));
       if (
-        !body.params ||
-        Object.entries(normalized).some(([k, v]) => body.params[k] !== v)
+        !heatmap &&
+        (!body.params ||
+          Object.entries(normalized).some(([k, v]) => body.params[k] !== v))
       )
         throw new SymbolError("Некорректные настройки расчёта", 400);
       const isPreview = url.pathname.endsWith("/preview");
+      if (heatmap && isPreview)
+        throw new SymbolError("Маршрут недоступен", 405);
       if (
         isPreview &&
         (typeof body.snapshotId !== "string" ||
@@ -119,11 +126,15 @@ export async function handleCoinglass(
       )
         throw new SymbolError("Не указан корректный снимок", 400);
       return Response.json(
-        await coinglassRequest(isPreview ? "/preview" : "/jobs", config, {
-          asset,
-          params: normalized,
-          ...(isPreview ? { snapshotId: body.snapshotId } : {}),
-        }),
+        await coinglassRequest(
+          prefix + (isPreview ? "/preview" : "/jobs"),
+          config,
+          {
+            asset,
+            params: normalized,
+            ...(isPreview ? { snapshotId: body.snapshotId } : {}),
+          },
+        ),
         {
           status: isPreview ? 200 : 202,
           headers: { "Cache-Control": "no-store" },

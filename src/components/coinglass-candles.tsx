@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { bindCoinglassPriceCopy } from "./coinglass-price-copy";
 import {
   createChart,
   CandlestickSeries,
@@ -28,6 +29,7 @@ export function CoinglassCandles({
   baseline?: CoinglassPreview;
 }) {
   const host = useRef<HTMLDivElement>(null);
+  const [copyStatus, setCopyStatus] = useState("");
   const chart = useRef<IChartApi | null>(null);
   const series = useRef<ISeriesApi<"Candlestick"> | null>(null);
   useEffect(() => {
@@ -114,11 +116,24 @@ export function CoinglassCandles({
       if (series.current === s) lines.forEach((l) => s.removePriceLine(l));
     };
   }, [report, baseline, params, palette]);
+  useEffect(() => {
+    if (!host.current || !chart.current || !series.current) return;
+    return bindCoinglassPriceCopy(
+      host.current,
+      chart.current,
+      series.current,
+      params.showLabels ? report.result.levels.map((l) => l.price) : [],
+      setCopyStatus,
+    );
+  }, [report, params.showLabels, palette]);
   return (
-    <div
-      className="cg-candles"
-      ref={host}
-      aria-label="Предпросмотр уровней на свечном графике"
-    />
+    <>
+      {copyStatus && <p role="status">{copyStatus}</p>}
+      <div
+        className="cg-candles"
+        ref={host}
+        aria-label="Предпросмотр уровней на свечном графике"
+      />
+    </>
   );
 }

@@ -5,7 +5,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import type { IndicatorInstance } from "../domain/workspace";
 import type { Candle, Timeframe } from "../domain/market";
@@ -50,7 +49,7 @@ export function CoinglassSettingsDialog({
   const [saved] = useState(() => coinglassParams(instance.params));
   const [snapshotId, setSnapshotId] = useState(state.snapshotId);
   const [compare, setCompare] = useState(false);
-  const [candles, setCandles] = useState(false);
+  const [candles, setCandles] = useState(true);
   const [tab, setTab] = useState("map");
   const [error, setError] = useState("");
   const latestId = state.job?.result?.snapshotId;
@@ -133,6 +132,43 @@ export function CoinglassSettingsDialog({
       </div>
     </div>
   );
+  const candlePreview = (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={candles}
+          onChange={(e) => setCandles(e.target.checked)}
+        />{" "}
+        Показать уровни на свечном графике
+      </label>
+      {candles && report && (
+        <section>
+          <p>
+            {symbol} · {timeframe} ·{" "}
+            {candleSource === "demo"
+              ? "DEMO — демонстрационные свечи"
+              : candleSource === "stale"
+                ? "Устаревшие свечи"
+                : "Свечной график"}
+            . Уровни снимка проецируются на весь график; это не исторические
+            сигналы.
+          </p>
+          {bars.length ? (
+            <CoinglassCandles
+              bars={bars}
+              palette={palette}
+              params={normalized}
+              report={report}
+              baseline={compare ? baseline.data : undefined}
+            />
+          ) : (
+            <p>Свечи не загружены.</p>
+          )}
+        </section>
+      )}
+    </>
+  );
   function apply() {
     if (!valid || !snapshot || !report || preview.loading) {
       setError("Дождитесь расчёта для текущих параметров.");
@@ -158,13 +194,12 @@ export function CoinglassSettingsDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="coinglass-dialog cg-visual-dialog">
+      <DialogContent
+        className="coinglass-dialog cg-visual-dialog"
+        aria-describedby={undefined}
+      >
         <DialogHeader>
           <DialogTitle>CoinGlass · визуальная настройка</DialogTitle>
-          <DialogDescription>
-            Карта за 90 дней. Настройте отбор на сохранённых данных и проверьте
-            каждый выбранный уровень.
-          </DialogDescription>
         </DialogHeader>
         <div className="cg-source">
           {snapshot ? (
@@ -278,6 +313,7 @@ export function CoinglassSettingsDialog({
                 className={preview.loading ? "cg-pending" : ""}
               >
                 <CoinglassMap
+                  beforeTable={candlePreview}
                   report={displayReport}
                   params={{ ...normalized, ...displayReport.result.params }}
                   baseline={compare ? baseline.data : undefined}
@@ -305,39 +341,7 @@ export function CoinglassSettingsDialog({
                   доступна на соседней вкладке.
                 </p>
               ))}
-            <label>
-              <input
-                type="checkbox"
-                checked={candles}
-                onChange={(e) => setCandles(e.target.checked)}
-              />{" "}
-              Показать уровни на свечном графике
-            </label>
-            {candles && report && (
-              <section>
-                <p>
-                  {symbol} · {timeframe} ·{" "}
-                  {candleSource === "demo"
-                    ? "DEMO — демонстрационные свечи"
-                    : candleSource === "stale"
-                      ? "Устаревшие свечи"
-                      : "Свечной график"}
-                  . Уровни снимка проецируются на весь график; это не
-                  исторические сигналы.
-                </p>
-                {bars.length ? (
-                  <CoinglassCandles
-                    bars={bars}
-                    palette={palette}
-                    params={normalized}
-                    report={report}
-                    baseline={compare ? baseline.data : undefined}
-                  />
-                ) : (
-                  <p>Свечи не загружены.</p>
-                )}
-              </section>
-            )}
+            {tab === "image" && candlePreview}
             <p className="cg-help">
               Интенсивности получены из округлённых подсказок CoinGlass.
               Максимум и пороги вычисляются по всей карте, независимо от
@@ -443,11 +447,6 @@ export function CoinglassSettingsDialog({
           </aside>
         </div>
         <footer className="cg-footer">
-          <span role="status">
-            {report
-              ? `Выбрано уровней: ${report.result.levels.length}`
-              : "Предпросмотр не готов"}
-          </span>
           {error && <span role="alert">{error}</span>}
           <button className="button" onClick={onClose}>
             Отмена

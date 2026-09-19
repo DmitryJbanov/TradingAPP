@@ -4,7 +4,7 @@ export function BacklogPage() {
     <div className="terminal-shell">
       <header className="topbar">
         <a className="brand" href="/">
-          VECTOR TERMINAL
+          DiVMoney
         </a>
         <nav>
           <a href="/">Рынки</a>

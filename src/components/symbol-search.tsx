@@ -15,11 +15,14 @@ interface Results {
 export function SymbolSearch({
   favorites,
   star,
+  query,
+  onQueryChange,
 }: {
+  query: string;
+  onQueryChange: (query: string) => void;
   favorites: string[];
   star: (symbol: string) => void;
 }) {
-  const [query, setQuery] = useState("");
   const [market, setMarket] = useState("all");
   const [results, setResults] = useState<Results>();
   const [error, setError] = useState("");
@@ -53,15 +56,15 @@ export function SymbolSearch({
     };
   }, [query, market]);
   return (
-    <section className="symbol-search" aria-label="Поиск торговых пар">
+    <div className="symbol-search">
       <div className="symbol-search-controls">
         <label>
-          Поиск торговых пар
+          Найти инструмент
           <input
             type="search"
             value={query}
             maxLength={40}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Например, BTC/USDC"
           />
         </label>
@@ -135,6 +138,6 @@ export function SymbolSearch({
           <p>Добавьте пару кнопкой ☆ в результатах поиска.</p>
         )}
       </details>
-    </section>
+    </div>
   );
 }

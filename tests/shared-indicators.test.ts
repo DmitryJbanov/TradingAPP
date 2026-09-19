@@ -45,6 +45,7 @@ test("migration prefers current pair then a usable legacy selection and removes 
 test("only rendered and calculated indicators remain in the catalog", () => {
   assert.deepEqual(indicatorRegistry.map((i) => i.id).sort(), [
     "coinglass",
+    "coinglass-heatmap",
     "drz",
     "smc",
     "sonarlab-ob",

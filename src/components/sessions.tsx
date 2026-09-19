@@ -147,10 +147,6 @@ export function Sessions() {
           )}
         </div>
       </div>
-      <p className="session-note">
-        Ориентиры валютных сессий · переход на летнее время учтён · крипторынок
-        24/7
-      </p>
     </section>
   );
 }

@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>BTC Liquidation Map</title>
+<style>
+  :root{color-scheme:dark;font:14px system-ui;background:#12141c;color:#e8eaf0}body{margin:0;padding:18px}h1{font-size:18px;margin:0 0 12px}.controls{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px}label{display:flex;gap:7px;align-items:center}input,select,button{font:inherit;background:#242936;color:inherit;border:1px solid #4b5364;border-radius:5px;padding:5px}canvas{width:100%;max-width:1400px;height:auto;border:1px solid #343a49;background:#12141c;image-rendering:auto}.note{color:#9da5b7;font-size:12px;margin-top:8px}
+</style>
+<h1>BTC Liquidation Heatmap · Model 3 · Symbol · 365d</h1>
+<div class="controls">
+  <label>JSON <input id="file" type="file" accept=".json"></label>
+  <label>Порог <input id="threshold" type="range" min="0" max="100" value="0"><output id="thresholdValue">0%</output></label>
+  <label>Легенда <select id="legend"><option value="log">Логарифмическая</option><option value="linear">Линейная</option><option value="percentile">Перцентили</option></select></label>
+  <label>Цвета <select id="scheme"><option value="coinglass">CoinGlass</option><option value="fire">Огонь</option><option value="ice">Лёд</option><option value="mono">Монохром</option></select></label>
+</div>
+<canvas id="map" width="1400" height="780" aria-label="Карта уровней ликвидаций BTC"></canvas>
+<div class="note" id="status">Загрузка JSON…</div>
+<script src="map_data.js"></script><script>
+const $=id=>document.getElementById(id), canvas=$('map'), ctx=canvas.getContext('2d'); let data;
+const schemes={coinglass:[[20,25,45],[38,48,110],[90,35,150],[190,45,75],[245,120,35],[255,225,70]],fire:[[20,10,8],[90,20,8],[180,45,5],[240,110,10],[255,220,60],[255,255,220]],ice:[[8,20,35],[12,75,120],[30,145,180],[90,210,210],[190,245,230],[245,255,250]],mono:[[15,18,25],[45,50,65],[85,92,110],[135,142,155],[195,200,210],[250,252,255]]};
+function lerp(a,b,t){return a.map((v,i)=>Math.round(v+(b[i]-v)*t))} function color(t){let s=schemes[$('scheme').value],x=Math.max(0,Math.min(.999,t))*(s.length-1),i=Math.floor(x);return `rgb(${lerp(s[i],s[i+1],x-i)})`}
+function draw(){if(!data)return;let lv=data.price_levels||data.liquidation_levels, y=data.y, nx=0;for(const p of lv)nx=Math.max(nx,Number(p.x_index??p[0])+1);let ny=y.length, grid=Array.from({length:ny},()=>Array(nx).fill(0)); let vals=[];for(const p of lv){let x=p.x_index??p[0], yi=p.y_index??p[1],v=Number(p.liquidation_value??p[2]);if(yi>=0&&yi<ny&&x>=0&&x<nx){grid[yi][x]=Math.max(grid[yi][x],v);vals.push(v)}}let sorted=[...vals].sort((a,b)=>a-b), max=0;for(const v of vals)max=Math.max(max,v);let min=Number($('threshold').value)/100, mode=$('legend').value, W=canvas.width,H=canvas.height,L=70,T=35,R=18,B=55,cw=(W-L-R)/nx,ch=(H-T-B)/ny;ctx.fillStyle='#12141c';ctx.fillRect(0,0,W,H);function norm(v){if(!v)return 0;let q=mode==='linear'?v/max:mode==='percentile'?sorted.findIndex(x=>x>=v)/sorted.length:Math.log1p(v)/Math.log1p(max);return q<min?0:(q-min)/(1-min)}for(let yi=0;yi<ny;yi++)for(let x=0;x<nx;x++){let q=norm(grid[yi][x]);if(q){ctx.fillStyle=color(q);ctx.fillRect(L+x*cw,T+(ny-1-yi)*ch,Math.max(1,cw+1),Math.max(1,ch+1))}}ctx.fillStyle='#c5cad6';ctx.font='12px system-ui';for(let i=0;i<6;i++){let yi=Math.round(i*(ny-1)/5),yy=T+(ny-1-yi)*ch;ctx.fillText(Number(y[yi]).toLocaleString(),8,yy+4);let x=Math.round(i*(nx-1)/5);ctx.fillText(x,L+x*cw-10,H-B+20)}ctx.fillText('Цена',8,18);ctx.fillText('X-индекс времени',L,H-12);ctx.fillText(`${lv.length.toLocaleString()} ячеек · ${ny} ценовых уровней`,L+180,H-12);$('status').textContent=`Загружено ${lv.length.toLocaleString()} точек. Порог: ${$('threshold').value}%`}
+async function load(){try{data=window.MAP_DATA||(await (await fetch('coinglass_btc_liquidation_price_levels_365d.json')).json());draw()}catch(e){$('status').textContent='Выберите файл coinglass_btc_liquidation_price_levels_365d.json через кнопку JSON.'}}
+$('file').onchange=e=>{let r=new FileReader();r.onload=()=>{data=JSON.parse(r.result);draw()};r.readAsText(e.target.files[0])};['threshold','legend','scheme'].forEach(id=>$(id).oninput=()=>{$('thresholdValue').textContent=$('threshold').value+'%';draw()});load();
+</script>

@@ -1,4 +1,5 @@
 import type { CoinglassParams } from "./coinglass";
+import type { HeatmapParams } from "./heatmap";
 import { computeVmc } from "../indicators/vmc";
 import type { VmcParams, VmcStyle } from "../indicators/vmc-settings";
 import { computeOrderBlocks } from "../indicators/order-blocks";
@@ -12,6 +13,7 @@ import type { Candle, Timeframe } from "./market";
 export interface IndicatorInstance {
   id: string;
   definitionId: string;
+  icon?: string;
   enabled: boolean;
   period: number;
   color: string;
@@ -21,7 +23,8 @@ export interface IndicatorInstance {
     | Partial<OrderBlockParams>
     | Partial<DrzParams>
     | Partial<SmcParams>
-    | Partial<CoinglassParams>;
+    | Partial<CoinglassParams>
+    | Partial<HeatmapParams>;
   style?: Partial<VmcStyle>;
   timeframes?: Timeframe[];
 }
@@ -52,6 +55,14 @@ export interface IndicatorDefinition {
   compute?: (bars: Candle[], params: Record<string, unknown>) => unknown;
 }
 export const indicatorRegistry: IndicatorDefinition[] = [
+  {
+    id: "coinglass-heatmap",
+    name: "CoinGlass Heatmap · Model 3",
+    description:
+      "Тепловая карта ликвидаций за год. Порог, цветовые схемы и уровни последнего среза.",
+    implemented: true,
+    dataSource: "remote",
+  },
   {
     id: "coinglass",
     name: "CoinGlass · Уровни ликвидаций",

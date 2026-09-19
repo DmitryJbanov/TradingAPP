@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { compact, priceFormat } from "../domain/market";
 import {
   selectionReasons,
@@ -16,7 +16,9 @@ export function CoinglassMap({
   report,
   params,
   baseline,
+  beforeTable,
 }: {
+  beforeTable?: ReactNode;
   report: CoinglassPreview;
   params: CoinglassParams;
   baseline?: CoinglassPreview;
@@ -346,6 +348,7 @@ export function CoinglassMap({
           </p>
         )}
       </div>
+      {beforeTable}
       <label>
         <input
           type="checkbox"

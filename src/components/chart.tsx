@@ -1,4 +1,5 @@
 "use client";
+import { bindCoinglassPriceCopy } from "./coinglass-price-copy";
 import type { CoinglassOverlay } from "../domain/coinglass";
 import type { LineWidth } from "lightweight-charts";
 import { DrawingTools, type DrawingChart } from "./drawing-tools";
@@ -63,6 +64,7 @@ export function MarketChart({
   priceOverlays,
   historyCount,
   coinglass = [],
+  heatmapLevels = [],
 }: {
   bars: Candle[];
   symbol: string;
@@ -74,8 +76,10 @@ export function MarketChart({
   priceOverlays: PriceOverlay[];
   historyCount: number;
   coinglass?: CoinglassOverlay[];
+  heatmapLevels?: { price: number; value: number }[];
 }) {
   const [drawingApi, setDrawingApi] = useState<DrawingChart>();
+  const [copyStatus, setCopyStatus] = useState("");
   const host = useRef<HTMLDivElement>(null),
     chart = useRef<IChartApi | null>(null),
     series = useRef<ISeriesApi<"Candlestick"> | null>(null),
@@ -371,9 +375,46 @@ export function MarketChart({
         lines.forEach((line) => s.removePriceLine(line));
     };
   }, [coinglass]);
+  useEffect(() => {
+    const s = series.current;
+    if (!s) return;
+    const lines = heatmapLevels.map((l, i) =>
+      s.createPriceLine({
+        price: l.price,
+        color: "#f5b942",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: `HM #${i + 1}`,
+      }),
+    );
+    return () => {
+      if (series.current === s) lines.forEach((l) => s.removePriceLine(l));
+    };
+  }, [heatmapLevels]);
+  useEffect(() => {
+    if (!host.current || !chart.current || !series.current) return;
+    return bindCoinglassPriceCopy(
+      host.current,
+      chart.current,
+      series.current,
+      [
+        ...heatmapLevels.map((l) => l.price),
+        ...coinglass
+          .filter((o) => o.params.showLabels)
+          .flatMap((o) => o.result.levels.map((l) => l.price)),
+      ],
+      setCopyStatus,
+    );
+  }, [coinglass, heatmapLevels]);
   const b = ohlc ?? bars.at(-1);
   return (
     <>
+      {copyStatus && (
+        <div role="status" className="notice">
+          {copyStatus}
+        </div>
+      )}
       {drawingApi && (
         <DrawingTools
           key={`${symbol}:${timeframe}`}
@@ -423,7 +464,6 @@ export function MarketChart({
                 ),
                 bottom: 30,
               }}
-              title="(Текущая цена / цена курсора − 1) × 100"
             >
               {cursor.percent === null
                 ? "—"

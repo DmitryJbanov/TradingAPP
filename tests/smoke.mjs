@@ -31,7 +31,7 @@ try {
   const root = await get("/");
   assert.equal(root.status, 200);
   const html = await root.text();
-  assert.ok(html.includes("Vector"));
+  assert.ok(html.includes("DiVMoney"));
   for (const asset of html.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)) {
     assert.equal((await get(asset[1])).status, 200);
   }

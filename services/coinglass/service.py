@@ -36,7 +36,8 @@ def params(value):
 
 
 class Manager:
-    def __init__(self, directory, timeout=1200, start_worker=True):
+    def __init__(self, directory, timeout=1200, start_worker=True, worker='worker.py'):
+        self.worker = worker
         self.directory=Path(directory); self.directory.mkdir(parents=True, exist_ok=True)
         self.timeout=timeout; self.lock=threading.RLock(); self.jobs={}; self.events=deque(maxlen=100); self.sequence=0
         self.queue=queue.Queue(maxsize=20); self.process=None; self.stopping=False
@@ -114,9 +115,9 @@ class Manager:
 
     def execute(self,job):
         self.update(job,state='running',progress=1,message='Запуск фонового браузера')
-        self.event('INFO',job['asset']+': запуск парсинга 90-дневной карты')
+        self.event('INFO',job['asset']+': запуск парсинга ' + ('Model 3 · 365d' if self.worker == 'heatmap_worker.py' else '90-дневной карты'))
         options={'creationflags':subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP} if os.name=='nt' else {'start_new_session':True}
-        process=subprocess.Popen([sys.executable,'-u',str(Path(__file__).with_name('worker.py'))],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,encoding='utf-8',env={**os.environ,'PWDEBUG':'0','COINGLASS_DATA_DIR':str(self.directory.resolve())},**options)
+        process=subprocess.Popen([sys.executable,'-u',str(Path(__file__).with_name(self.worker))],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,encoding='utf-8',env={**os.environ,'PWDEBUG':'0','COINGLASS_DATA_DIR':str(self.directory.resolve())},**options)
         self.process=process
         process.stdin.write(json.dumps({k:job[k] for k in ('id','asset','params')})+'\n'); process.stdin.close()
         output=queue.Queue()
@@ -173,6 +174,7 @@ class Manager:
 
 class Handler(BaseHTTPRequestHandler):
     manager=None
+    heatmap_manager=None
     token=''
     def setup(self):
         super().setup(); self.connection.settimeout(10)
@@ -186,7 +188,11 @@ class Handler(BaseHTTPRequestHandler):
         return True
     def do_GET(self):
         if not self.authorized(): return
+        self.manager = type(self).manager
         url=urlsplit(self.path)
+        if url.path.startswith('/heatmap/'):
+            self.manager = self.heatmap_manager
+            url = url._replace(path=url.path.removeprefix('/heatmap'))
         with self.manager.lock:
             if url.path=='/status':
                 asset=parse_qs(url.query).get('asset',[''])[0]
@@ -203,6 +209,10 @@ class Handler(BaseHTTPRequestHandler):
             else: self.respond(404,{'error':'Not found'})
     def do_POST(self):
         if not self.authorized(): return
+        self.manager = type(self).manager
+        if self.path == '/heatmap/jobs':
+            self.manager = self.heatmap_manager
+            self.path = '/jobs'
         if self.path not in ('/jobs', '/preview'): self.respond(404,{'error':'Not found'}); return
         try:
             size=int(self.headers.get('Content-Length','0'))
@@ -224,10 +234,12 @@ class Handler(BaseHTTPRequestHandler):
 if __name__=='__main__':
     os.umask(0o077)
     Handler.manager=Manager(os.environ.get('COINGLASS_DATA_DIR','./coinglass-data'))
+    Handler.heatmap_manager=Manager(Path(os.environ.get('COINGLASS_DATA_DIR','./coinglass-data')) / 'heatmap', timeout=180, worker='heatmap_worker.py')
     Handler.token=os.environ.get('COINGLASS_TOKEN','')
     server=ThreadingHTTPServer((os.environ.get('COINGLASS_HOST','127.0.0.1'),int(os.environ.get('COINGLASS_PORT','8090'))),Handler)
     def stop(*_):
+        Handler.heatmap_manager.close()
         Handler.manager.close(); threading.Thread(target=server.shutdown,daemon=True).start()
     signal.signal(signal.SIGTERM,stop); signal.signal(signal.SIGINT,stop)
     try: server.serve_forever()
-    finally: server.server_close(); Handler.manager.close()
+    finally: server.server_close(); Handler.manager.close(); Handler.heatmap_manager.close()

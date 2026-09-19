@@ -6,6 +6,10 @@ import {
 } from "./coinglass";
 import { useCoinglass } from "../hooks/use-coinglass";
 import { coinglassDefaults } from "../domain/coinglass";
+import { heatmapDefaults } from "../domain/heatmap";
+import { useHeatmap } from "../hooks/use-heatmap";
+import { HeatmapPanel, HeatmapSettings } from "./heatmap";
+import { IndicatorIcon, indicatorIcons } from "./indicator-icon";
 import { SymbolSearch } from "./symbol-search";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -34,7 +38,6 @@ import {
   TerminalSquare,
   Trash2,
   TrendingUp,
-  X,
 } from "lucide-react";
 import {
   Dialog,
@@ -88,7 +91,14 @@ import { OverlaySettingsDialog } from "./overlay-settings-dialog";
 import { drzDefaults } from "../indicators/drz-settings";
 import { smcDefaults } from "../indicators/smc-settings";
 const hasIndicatorSettings = (id: string) =>
-  ["vmc", "sonarlab-ob", "drz", "smc", "coinglass"].includes(id);
+  [
+    "vmc",
+    "sonarlab-ob",
+    "drz",
+    "smc",
+    "coinglass",
+    "coinglass-heatmap",
+  ].includes(id);
 
 function Change({ value }: { value: number }) {
   return (
@@ -347,8 +357,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
       sort,
     ],
   );
-  const crypto = rows.filter((q) => q.category === "crypto"),
-    live = crypto.filter((q) => q.source === "live").length;
+  const crypto = rows.filter((q) => q.category === "crypto");
   const top = crypto.slice(0, 4);
   const sectorOptions = [
     ...new Set(
@@ -372,7 +381,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
           <span className="brand-mark">
             <ChartNoAxesCombined size={22} />
           </span>
-          VECTOR<span className="brand-tag">TERMINAL</span>
+          DiVMoney<span className="brand-tag">TERMINAL</span>
         </a>
         <nav>
           <a href="/backlog">Беклог</a>
@@ -392,10 +401,9 @@ export default function Terminal({ symbol }: { symbol?: string }) {
           >
             <Settings2 size={19} />
           </button>
-          <span className="avatar">VT</span>
+          <span className="avatar">DM</span>
         </div>
       </header>
-      <SymbolSearch favorites={favorites} star={star} />
       {symbol ? (
         <PairWorkspace
           symbol={symbol}
@@ -409,12 +417,10 @@ export default function Terminal({ symbol }: { symbol?: string }) {
         <main className="dashboard">
           <div className="page-heading">
             <div>
-              <div className="eyebrow">MARKET OVERVIEW</div>
               <h1>
                 Обзор рынков
                 <span className="title-dot" />
               </h1>
-              <p>Всё, что движет рынком. В одной рабочей области.</p>
             </div>
             <div className="heading-actions">
               <span className="update-time">
@@ -446,25 +452,6 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                 : "Проверьте backend и повторите запрос."}
             </div>
           )}
-          <div className="market-summary">
-            <span>
-              <i className="status-dot" />
-              Крипторынок работает 24/7
-            </span>
-            <span>
-              Пары <b>{crypto.length || "—"}</b>
-            </span>
-            <span>
-              Данные Binance{" "}
-              <b>
-                {live}/{crypto.length || "—"}
-              </b>
-            </span>
-            <span>
-              Обновление <b>30 сек</b>
-            </span>
-            <span className="muted">Изменение за скользящие 24 часа</span>
-          </div>
           <div className="featured-grid">
             {top.map((q) => (
               <a
@@ -538,6 +525,12 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                     Избранное
                   </button>
                 </div>
+                <SymbolSearch
+                  favorites={favorites}
+                  star={star}
+                  query={query}
+                  onQueryChange={setQuery}
+                />
                 <Tabs
                   value={category}
                   onValueChange={(v) => {
@@ -555,23 +548,6 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                   </TabsList>
                 </Tabs>
                 <div className="market-controls">
-                  <label className="search-field">
-                    <Search size={17} />
-                    <input
-                      aria-label="Поиск торговой пары"
-                      placeholder="Поиск пары или компании…"
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                    />
-                    {query && (
-                      <button
-                        aria-label="Очистить поиск"
-                        onClick={() => setQuery("")}
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </label>
                   <button
                     className={"button " + (filters ? "selected" : "")}
                     onClick={() => setFilters(!filters)}
@@ -816,7 +792,9 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                   ))}
                 </ol>
                 {!backlog.length && (
-                  <p>Все запланированные задачи выполнены.</p>
+                  <p className="empty-state">
+                    Все запланированные задачи выполнены.
+                  </p>
                 )}
                 <a className="backlog-link" href="/backlog">
                   Полный беклог ({backlog.length}) →
@@ -865,12 +843,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
               </div>
             </aside>
           </div>
-          <footer className="footer">
-            <span>
-              VECTOR <span className="muted">/ Market Terminal</span>
-            </span>
-            <span>USD / USDT · время UTC · v1.0</span>
-          </footer>
+          <footer className="footer">0.1.3</footer>
         </main>
       )}
       <Dialog open={settings} onOpenChange={setSettings}>
@@ -889,6 +862,16 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                 ["dark", "Графит"],
                 ["midnight", "Полночь"],
                 ["light", "Светлая"],
+                ["ocean", "Океан"],
+                ["forest", "Лес"],
+                ["plum", "Слива"],
+                ["coffee", "Кофе"],
+                ["slate", "Сланец"],
+                ["burgundy", "Бордо"],
+                ["teal", "Лагуна"],
+                ["indigo", "Индиго"],
+                ["olive", "Олива"],
+                ["rose", "Роза"],
               ]}
             />
           </div>
@@ -1045,6 +1028,7 @@ function PairWorkspace({
   }
   const q = rows.find((x) => x.symbol === symbol),
     item = catalog.find((x) => x.symbol === symbol) ?? candleData?.instrument;
+  const heatmap = useHeatmap(symbol, item?.base ?? "", indicators, tf);
   const bars = candleData?.data ?? [],
     last = bars.at(-1);
   const list = rows.filter(
@@ -1216,6 +1200,7 @@ function PairWorkspace({
               priceOverlays={overlays.overlays}
               historyCount={historyCount}
               coinglass={coinglass.overlays}
+              heatmapLevels={heatmap.levels}
             />
             {!bars.length && (
               <div className="chart-loading">
@@ -1228,6 +1213,12 @@ function PairWorkspace({
           <CoinglassPanel
             state={coinglass}
             openSettings={openIndicatorSettings}
+          />
+          <HeatmapPanel
+            state={heatmap}
+            openSettings={() =>
+              heatmap.instance && openIndicatorSettings(heatmap.instance.id)
+            }
           />
           {vmc.loading && (
             <div className="notice" role="status">
@@ -1265,15 +1256,6 @@ function PairWorkspace({
               })}
             </div>
           )}
-          <div className="chart-status">
-            <span>
-              {resource.loading
-                ? "Обновление…"
-                : `${bars.length} свечей · ${tf} · UTC`}
-            </span>
-            <span>Оси: перетаскивание · сброс: двойной клик</span>
-            <span>Δ = (текущая / курсор − 1) × 100</span>
-          </div>
           {indicators.length > 0 && (
             <div className="indicator-strip">
               {indicators.map((i) => (
@@ -1286,7 +1268,7 @@ function PairWorkspace({
                   }
                   style={{ opacity: i.enabled ? 1 : 0.5 }}
                 >
-                  <span style={{ background: i.color }} />
+                  <IndicatorIcon name={i.icon} color={i.color} />
                   {
                     indicatorRegistry.find((x) => x.id === i.definitionId)?.name
                   }{" "}
@@ -1297,6 +1279,9 @@ function PairWorkspace({
                         ...vmc.panes,
                         ...orderBlocks,
                         ...overlays.overlays,
+                        ...(heatmap.visible && heatmap.model && heatmap.instance
+                          ? [heatmap.instance]
+                          : []),
                       ].some((p) => p.id === i.id)
                         ? "настройки ⚙"
                         : "скрыт · настройки ⚙"}
@@ -1322,15 +1307,12 @@ function PairWorkspace({
               <Star size={15} fill={onlyFavorites ? "currentColor" : "none"} />
             </button>
           </div>
-          <label className="search-field">
-            <Search size={15} />
-            <input
-              aria-label="Поиск в списке инструментов"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Поиск инструмента…"
-            />
-          </label>
+          <SymbolSearch
+            favorites={favorites}
+            star={star}
+            query={query}
+            onQueryChange={setQuery}
+          />
           <div className="watchlist-labels">
             <span>Инструмент</span>
             <span>Цена / 24ч</span>
@@ -1397,8 +1379,8 @@ function PairWorkspace({
                   <button
                     className="icon-button"
                     disabled={
-                      d.id === "coinglass" &&
-                      indicators.some((i) => i.definitionId === "coinglass")
+                      ["coinglass", "coinglass-heatmap"].includes(d.id) &&
+                      indicators.some((i) => i.definitionId === d.id)
                     }
                     aria-label={"Добавить " + d.name}
                     onClick={() =>
@@ -1427,7 +1409,9 @@ function PairWorkspace({
                                   ? { params: { ...smcDefaults } }
                                   : d.id === "coinglass"
                                     ? { params: { ...coinglassDefaults } }
-                                    : {}),
+                                    : d.id === "coinglass-heatmap"
+                                      ? { params: { ...heatmapDefaults } }
+                                      : {}),
                         },
                       ])
                     }
@@ -1442,6 +1426,7 @@ function PairWorkspace({
             {indicators.map((i, index) => (
               <div className="indicator-instance" key={i.id}>
                 <div className="instance-heading">
+                  <IndicatorIcon name={i.icon} color={i.color} />
                   <Switch
                     checked={i.enabled}
                     aria-label="Видимость индикатора"
@@ -1484,6 +1469,21 @@ function PairWorkspace({
                     <Trash2 size={15} />
                   </button>
                 </div>
+                <label className="instance-options">
+                  Иконка
+                  <Choice
+                    label="Иконка индикатора"
+                    value={i.icon ?? "layers"}
+                    items={indicatorIcons.map(([key, label]) => [key, label])}
+                    onChange={(icon) =>
+                      changeIndicators(
+                        indicators.map((x) =>
+                          x.id === i.id ? { ...x, icon } : x,
+                        ),
+                      )
+                    }
+                  />
+                </label>
                 {hasIndicatorSettings(i.definitionId) ? (
                   <div className="instance-options">
                     <button
@@ -1572,6 +1572,19 @@ function PairWorkspace({
             }
           />
         )}
+      {editingIndicator?.definitionId === "coinglass-heatmap" && (
+        <HeatmapSettings
+          state={heatmap}
+          onClose={() => setSettingsId(null)}
+          onChange={(params) =>
+            changeIndicators(
+              indicators.map((i) =>
+                i.id === editingIndicator.id ? { ...i, params } : i,
+              ),
+            )
+          }
+        />
+      )}
       {editingIndicator?.definitionId === "coinglass" && (
         <CoinglassSettingsDialog
           key={symbol + editingIndicator.id}

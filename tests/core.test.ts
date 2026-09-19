@@ -1,4 +1,6 @@
 import "./coinglass.test";
+import "./heatmap.test";
+import "./interface.test";
 import "./drawings.test";
 import "./symbol-search.test";
 import "./shared-indicators.test";

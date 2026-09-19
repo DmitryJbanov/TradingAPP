@@ -7,7 +7,9 @@ services:
     depends_on:
       - coinglass
   coinglass:
-    build: ./services/coinglass
+    build:
+      context: .
+      dockerfile: services/coinglass/Dockerfile
     environment:
       COINGLASS_CREDENTIALS: /secrets/credentials.txt
       COINGLASS_SESSION_FILE: /secrets/session.json

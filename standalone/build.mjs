@@ -15,7 +15,7 @@ await writeFile(
   "release/package.json",
   JSON.stringify(
     {
-      name: "vector-terminal-release",
+      name: "divmoney-release",
       private: true,
       type: "module",
       scripts: { start: "node server.mjs" },

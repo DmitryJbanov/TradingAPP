@@ -21,7 +21,11 @@ const server = createServer(async (req, res) => {
       let body: Buffer | undefined;
       if (
         req.method === "POST" &&
-        ["/api/coinglass/run", "/api/coinglass/preview"].includes(url.pathname)
+        [
+          "/api/coinglass/run",
+          "/api/coinglass/preview",
+          "/api/coinglass/heatmap-run",
+        ].includes(url.pathname)
       ) {
         const chunks: Buffer[] = [];
         let size = 0;
@@ -101,10 +105,7 @@ server.headersTimeout = 10000;
 server.listen(
   Number(process.env.PORT ?? 3000),
   process.env.HOST ?? "0.0.0.0",
-  () =>
-    console.log(
-      "Vector Terminal listening on port " + (process.env.PORT ?? 3000),
-    ),
+  () => console.log("DiVMoney listening on port " + (process.env.PORT ?? 3000)),
 );
 process.on("SIGTERM", () => server.close(() => process.exit(0)));
 process.on("SIGINT", () => server.close(() => process.exit(0)));

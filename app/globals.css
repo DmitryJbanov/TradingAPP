@@ -84,6 +84,107 @@
   color-scheme: light;
 }
 
+:root[data-theme="ocean"] {
+  --background: #081820;
+  --card: #102630;
+  --popover: #173440;
+  --secondary: #173440;
+  --muted: #173440;
+  --accent: #294957;
+  --border: #294957;
+  --input: #294957;
+}
+:root[data-theme="forest"] {
+  --background: #0c1812;
+  --card: #14281c;
+  --popover: #1f3527;
+  --secondary: #1f3527;
+  --muted: #1f3527;
+  --accent: #354d3e;
+  --border: #354d3e;
+  --input: #354d3e;
+}
+:root[data-theme="plum"] {
+  --background: #1b1020;
+  --card: #29192f;
+  --popover: #38243f;
+  --secondary: #38243f;
+  --muted: #38243f;
+  --accent: #503758;
+  --border: #503758;
+  --input: #503758;
+}
+:root[data-theme="coffee"] {
+  --background: #1c1511;
+  --card: #2b211b;
+  --popover: #3a2e26;
+  --secondary: #3a2e26;
+  --muted: #3a2e26;
+  --accent: #514137;
+  --border: #514137;
+  --input: #514137;
+}
+:root[data-theme="slate"] {
+  --background: #13191f;
+  --card: #202932;
+  --popover: #2b3642;
+  --secondary: #2b3642;
+  --muted: #2b3642;
+  --accent: #414f5e;
+  --border: #414f5e;
+  --input: #414f5e;
+}
+:root[data-theme="burgundy"] {
+  --background: #200e15;
+  --card: #301923;
+  --popover: #402530;
+  --secondary: #402530;
+  --muted: #402530;
+  --accent: #583a47;
+  --border: #583a47;
+  --input: #583a47;
+}
+:root[data-theme="teal"] {
+  --background: #091b1b;
+  --card: #102c2b;
+  --popover: #1c3c3a;
+  --secondary: #1c3c3a;
+  --muted: #1c3c3a;
+  --accent: #31534f;
+  --border: #31534f;
+  --input: #31534f;
+}
+:root[data-theme="indigo"] {
+  --background: #12132a;
+  --card: #1c2040;
+  --popover: #2b3054;
+  --secondary: #2b3054;
+  --muted: #2b3054;
+  --accent: #41486f;
+  --border: #41486f;
+  --input: #41486f;
+}
+:root[data-theme="olive"] {
+  --background: #181b10;
+  --card: #252c1a;
+  --popover: #343d26;
+  --secondary: #343d26;
+  --muted: #343d26;
+  --accent: #4b5739;
+  --border: #4b5739;
+  --input: #4b5739;
+}
+:root[data-theme="rose"] {
+  --background: #24171e;
+  --card: #35232e;
+  --popover: #47323e;
+  --secondary: #47323e;
+  --muted: #47323e;
+  --accent: #614856;
+  --border: #614856;
+  --input: #614856;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -1224,8 +1325,9 @@ h1 {
   pointer-events: none;
   font-family: Consolas, monospace;
   font-size: 12px;
-  background: #8998dc;
-  color: #0c1120;
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--brand);
   padding: 4px 8px;
   border-radius: 3px;
   min-width: 78px;
@@ -1945,10 +2047,9 @@ h1 {
 }
 
 .symbol-search {
-  margin: 16px 28px;
+  margin: 0;
   padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border-bottom: 1px solid var(--border);
   background: var(--card);
 }
 .symbol-search-controls {
@@ -2364,4 +2465,50 @@ h1 {
 .cg-pending {
   opacity: 0.55;
   pointer-events: none;
+}
+
+.panel > .empty-state {
+  margin: 0;
+  padding: 24px;
+}
+.watchlist .symbol-search-controls label {
+  min-width: 0;
+  flex-basis: 100%;
+}
+.symbol-search-controls input,
+.symbol-search-controls select {
+  min-width: 0;
+  width: 100%;
+}
+.indicator-icon {
+  flex-shrink: 0;
+}
+.heatmap-panel {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+.heatmap-panel canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 12px;
+}
+.heatmap-panel p {
+  margin-top: 10px;
+  font-size: 12px;
+}
+.heatmap-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.heatmap-actions label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+}
+.heatmap-actions input {
+  max-width: 240px;
 }
