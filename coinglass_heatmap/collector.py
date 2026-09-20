@@ -26,9 +26,16 @@ def validate_map(data, asset):
     return dict(symbol=asset, range='365d', y=axis, liquidation_levels=cells)
 
 
-def collect(page, asset):
-    page.goto('https://www.coinglass.com/ru/pro/futures/LiquidationHeatMapModel3?coin=' + asset + '&type=symbol', wait_until='domcontentloaded', timeout=60000)
-    page.wait_for_function('!!self.webpackChunk_N_E', timeout=30000)
+def collect(page, asset, *, reuse_frontend=False):
+    if not reuse_frontend:
+        page.goto('https://www.coinglass.com/ru/pro/futures/LiquidationHeatMapModel3?coin=' + asset + '&type=symbol', wait_until='domcontentloaded', timeout=60000)
+    page.wait_for_function('''() => {
+      const chunks = self.webpackChunk_N_E;
+      if (!Array.isArray(chunks) || chunks.push === Array.prototype.push) return false;
+      let req;
+      chunks.push([[`heatmap_ready_${Date.now()}_${Math.random()}`], {}, r => { req = r; }]);
+      return Boolean(req?.m?.[89390]);
+    }''', timeout=30000)
     # Same frontend entry point as the supplied prototype. No guessed price axis.
     data = page.evaluate('''async (asset) => {
       let req;

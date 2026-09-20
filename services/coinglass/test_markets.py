@@ -87,7 +87,8 @@ class MarketsTests(unittest.TestCase):
         page, card = MagicMock(), MagicMock()
         card.get_by_role.return_value.input_value.return_value = 'BTC'
         page.get_by_role.return_value.wait_for.side_effect = TimeoutError()
-        with patch.dict('sys.modules', {'playwright': MagicMock(), 'playwright.sync_api': MagicMock()}):
+        with patch.dict('sys.modules', {'playwright': MagicMock(), 'playwright.sync_api': MagicMock()}), \
+                patch('collector.tooltip_signature', return_value=None):
             with self.assertRaises(UnsupportedSymbol): select_symbol(page, card, 'ETH')
         page.get_by_role.assert_called_once_with('option', name='ETH', exact=True)
         page.get_by_role.return_value.click.assert_not_called()

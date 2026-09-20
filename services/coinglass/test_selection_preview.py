@@ -16,6 +16,15 @@ def terrain(heights):
 
 
 class PreviewTests(unittest.TestCase):
+    def test_preview_keeps_source_period_when_next_collection_settings_change(self):
+        snapshot = dict(asset='BTC', rangeDays=7, requestLimit=500, currentPrice='3',
+                        collectedAt='2026-09-19T00:00:00Z', snapshotId='a'*32,
+                        points=terrain([0, 100, 0]))
+        result = preview(snapshot, params({'rangeDays': 30, 'requestLimit': 720}))['result']
+        self.assertEqual(result['rangeDays'], 7)
+        self.assertEqual(result['params']['rangeDays'], 7)
+        self.assertEqual(result['params']['requestLimit'], 500)
+
     def test_actual_fixture_matches_collector(self):
         record = json.loads(Path(__file__).with_name('examples').joinpath('observations-20260905.json').read_text())
         snapshot = dict(asset='BTC', rangeDays=90, currentPrice=record['current_price'], collectedAt=record['finished_utc'], snapshotId='a'*32, points=record['levels'])

@@ -415,7 +415,7 @@ class LoginFlowTests(unittest.TestCase):
         self.assertIsNone(state['http_status'])
         self.assertNotIn('secret_value', json.dumps(state))
 
-    def test_worker_forwards_new_login_stages_to_service_protocol(self):
+    def test_worker_collects_without_opening_login_or_reading_credentials(self):
         from worker import run
         page = Page()
         page.post_submit_url = ORIGIN + '/account/private_identifier'
@@ -427,23 +427,26 @@ class LoginFlowTests(unittest.TestCase):
         manager = MagicMock()
         manager.__enter__.return_value = pw
         api = SimpleNamespace(sync_playwright=lambda: manager)
-        settings = dict(hoverMs=180, minRelative=.5, minProminence=.35, side='both', limit=5)
+        settings = dict(hoverMs=180, minRelative=.5, minProminence=.35, side='both', limit=5,
+                        rangeDays=30, requestLimit=720)
         def collected(args, folder, *_):
-            (folder / 'observations.json').write_text(json.dumps({'finished_utc': '2026-01-01T00:00:00Z', 'levels': [], 'precision': 'Rounded tooltip values'}))
+            self.assertEqual((args.range_days, args.request_limit), (30, 720))
+            (folder / 'observations.json').write_text(json.dumps({'finished_utc': '2026-01-01T00:00:00Z', 'levels': [], 'precision': 'Decoded values', 'range_days': 30, 'request': {'limit': 720}}))
             return Decimal('100'), []
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.dict('sys.modules', {'playwright.sync_api': api}), \
                 patch.dict(os.environ, {'COINGLASS_DATA_DIR': tmp}), \
-                patch('auth.read_credentials', return_value=('test@example.invalid', 'secret_value')), \
-                patch('login_flow.time.monotonic', side_effect=lambda: page.clock), \
+                patch('auth.read_credentials', side_effect=AssertionError('Must not read credentials')) as credentials, \
+                patch('auth.authenticate', side_effect=AssertionError('Must not open login')) as login, \
                 patch('worker.collect_symbol', side_effect=collected), patch('worker.emit') as emit:
             run(dict(id='worker-test', params=settings, asset='BTC'))
-            state = json.loads((Path(tmp) / 'runs/worker-test/login-state.json').read_text())
-        logs = [call.kwargs['message'] for call in emit.call_args_list if call.args[0] == 'log']
-        self.assertTrue(any(AUTH_REVISION in message for message in logs))
-        self.assertTrue(any('Отправка формы' in message for message in logs))
+            startup = json.loads((Path(tmp) / 'runs/worker-test/login-state.json').read_text())
+            self.assertEqual(startup['credential_submission'], 'not_sent')
+            credentials.assert_not_called()
+            login.assert_not_called()
+        snapshot = next(call.kwargs['snapshot'] for call in emit.call_args_list if call.args[0] == 'result')
+        self.assertEqual((snapshot['rangeDays'], snapshot['requestLimit']), (30, 720))
         self.assertNotIn('secret_value', str(emit.call_args_list))
-        self.assertEqual(state['credential_submission'], 'attempted')
         pw.chromium.launch.assert_called_once_with(channel='chromium', headless=True)
 
 

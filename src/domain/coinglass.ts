@@ -1,4 +1,6 @@
 export interface CoinglassParams {
+  rangeDays: number;
+  requestLimit: number;
   minRelative: number;
   minProminence: number;
   limit: number;
@@ -13,6 +15,8 @@ export interface CoinglassParams {
   snapshotIds?: Record<string, string>;
 }
 export const coinglassDefaults: CoinglassParams = {
+  rangeDays: 90,
+  requestLimit: 1440,
   minRelative: 0.5,
   minProminence: 0.35,
   limit: 5,
@@ -47,6 +51,10 @@ export function coinglassParams(value: unknown): CoinglassParams {
       ? (p[key] as string)
       : coinglassDefaults[key];
   return {
+    rangeDays: [1, 7, 30, 90, 180, 365].includes(p.rangeDays as number)
+      ? (p.rangeDays as number)
+      : 90,
+    requestLimit: numeric("requestLimit", 1, 1440, true),
     snapshotIds: Object.fromEntries(
       Object.entries(
         p.snapshotIds && typeof p.snapshotIds === "object" ? p.snapshotIds : {},
@@ -71,6 +79,8 @@ export function coinglassParams(value: unknown): CoinglassParams {
 }
 export function calculationParams(p: CoinglassParams) {
   return {
+    rangeDays: p.rangeDays,
+    requestLimit: p.requestLimit,
     minRelative: p.minRelative,
     minProminence: p.minProminence,
     limit: p.limit,
@@ -87,7 +97,7 @@ export interface LiquidationLevel {
 export interface CoinglassResult {
   snapshotId?: string;
   asset: string;
-  rangeDays: 90;
+  rangeDays: number;
   currentPrice: number;
   collectedAt: string;
   params: ReturnType<typeof calculationParams>;
@@ -121,7 +131,8 @@ export interface CoinglassSnapshot {
   asset: string;
   currentPrice: number | string;
   collectedAt: string;
-  rangeDays: 90;
+  rangeDays: number;
+  requestLimit?: number;
   complete: boolean;
   precision: string;
   hoverMs: number;

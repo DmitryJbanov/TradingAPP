@@ -1211,6 +1211,11 @@ function PairWorkspace({
             )}
           </div>
           <CoinglassPanel
+            onChange={(next) =>
+              changeIndicators(
+                indicators.map((i) => (i.id === next.id ? next : i)),
+              )
+            }
             state={coinglass}
             openSettings={openIndicatorSettings}
           />

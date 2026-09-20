@@ -8,6 +8,7 @@ import {
 import { useSnapshotClock } from "../hooks/use-coinglass-preview";
 import { useResource } from "../hooks/use-resource";
 import type { useCoinglass } from "../hooks/use-coinglass";
+import type { IndicatorInstance } from "../domain/workspace";
 
 export function CoinglassMonitor() {
   const r = useResource<{ jobs: CoinglassJob[]; headless: boolean }>(
@@ -43,9 +44,11 @@ export function CoinglassMonitor() {
 export function CoinglassPanel({
   state,
   openSettings,
+  onChange,
 }: {
   state: ReturnType<typeof useCoinglass>;
   openSettings: (id: string) => void;
+  onChange: (next: IndicatorInstance) => void;
 }) {
   const now = useSnapshotClock();
   if (!state.instances.length) return null;
@@ -56,7 +59,10 @@ export function CoinglassPanel({
       className="coinglass-panel"
       aria-label="Карта ликвидаций CoinGlass"
     >
-      <h3>CoinGlass · карта за 90 дней</h3>
+      <h3>
+        CoinGlass ·{" "}
+        {result ? `карта за ${result.rangeDays} дн.` : "карта ликвидаций"}
+      </h3>
       <p role="status">
         {state.error ||
           (job
@@ -130,6 +136,33 @@ export function CoinglassPanel({
             >
               Визуальная настройка
             </button>{" "}
+            <label>
+              Период{" "}
+              <select
+                aria-label="Период карты ликвидаций"
+                value={params.rangeDays}
+                disabled={
+                  state.submitting ||
+                  job?.state === "running" ||
+                  job?.state === "queued"
+                }
+                onChange={(event) =>
+                  onChange({
+                    ...i,
+                    params: {
+                      ...params,
+                      rangeDays: Number(event.target.value),
+                    },
+                  })
+                }
+              >
+                {[1, 7, 30, 90, 180, 365].map((days) => (
+                  <option key={days} value={days}>
+                    {days} дн.
+                  </option>
+                ))}
+              </select>
+            </label>{" "}
             <button
               type="button"
               className="button"

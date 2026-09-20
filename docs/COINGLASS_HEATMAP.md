@@ -44,3 +44,8 @@ Docker: `docker compose -f compose.yaml -f compose.coinglass.yaml up -d --build`
 Контекст сборки CoinGlass теперь корень проекта, чтобы включить модуль из новой папки.
 Проверки: `npm.cmd test`; Python —
 `docker compose -f compose.yaml -f compose.coinglass.yaml run --rm --no-deps coinglass python -m unittest test_heatmap test_service`.
+
+Heatmap Model 3 и Liquidation Map используют один постоянный Chromium,
+один контекст сессии и одну страницу. Очередь общая: одновременные запросы
+выполняются последовательно. Отдельный браузер для Heatmap не создаётся;
+после сбоя общий worker восстанавливается с сохранённой сессией.

@@ -67,7 +67,7 @@ export const indicatorRegistry: IndicatorDefinition[] = [
     id: "coinglass",
     name: "CoinGlass · Уровни ликвидаций",
     description:
-      "Значимые пики 90-дневной карты. Фоновый парсинг и повторное обновление по кнопке.",
+      "Значимые пики карты за выбранный период (1–365 дней). Фоновый парсинг и повторное обновление по кнопке.",
     implemented: true,
     dataSource: "remote",
   },

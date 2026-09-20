@@ -6,6 +6,10 @@ services:
     environment:
       DATA_MODE: ${DATA_MODE:-auto}
       TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
+      COINGLASS_SERVICE_URL: http://coinglass:8090
+      COINGLASS_TOKEN: ${COINGLASS_TOKEN:-}
+    depends_on:
+      - coinglass
     restart: unless-stopped
     read_only: true
     tmpfs:
@@ -19,3 +23,34 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+  coinglass:
+    build:
+      context: .
+      dockerfile: services/coinglass/Dockerfile
+    environment:
+      COINGLASS_CREDENTIALS: /secrets/credentials.txt
+      COINGLASS_SESSION_FILE: /secrets/session.json
+      COINGLASS_TOKEN: ${COINGLASS_TOKEN:-}
+    volumes:
+      - coinglass-data:/data
+      - ./coinglass-secrets:/secrets:ro
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g
+    shm_size: 512mb
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  coinglass-data:

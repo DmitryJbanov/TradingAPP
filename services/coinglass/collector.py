@@ -1,26 +1,23 @@
 #!/usr/bin/env python3
-"""CoinGlass top 20, 90d: collect chart tooltips, export significant peaks."""
+"""CoinGlass top 20, 90d: decode frontend API data, export significant peaks."""
 import argparse
 import csv
-import io
 import os
 import json
 import re
-import subprocess
 import sys
-import tempfile
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from urllib.parse import urlsplit
 from auth import authenticate, save_session, LoginError
+from frontend_api import CoinglassApiError, INTERVALS, READY_JS
 from browser_runtime import launch_browser, context_options, create_page
 from login_flow import safe_path, error_code
 from map_navigation import (MapNavigator, MapNavigationError, MAP_PATHS, MAP_HEADING,
                             SEARCH_NAME, PERIOD_90, symbol_heading)
 
-URL = 'https://www.coinglass.com/ru/pro/futures/LiquidationMap'
+URL = 'https://www.coinglass.com/pro/futures/LiquidationMap'
 HEADERS = ['Символ', 'Текущая цена', 'Ближайший уровень ликвидности',
            '% до этого уровня ликвидности']
 EXCHANGES = {'Binance', 'OKX', 'Bybit'}
@@ -35,7 +32,7 @@ def number(text):
     return Decimal(match[1]) * (Decimal(1000) ** ' KMBT'.index(match[2].upper() or ' '))
 
 
-def parse_tooltip(raw, current=None):
+def parse_tooltip(raw, current=None, *, infer_current=False):
     price = number(raw['title'])
     if price <= 0:
         raise ValueError('Цена уровня должна быть положительной')
@@ -62,7 +59,7 @@ def parse_tooltip(raw, current=None):
     # contains BOTH cumulative curves at zero, and no exchange bars. Preserve
     # it for coverage/provenance, but never treat it as positive liquidity.
     if not exchanges and cumulative == {'long': Decimal(0), 'short': Decimal(0)}:
-        if current is None or price != current:
+        if (current is None and not infer_current) or (current is not None and price != current):
             raise ValueError('Подсказка маркера текущей цены не совпадает с текущей ценой')
         return {'price': price, 'intensity': Decimal(0), 'side': 'reference',
                 'exchanges': {}, 'kind': 'current_price_marker'}
@@ -121,29 +118,6 @@ def write_csv(path, current, selected, symbol="BTC"):
                              format(distance.quantize(Decimal('0.000001')), 'f')])
 
 
-def ocr_price(png, executable):
-    from PIL import Image
-    image = Image.open(io.BytesIO(png)).convert('RGB')
-    # Observed CoinGlass canvas layout: legend at y=12, current-price label y=28.
-    strip = image.crop((0, 18, image.width, 40))
-    found = []
-    with tempfile.TemporaryDirectory() as tmp:
-        for scale in (3, 4):
-            target = Path(tmp) / f'price-{scale}.png'
-            strip.resize((strip.width * scale, strip.height * scale)).save(target)
-            result = subprocess.run([executable, str(target), 'stdout', '-l', 'eng',
-                                     '--psm', '7'], capture_output=True, text=True,
-                                    check=True, timeout=20, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
-            values = re.findall(r':\s*(\d[\d,]*(?:\.\d+)?)', result.stdout)
-            if len(values) != 1:
-                raise ValueError('Цена OCR неоднозначна. Проверьте chart-before.png; '
-                                 'при необходимости используйте --price')
-            found.append(number(values[0]))
-    if found[0] != found[1] or found[0] <= 0:
-        raise ValueError('Два прохода OCR дали разные цены')
-    return found[0]
-
-
 def validate_coverage(levels, current):
     if not current.is_finite() or current <= 0:
         raise ValueError('Некорректная текущая цена')
@@ -168,7 +142,7 @@ def validate_coverage(levels, current):
         raise ValueError('Не собраны обе стороны карты')
     if not max(long_prices) <= current <= min(short_prices):
         raise ValueError('Текущая цена не совпадает с границей лонгов/шортов. '
-                         'Возможна ошибка OCR или изменение данных во время сбора')
+                         'Возможно изменение данных во время сбора')
     return spacing_report(levels)
 
 
@@ -187,12 +161,13 @@ def spacing_report(levels):
 
 
 def reprocess_snapshot(args, run):
+    from frontend_api import RANGE_DAYS
     record = json.loads(args.from_json.read_text(encoding='utf-8-sig'))
-    if (not isinstance(record.get('symbol'), str) or not re.fullmatch(r'[A-Z0-9][A-Z0-9._-]{0,39}', record.get('symbol', '')) or record.get('range_days') != 90
+    if (not isinstance(record.get('symbol'), str) or not re.fullmatch(r'[A-Z0-9][A-Z0-9._-]{0,39}', record.get('symbol', '')) or record.get('range_days') not in RANGE_DAYS
             or record.get('source') not in {'https://www.coinglass.com' + path for path in MAP_PATHS}
             or record.get('complete') is False
             or not record.get('finished_utc')):
-        raise ValueError('Нужен завершённый observations.json карты символа за 90 дней; '
+        raise ValueError('Нужен завершённый observations.json карты символа; '
                          'частичный файл для пересчёта не подходит')
     if args.price is not None:
         raise ValueError('--from-json использует цену исходного снимка; --price не применяется')
@@ -205,7 +180,8 @@ def reprocess_snapshot(args, run):
         if point.get('side') not in {'long', 'short', 'reference'}:
             raise ValueError('Некорректная сторона уровня в снимке')
         points.append(point)
-    report = validate_coverage(points, current)
+    report = (spacing_report(points) if record.get('collection_method') == 'frontend_bvP'
+              else validate_coverage(points, current))
     selected = select_significant_levels(points, current, Decimal(args.min_relative),
                                         Decimal(args.min_prominence), args.side, args.limit)
     record.update({'reprocessed_utc': datetime.now(timezone.utc).isoformat(),
@@ -233,15 +209,107 @@ TOOLTIP_JS = r"""root => {
 }"""
 
 
+ARM_TOOLTIP_JS = r"""root => {
+  root.__cgHover?.observer.disconnect();
+  const position = () => {
+    const style = root.querySelector('.cg-toolti-box')?.style;
+    return style ? [style.left, style.top, style.transform].join('|') : '';
+  };
+  const state = {fresh: false, position: position()};
+  state.observer = new MutationObserver(records => {
+    const box = root.querySelector('.cg-toolti-box');
+    if (!box) return;
+    // ECharts can reuse content for adjacent pixels in the same category.
+    // A new tooltip position acknowledges that mouse movement as well.
+    if (position() !== state.position || records.some(record =>
+      record.type !== 'attributes' &&
+      (box.contains(record.target) || [...record.addedNodes].some(n => n === box || n.contains?.(box))))) {
+      state.fresh = true;
+    }
+  });
+  state.observer.observe(root, {subtree: true, childList: true,
+    characterData: true, attributes: true, attributeFilter: ['style']});
+  root.__cgHover = state;
+}"""
+
+
+WAIT_TOOLTIP_JS = r"""(root, timeoutMs) => {
+  const read = READ_TOOLTIP;
+  return new Promise(resolve => {
+    let frame, previous, finished = false;
+    const finish = value => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      cancelAnimationFrame(frame);
+      root.__cgHover?.observer.disconnect();
+      delete root.__cgHover;
+      resolve(value);
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    const poll = () => {
+      const raw = read(root);
+      const box = root.querySelector('.cg-toolti-box');
+      const visible = box && getComputedStyle(box).visibility !== 'hidden' &&
+        getComputedStyle(box).display !== 'none' && getComputedStyle(box).opacity !== '0';
+      const complete = root.__cgHover?.fresh && visible && raw?.title && raw.items.length &&
+        raw.items.every(item => item.name && item.value);
+      const signature = complete ? JSON.stringify(raw) : null;
+      // Require matching complete values in two consecutive browser frames.
+      if (signature && signature === previous) return finish(raw);
+      previous = signature;
+      frame = requestAnimationFrame(poll);
+    };
+    frame = requestAnimationFrame(poll);
+  });
+}""".replace('READ_TOOLTIP', TOOLTIP_JS)
+
+
+def hover_tooltip(page, chart, bounds, dx, timeout_ms):
+    """Wait for fresh HTML, including when adjacent pixels share a category."""
+    chart.evaluate(ARM_TOOLTIP_JS)
+    page.mouse.move(bounds['x'] + dx, bounds['y'] + bounds['height'] * .48)
+    return chart.evaluate(WAIT_TOOLTIP_JS, timeout_ms)
+
+
+def tooltip_signature(page, chart):
+    """Sample rendered HTML at fixed positions, without reading canvas pixels."""
+    canvas = chart.locator('canvas')
+    canvas.scroll_into_view_if_needed()
+    bounds = canvas.bounding_box()
+    if not bounds:
+        return None
+    samples = []
+    for fraction in (.25, .5, .75):
+        raw = hover_tooltip(page, chart, bounds, bounds['width'] * fraction, 1000)
+        if not raw or not raw.get('title') or not raw.get('items'):
+            return None
+        parse_tooltip(raw, infer_current=True)
+        samples.append(raw)
+    return samples
+
+
+def wait_for_tooltips(page, chart, previous=None):
+    deadline = time.monotonic() + 60
+    stable, last = 0, None
+    while stable < 3:
+        if time.monotonic() > deadline:
+            raise TimeoutError('HTML-подсказки карты не обновились или не стабилизировались')
+        sample = tooltip_signature(page, chart)
+        stable = stable + 1 if sample and sample != previous and sample == last else 0
+        last = sample
+        page.wait_for_timeout(500)
+
+
 class CollectionError(RuntimeError):
     """Only generated stage/type/code text is safe for the backend journal."""
     def __init__(self, stage, error):
         self.stage = stage
         self.error_type = type(error).__name__
-        self.code = error_code(error)
+        self.code = error.code if isinstance(error, CoinglassApiError) else error_code(error)
         detail = ('Не загрузился заголовок или график сводной карты. '
                   if stage == 'map_heading_and_canvas' else '')
-        if isinstance(error, (MapNavigationError, LoginError)):
+        if isinstance(error, (MapNavigationError, LoginError, CoinglassApiError)):
             detail = str(error) + ' '
         super().__init__(f'{detail}Этап {stage}: {self.error_type} ({self.code}). '
                          'Смотрите page-state.json или diagnose.py --latest.')
@@ -249,7 +317,6 @@ class CollectionError(RuntimeError):
 
 def save_page_diagnostics(page, run, stage, headless, *, error=None, http_status=None, navigation=None):
     """Capture map-loading failures, even before a canvas exists; no auth state."""
-    parts = urlsplit(page.url)
     state = {'stage': stage, 'headless': headless, 'browser_channel': 'chromium',
              'page_origin': 'https://www.coinglass.com' if safe_path(page.url) != 'external_or_blank' else 'external_or_blank',
              'page_path': safe_path(page.url), 'http_status': http_status,
@@ -258,21 +325,12 @@ def save_page_diagnostics(page, run, stage, headless, *, error=None, http_status
         state['navigation'] = list(navigation)
     if error is not None:
         state['error_type'] = type(error).__name__
-        state['error_code'] = error_code(error)
+        state['error_code'] = error.code if isinstance(error, CoinglassApiError) else error_code(error)
     try:
         state['canvas_count'] = page.locator('canvas').count()
         state['password_form_visible'] = page.locator('input[type="password"]').first.is_visible()
         state['map_heading_count'] = page.get_by_role(
             'heading', name=MAP_HEADING).count()
-        # Never screenshot the login flow. Mask inputs, header account details,
-        # and embedded third-party frames on the map itself.
-        if (parts.scheme == 'https' and parts.netloc == 'www.coinglass.com'
-                and parts.path in MAP_PATHS
-                and not state['password_form_visible']):
-            page.screenshot(path=str(run / 'error.png'),
-                            mask=[page.locator('input'), page.locator('header'), page.locator('iframe')],
-                            timeout=10000)
-            state['screenshot'] = 'error.png'
     except Exception:
         state['diagnostics_incomplete'] = True
     (run / 'page-state.json').write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding='utf-8')
@@ -299,8 +357,8 @@ def select_symbol(page, card, symbol):
     if search.input_value() == symbol:
         return
     # Editing the input is not a selection: require an exact option and click it.
-    chart = card.locator('canvas')
-    previous = chart.screenshot()
+    chart = card.locator('.echarts-for-react')
+    previous = tooltip_signature(page, chart)
     search.fill(symbol)
     option = page.get_by_role('option', name=symbol, exact=True)
     try:
@@ -314,178 +372,111 @@ def select_symbol(page, card, symbol):
     # Verify committed selection independently from the editable input.
     if symbol != 'BTC':
         expect(card.get_by_role('heading')).to_have_text(symbol_heading(symbol))
-    deadline = time.monotonic() + 60
-    while chart.screenshot() == previous:
-        if time.monotonic() > deadline:
-            raise TimeoutError(f'{symbol}: график не обновился после выбора символа')
-        page.wait_for_timeout(500)
+    wait_for_tooltips(page, chart, previous)
+
+
+def open_frontend_map(page, navigation=None):
+    # The persistent page already has the client needed for every symbol/period.
+    # Avoid a hard reload: CoinGlass can reject deep links while its router works.
+    if safe_path(page.url) in MAP_PATHS and page.evaluate(READY_JS) is True:
+        if navigation is not None:
+            navigation.append(dict(method='reuse_frontend', path=safe_path(page.url), http_status=None))
+        return None
+    response = page.goto(URL, wait_until='domcontentloaded', timeout=60000)
+    if navigation is not None:
+        navigation.append(dict(method='direct', path=safe_path(page.url), http_status=response.status if response is not None else None))
+    if response is not None and response.status == 404:
+        response = page.goto('https://www.coinglass.com' + MAP_PATHS[0],
+                             wait_until='domcontentloaded', timeout=60000)
+        if navigation is not None:
+            navigation.append(dict(method='direct', path=safe_path(page.url), http_status=response.status if response is not None else None))
+    if response is not None and response.status == 404:
+        navigator = MapNavigator(page)
+        try:
+            navigator.open()
+        finally:
+            if navigation is not None:
+                navigation.extend(navigator.steps)
+        return None  # Client-side navigation has no new document response.
+    return response
 
 
 def collect_symbol(args, run, page, context, symbol):
-    from playwright.sync_api import expect
+    from frontend_api import fetch_liquidation_map, parse_liquidation_map
     started = datetime.now(timezone.utc).isoformat()
-    map_started = False
     stage = 'map_navigation'
-    source_url = URL
-    navigator = MapNavigator(page, report=lambda message: (
-        args.progress(15, message) if getattr(args, 'progress', None) else print(message, flush=True)))
+    status = None
+    navigation = []
+    range_days = getattr(args, 'range_days', 90)
+    request_limit = getattr(args, 'request_limit', 1440)
     try:
-        map_started = True
-        stage = 'map_navigation'
-        if getattr(args, 'progress', None): args.progress(15, 'Загрузка карты')
-        navigator.open()
-        source_url = 'https://www.coinglass.com' + safe_path(page.url)
-        stage = 'map_heading_and_canvas'
-        card = wait_for_map(page)
-        if card.locator('canvas').count() != 1:
-            raise ValueError('Структура страницы изменилась: карта не определена однозначно')
-        stage = 'symbol_selection'
-        select_symbol(page, card, symbol)
-        expect(card.get_by_role('combobox', name=SEARCH_NAME)).to_have_value(symbol)
-        chart = card.locator('.echarts-for-react')
-        if getattr(args, 'progress', None): args.progress(20, 'Выбор периода 90 дней')
-        stage = 'period_selection'
-        canvas = chart.locator('canvas')
-        canvas.scroll_into_view_if_needed()
-        old_picture = canvas.screenshot()
-        period = card.locator('button[role="combobox"]')
-        already_90 = PERIOD_90.fullmatch(period.inner_text().strip()) is not None
-        if not already_90:
-            period.click()
-            page.get_by_role('option', name=PERIOD_90).click()
-        selected = card.get_by_role('combobox').filter(has_text=PERIOD_90)
-        expect(selected).to_be_visible()
-        stage = 'map_rendering_90d'
-        # CoinGlass leaves an ARIA progressbar visible even after loading.
-        # Require a new canvas image, then four equal frames (2 seconds).
-        stable, previous, load_deadline = 0, None, time.monotonic() + 60
-        while stable < 4:
-            if time.monotonic() > load_deadline:
-                raise TimeoutError('Карта за 90 дней не завершила перерисовку')
-            page.wait_for_timeout(500)
-            picture = canvas.screenshot()
-            stable = stable + 1 if (already_90 or picture != old_picture) and picture == previous else 0
-            previous = picture
-        canvas.scroll_into_view_if_needed()
-        page.wait_for_timeout(1000)
-        before = canvas.screenshot()
-        # Save authentication only after the requested chart has loaded.
+        if getattr(args, 'price', None) is not None:
+            raise ValueError('Frontend collection requires data.lastPrice')
+        if getattr(args, 'progress', None): args.progress(15, 'Загрузка CoinGlass frontend')
+        response = open_frontend_map(page, navigation)
+        status = response.status if response is not None else None
+        if status is not None and status >= 400:
+            raise MapNavigationError(f'Страница карты вернула HTTP {status}; сбор остановлен.')
+        stage = 'frontend_request'
+        if getattr(args, 'progress', None): args.progress(35, f'Получение и декодирование карты за {range_days} дн.')
+        raw = fetch_liquidation_map(page, symbol, range_days, request_limit)
+        stage = 'response_validation'
+        try:
+            parsed = parse_liquidation_map(raw, symbol)
+        except CoinglassApiError as error:
+            if error.api_code != '40000':
+                raise
+            credentials = getattr(args, 'credentials', None)
+            if not credentials or not Path(credentials).is_file():
+                raise
+            stage = 'authentication'
+            if getattr(args, 'progress', None): args.progress(35, 'CoinGlass требует входа; восстановление сессии')
+            authenticate(page, credentials, headless=True,
+                         timeout=getattr(args, 'login_timeout', 90), diagnostics_dir=run,
+                         report=lambda message: args.progress(35, message) if getattr(args, 'progress', None) else None)
+            save_session(context, args.session)
+            stage = 'map_navigation'
+            response = open_frontend_map(page, navigation)
+            status = response.status if response is not None else None
+            if status is not None and status >= 400:
+                raise MapNavigationError(f'Страница карты вернула HTTP {status}; сбор остановлен.')
+            stage = 'frontend_request'
+            raw = fetch_liquidation_map(page, symbol, range_days, request_limit)
+            stage = 'response_validation'
+            parsed = parse_liquidation_map(raw, symbol)
+        (run / 'response-raw.json').write_text(
+            json.dumps(raw, ensure_ascii=False, indent=2, allow_nan=False), encoding='utf-8')
+        current, points = parsed['current_price'], parsed['levels']
+        stage = 'peak_selection'
+        if getattr(args, 'progress', None): args.progress(90, 'Расчёт значимых пиков')
+        selected = select_significant_levels(points, current, Decimal(args.min_relative),
+                                            Decimal(args.min_prominence), args.side, args.limit)
+        record = {'source': URL, 'symbol': symbol, 'range_days': range_days,
+                  'navigation': navigation,
+                  'endpoint': '/api/index/2/exLiqMap',
+                  'request': {'merge': True, 'symbol': symbol, 'interval': INTERVALS[range_days], 'limit': request_limit},
+                  'started_utc': started, 'finished_utc': datetime.now(timezone.utc).isoformat(),
+                  **parsed, 'price_source': 'data.lastPrice',
+                  'min_relative': args.min_relative, 'min_prominence': args.min_prominence,
+                  'side': args.side, 'limit': args.limit,
+                  'collection_method': 'frontend_bvP',
+                  'selection_method': 'local_maxima_with_height_and_prominence',
+                  'side_interpretation': 'long below lastPrice; short above; reference at lastPrice',
+                  'precision': 'Decoded frontend response values (no tooltip rounding)',
+                  'spacing': spacing_report(points), 'complete': True,
+                  'selected_peaks': [dict(p, distance_percent=d) for p, d in selected]}
         stage = 'session_save'
         save_session(context, args.session)
-        (run / 'chart-before.png').write_bytes(before)
-        stage = 'price_ocr'
-        current = Decimal(args.price) if args.price else ocr_price(before, args.tesseract)
-        if getattr(args, 'progress', None): args.progress(30, 'Сбор уровней карты')
-        stage = 'tooltip_collection'
-        bounds = canvas.bounding_box()
-        if not bounds or bounds['width'] < 700:
-            raise ValueError('График слишком узкий для сбора')
-        levels = {}
-        pixel_spans = {}
-        deadline = time.monotonic() + 480
-        # Sweep each CSS pixel, including margins; duplicate tooltips are collapsed.
-        for dx in range(1, int(bounds['width']) - 1):
-            if time.monotonic() > deadline:
-                raise TimeoutError('Сбор превысил 8 минут')
-            page.mouse.move(bounds['x'] + dx, bounds['y'] + bounds['height'] * .48)
-            page.wait_for_timeout(args.hover_ms)
-            raw = chart.evaluate(TOOLTIP_JS)
-            if raw and raw.get('title') and raw.get('items'):
-                point = parse_tooltip(raw, current=current)
-                previous = levels.get(point['price'])
-                if previous is not None and previous != point:
-                    raise ValueError('Данные изменились во время сбора. Запустите заново')
-                levels[point['price']] = point
-                pixel_spans.setdefault(point['price'], [dx, dx])[1] = dx
-            if dx % 200 == 0:
-                if getattr(args, 'progress', None): args.progress(30 + int(50 * dx / bounds['width']), f'Собрано уровней: {len(levels)}')
-                print(f'Собрано уровней: {len(levels)}', flush=True)
-        # Slowly revisit spans around numeric discontinuities. This can
-        # recover missed tooltips without inventing zero-valued levels.
-        stage = 'gap_review'
-        if getattr(args, 'progress', None): args.progress(82, 'Проверка пропущенных интервалов')
-        gaps_before = spacing_report(list(levels.values()))['intervals']
-        review_positions = set()
-        for gap in gaps_before:
-            left = pixel_spans[gap['left']][1]
-            right = pixel_spans[gap['right']][0]
-            review_positions.update(range(max(1, min(left, right)-2),
-                                          min(int(bounds['width'])-1, max(left, right)+3)))
-        count_before_review = len(levels)
-        if review_positions:
-            print(f'Повторная проверка неравномерных интервалов: {len(gaps_before)}...', flush=True)
-        review_deadline = time.monotonic() + 180
-        for dx in sorted(review_positions, reverse=True):
-            if time.monotonic() > review_deadline: raise TimeoutError("Проверка интервалов превысила 3 минуты")
-            page.mouse.move(bounds['x'] + dx, bounds['y'] + bounds['height'] * .48)
-            page.wait_for_timeout(max(args.hover_ms, 200))
-            raw = chart.evaluate(TOOLTIP_JS)
-            if raw and raw.get('title') and raw.get('items'):
-                point = parse_tooltip(raw, current=current)
-                previous = levels.get(point['price'])
-                if previous is not None and previous != point:
-                    raise ValueError('Данные изменились при повторной проверке интервалов')
-                levels[point['price']] = point
-        spacing = spacing_report(list(levels.values()))
-        spacing.update({'reviewed_pixel_positions': len(review_positions),
-                        'additional_points_found': len(levels)-count_before_review})
-        expect(selected).to_be_visible()
-        expect(card.get_by_role('combobox', name=SEARCH_NAME)).to_have_value(symbol)
-        page.mouse.move(bounds['x'] - 10, bounds['y'] - 10)
-        page.wait_for_timeout(300)
-        after = canvas.screenshot()
-        (run / 'chart-after.png').write_bytes(after)
-        stage = 'price_ocr_final'
-        if not args.price and ocr_price(after, args.tesseract) != current:
-            raise ValueError('Текущая цена изменилась во время сбора. Запустите заново')
-        points = sorted(levels.values(), key=lambda p: p['price'])
-        # Save provenance before validation so a failed scan remains inspectable.
-        record = {'source': source_url, 'symbol': symbol, 'range_days': 90,
-                  'started_utc': started, 'finished_utc': datetime.now(timezone.utc).isoformat(),
-                  'current_price': current, 'price_source': 'manual' if args.price else 'chart_ocr',
-                  'levels': points, 'min_relative': args.min_relative, 'side': args.side,
-                  'min_prominence': args.min_prominence, 'limit': args.limit,
-                  'selection_method': 'local_maxima_with_height_and_prominence',
-                  'spacing': spacing,
-                  'precision': 'Rounded values displayed in website tooltips'}
-        (run / 'observations.json').write_text(json.dumps(record, ensure_ascii=False,
-                                                         indent=2, default=str), encoding='utf-8')
-        if getattr(args, "progress", None): args.progress(95, "Проверка полноты и расчёт значимых пиков")
-        stage = 'coverage_validation'
-        validate_coverage(points, current)
-        record['complete'] = True
-        stage = 'peak_selection'
-        selected_peaks = select_significant_levels(
-            points, current, Decimal(args.min_relative), Decimal(args.min_prominence),
-            args.side, args.limit)
-        record['selected_peaks'] = [dict(p, distance_percent=d) for p, d in selected_peaks]
-        (run / 'observations.json').write_text(json.dumps(record, ensure_ascii=False,
-                                                         indent=2, default=str), encoding='utf-8')
-        return current, selected_peaks
+        (run / 'observations.json').write_text(
+            json.dumps(record, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
+        return current, selected
     except Exception as error:
-        if 'levels' in locals():
-            # Chart data only. Preserve the last tooltip and collected
-            # points even if parsing fails before observations.json exists.
-            try:
-                partial = {'source': source_url, 'symbol': symbol, 'range_days': 90,
-                           'current_price': current, 'complete': False,
-                           'last_tooltip': raw if 'raw' in locals() else None,
-                           'levels': sorted(levels.values(), key=lambda p: p['price'])}
-                (run / 'observations-partial.json').write_text(
-                    json.dumps(partial, ensure_ascii=False, indent=2, default=str),
-                    encoding='utf-8')
-            except Exception:
-                pass
-        if map_started and 'page' in locals():
-            try:
-                save_page_diagnostics(page, run, stage, args.headless,
-                                      error=error, http_status=navigator.status, navigation=navigator.steps)
-            except Exception:
-                pass
-        if isinstance(error, UnsupportedSymbol):
-            raise
+        try:
+            save_page_diagnostics(page, run, stage, getattr(args, 'headless', True),
+                                  error=error, http_status=status, navigation=navigation)
+        except Exception:
+            pass
         raise CollectionError(stage, error) from None
-
 
 def collect(args, run):
     from playwright.sync_api import sync_playwright
@@ -503,8 +494,6 @@ def collect(args, run):
                 options['storage_state'] = str(args.session)
             context, page = create_page(browser, options, diagnostics_dir=run)
             page.set_default_timeout(60000)
-            authenticate(page, args.credentials, headless=args.headless,
-                         timeout=args.login_timeout, diagnostics_dir=run)
             return run_batch(coins, run,
                              lambda coin, folder: collect_symbol(args, folder, page, context, coin['symbol']),
                              HEADERS, UnsupportedSymbol)
@@ -524,8 +513,7 @@ def main():
     parser.add_argument('--limit', type=int, default=5, help='Количество ближайших значимых пиков (по умолчанию 5)')
     parser.add_argument('--from-json', type=Path, help='Пересчитать observations.json без браузера и входа')
     parser.add_argument('--side', choices=['both', 'above', 'below'], default='both')
-    parser.add_argument('--price', help='Цена с этого же графика вручную, вместо OCR')
-    parser.add_argument('--tesseract', default='tesseract', help='Путь к tesseract.exe при необходимости')
+    parser.add_argument('--price', help='Устарело: frontend-сбор использует data.lastPrice')
     parser.add_argument('--credentials', type=Path, default=SCRIPT_DIR / 'credentials.txt',
                         help='Файл с email= и password=')
     parser.add_argument('--session', type=Path, default=SCRIPT_DIR / '.coinglass-session.json',
@@ -551,7 +539,8 @@ def main():
             return collect(args, run)
         current, selected_peaks = reprocess_snapshot(args, run)
         symbol = json.loads(args.from_json.read_text(encoding='utf-8-sig'))['symbol']
-        csv_path = run / f'{symbol.lower()}_90d.csv'
+        range_days = json.loads(args.from_json.read_text(encoding='utf-8-sig'))['range_days']
+        csv_path = run / f'{symbol.lower()}_{range_days}d.csv'
         write_csv(csv_path, current, selected_peaks, symbol)
         print(f'Готово: {csv_path}')
         print(f'Найдено значимых уровней для таблицы: {len(selected_peaks)}')

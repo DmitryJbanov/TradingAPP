@@ -10,9 +10,30 @@ from service import Manager, params
 
 class ServiceTests(unittest.TestCase):
     def test_validation(self):
-        for value in [None, {'limit':True}, {'limit':0}, {'hoverMs':10}, {'minRelative':float('nan')}, {'side':'x'}]:
+        for value in [None, {'limit':True}, {'limit':0}, {'hoverMs':10}, {'minRelative':float('nan')}, {'side':'x'},
+                      {'rangeDays': 2}, {'rangeDays': True}, {'requestLimit': 0}, {'requestLimit': 1441}]:
             with self.assertRaises(ValueError): params(value)
         self.assertEqual(params({})['hoverMs'],180)
+        self.assertEqual(params({})['rangeDays'], 90)
+        self.assertEqual(params({})['requestLimit'], 1440)
+        self.assertEqual(params({'rangeDays': 7, 'requestLimit': 500})['requestLimit'], 500)
+
+    def test_status_distinguishes_startup_from_reuse(self):
+        from unittest.mock import MagicMock
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            manager = Manager(folder, start_worker=False)
+            manager.worker = MagicMock()
+            for running in (False, True):
+                manager.worker.is_running.return_value = running
+                job, _ = manager.submit('BTC', {'rangeDays': 30, 'requestLimit': 720})
+                statuses = []
+                def collect(*args):
+                    statuses.append(job['message'])
+                    yield {'kind': 'result', 'result': {'levels': []}}
+                manager.worker.collect.side_effect = collect
+                manager.execute(job)
+                self.assertEqual(statuses, ['Получение данных через открытый браузер' if running
+                                            else 'Запуск фонового браузера'])
 
     def test_dedup_persistence_interrupted_and_secret_files_ignored(self):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
@@ -27,28 +48,30 @@ class ServiceTests(unittest.TestCase):
             self.assertEqual(list(restored.jobs),['BTC'])
 
     def test_worker_success_failure_keeps_previous_result_and_timeout(self):
-        original=subprocess.Popen
+        from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
-            manager=Manager(folder,start_worker=False)
-            job,_=manager.submit('BTC',{})
-            fixture={'asset':'BTC','rangeDays':90,'currentPrice':100,'collectedAt':'2026-09-12T00:00:00Z','params':params({}),'levels':[{'price':110,'intensity':20,'prominence':10,'distancePercent':10}]}
-            code='import sys,json; request=json.loads(sys.stdin.readline()); print(json.dumps({"kind":"progress","progress":50,"message":"Сбор уровней"}),flush=True); print(json.dumps({"kind":"result","result":'+repr(fixture)+'}),flush=True)'
-            def spawn(command,**kwargs):
-                self.assertNotIn('shell',kwargs)
-                self.assertEqual(kwargs['env']['PWDEBUG'],'0')
-                return original([command[0],'-c',code],**kwargs)
-            with patch('service.subprocess.Popen',side_effect=spawn): manager.execute(job)
-            self.assertEqual(job['state'],'done'); self.assertEqual(job['progress'],100)
-            self.assertTrue(any('Сбор уровней' in e['message'] for e in manager.events))
-            old=job['result']
-            job,_=manager.submit('BTC',{})
-            code='import sys,json; sys.stdin.readline(); print(json.dumps({"kind":"error","message":"Вход не подтверждён"}),flush=True); sys.exit(1)'
-            with patch('service.subprocess.Popen',side_effect=spawn): manager.execute(job)
-            self.assertEqual(job['state'],'error'); self.assertEqual(job['result'],old)
-            job,_=manager.submit('BTC',{}); manager.timeout=.05
-            code='import sys,time; sys.stdin.readline(); time.sleep(30)'
-            with patch('service.subprocess.Popen',side_effect=spawn): manager.execute(job)
-            self.assertEqual(job['state'],'error'); self.assertIn('время',job['message']); self.assertEqual(job['result'],old)
+            manager = Manager(folder, start_worker=False)
+            job, _ = manager.submit('BTC', {})
+            fixture = {'levels': [{'price': 110}]}
+            manager.worker = MagicMock()
+            manager.worker.collect.return_value = iter([
+                {'kind': 'progress', 'progress': 50, 'message': 'Сбор уровней'},
+                {'kind': 'result', 'result': fixture}])
+            manager.execute(job)
+            self.assertEqual(job['state'], 'done')
+            self.assertEqual(job['result'], fixture)
+            job, _ = manager.submit('BTC', {})
+            manager.worker.collect.return_value = iter([{'kind': 'error', 'message': 'Вход не подтверждён'}])
+            manager.execute(job)
+            self.assertEqual(job['state'], 'error')
+            self.assertEqual(job['result'], fixture)
+            job, _ = manager.submit('BTC', {})
+            manager.worker.collect.side_effect = TimeoutError()
+            manager.execute(job)
+            self.assertEqual(job['state'], 'error')
+            self.assertIn('время', job['message'])
+            self.assertEqual(job['result'], fixture)
+
 
 class HttpTests(unittest.TestCase):
     def test_http_auth_status_queue_and_events(self):
@@ -69,6 +92,9 @@ class HttpTests(unittest.TestCase):
                 except urllib.error.HTTPError as error: return error.code,json.load(error)
             try:
                 self.assertEqual(call('/status',token=False)[0],401)
+                self.assertFalse(TestHandler.manager.browser_requested.is_set())
+                self.assertEqual(call('/status')[0],200)
+                self.assertTrue(TestHandler.manager.browser_requested.is_set())
                 self.assertEqual(call('/jobs',{'asset':'BTC','params':{}})[0],202)
                 self.assertEqual(call('/jobs',{'asset':'BTC','params':{}})[0],409)
                 self.assertEqual(call('/status?asset=BTC')[1]['job']['state'],'queued')

@@ -5,12 +5,6 @@ export const backlog: readonly {
   description: string;
 }[] = [
   {
-    id: "coinglass-parsing-period-selection",
-    title: "Выбор периода парсинга карты ликвидаций",
-    description:
-      "Добавить возможность выбора периода получения и обработки данных карты ликвидаций CoinGlass. Помимо текущего периода 90 дней необходимо поддержать варианты: 7 дней, 30 дней и 1 год.",
-  },
-  {
     id: "fixed-range-volume-profile",
     title: "Добавление Fixed Range Volume Profile",
     description:

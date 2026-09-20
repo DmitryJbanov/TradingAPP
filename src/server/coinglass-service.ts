@@ -113,7 +113,13 @@ export async function handleCoinglass(
       if (
         !heatmap &&
         (!body.params ||
-          Object.entries(normalized).some(([k, v]) => body.params[k] !== v))
+          Object.entries(normalized).some(
+            ([k, v]) =>
+              !(
+                ["rangeDays", "requestLimit"].includes(k) &&
+                body.params[k] === undefined
+              ) && body.params[k] !== v,
+          ))
       )
         throw new SymbolError("Некорректные настройки расчёта", 400);
       const isPreview = url.pathname.endsWith("/preview");

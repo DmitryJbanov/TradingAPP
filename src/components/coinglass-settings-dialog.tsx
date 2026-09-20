@@ -67,6 +67,8 @@ export function CoinglassSettingsDialog({
       "minProminence",
       "limit",
       "hoverMs",
+      "rangeDays",
+      "requestLimit",
       "lineWidth",
       "staleHours",
     ] as const
@@ -98,6 +100,7 @@ export function CoinglassSettingsDialog({
       | "minProminence"
       | "limit"
       | "hoverMs"
+      | "requestLimit"
       | "lineWidth"
       | "staleHours",
     label: string,
@@ -204,9 +207,11 @@ export function CoinglassSettingsDialog({
         <div className="cg-source">
           {snapshot ? (
             <p>
-              <b>{snapshot.asset} · 90 дней</b> · снимок{" "}
-              {new Date(snapshot.collectedAt).toLocaleString("ru-RU")} · цена{" "}
-              {Number(snapshot.currentPrice).toLocaleString("en-US")} USD
+              <b>
+                {snapshot.asset} · {snapshot.rangeDays} дн.
+              </b>{" "}
+              · снимок {new Date(snapshot.collectedAt).toLocaleString("ru-RU")}{" "}
+              · цена {Number(snapshot.currentPrice).toLocaleString("en-US")} USD
             </p>
           ) : (
             <p>
@@ -343,10 +348,10 @@ export function CoinglassSettingsDialog({
               ))}
             {tab === "image" && candlePreview}
             <p className="cg-help">
-              Интенсивности получены из округлённых подсказок CoinGlass.
-              Максимум и пороги вычисляются по всей карте, независимо от
-              масштаба. Цена снимка может отличаться от текущей цены
-              инструмента.
+              Интенсивности получены из данных CoinGlass; точность зависит от
+              источника снимка. Максимум и пороги вычисляются по всей карте,
+              независимо от масштаба. Цена снимка может отличаться от текущей
+              цены инструмента.
             </p>
           </main>
           <aside className="cg-settings">
@@ -424,11 +429,17 @@ export function CoinglassSettingsDialog({
             </details>
             <details>
               <summary>Сбор и актуальность</summary>
-              {field("hoverMs", "Задержка сбора, мс", 50, 250, 10)}
               <p className="cg-help">
-                Используется только при следующем сборе. На отбор сохранённых
-                точек не влияет.
-                {snapshot ? ` Этот снимок: ${snapshot.hoverMs} мс.` : ""}
+                Период сбора: {params.rangeDays} дн. Изменить его можно рядом с
+                кнопкой парсинга на главном графике.
+              </p>
+              {field("requestLimit", "Лимит записей в запросе", 1, 1440, 1)}
+              <p className="cg-help">
+                Период и лимит записей применяются при запуске / обновлении
+                парсинга. Для сохранённого снимка нужен новый сбор. Это лимит
+                запроса; число полученных ценовых уровней может отличаться.
+                {snapshot &&
+                  ` Текущий снимок: ${snapshot.rangeDays} дн.${snapshot.requestLimit ? `, лимит ${snapshot.requestLimit}` : ""}.`}
               </p>
               {field("staleHours", "Считать устаревшим через, ч", 1, 720, 1)}
             </details>

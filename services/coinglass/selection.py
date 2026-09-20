@@ -69,5 +69,7 @@ def preview(snapshot, settings):
         Decimal(str(settings['minRelative'])), Decimal(str(settings['minProminence'])), settings['side'], settings['limit'])
     result = {k: snapshot[k] for k in ('asset', 'rangeDays', 'currentPrice', 'collectedAt', 'snapshotId')}
     result['currentPrice'] = float(snapshot['currentPrice'])
-    result.update(params=settings, levels=[{k: p[k] for k in ('price', 'intensity', 'prominence', 'distancePercent')} for p in report['selected']])
+    source_settings = dict(settings, rangeDays=snapshot['rangeDays'],
+                           requestLimit=snapshot.get('requestLimit', 1440))
+    result.update(params=source_settings, levels=[{k: p[k] for k in ('price', 'intensity', 'prominence', 'distancePercent')} for p in report['selected']])
     return numeric(dict(result=result, **{k: v for k, v in report.items() if k != 'selected'}))

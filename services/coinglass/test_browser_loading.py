@@ -12,18 +12,19 @@ from diagnose import latest_report
 class BrowserLoadingTests(unittest.TestCase):
     def test_collection_error_preserves_stage_and_type_without_payload(self):
         page, context = MagicMock(), MagicMock()
+        page.goto.return_value.status = 200
         page.url = 'https://www.coinglass.com/pro/futures/LiquidationMap'
         page.goto.return_value.status = 200
         api = SimpleNamespace(expect=MagicMock())
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.dict('sys.modules', {'playwright.sync_api': api}), \
                 patch('collector.MapNavigator', return_value=SimpleNamespace(open=lambda: None, status=200, steps=[])), \
-                patch('collector.wait_for_map', side_effect=TimeoutError('secret_value')), \
+                patch('frontend_api.fetch_liquidation_map', side_effect=TimeoutError('secret_value')), \
                 patch('collector.save_page_diagnostics') as diagnostic:
             args = SimpleNamespace(progress=None, headless=True)
             with self.assertRaises(CollectionError) as caught:
                 collect_symbol(args, Path(tmp), page, context, 'BTC')
-            self.assertEqual(caught.exception.stage, 'map_heading_and_canvas')
+            self.assertEqual(caught.exception.stage, 'frontend_request')
             self.assertEqual(caught.exception.error_type, 'TimeoutError')
             self.assertEqual(caught.exception.code, 'timeout')
             self.assertNotIn('secret_value', str(caught.exception))
@@ -63,15 +64,16 @@ class BrowserLoadingTests(unittest.TestCase):
 
     def test_map_validation_failure_never_saves_candidate_session(self):
         page, context = MagicMock(), MagicMock()
+        page.goto.return_value.status = 200
         page.url = 'https://www.coinglass.com/pro/futures/LiquidationMap'
         api = SimpleNamespace(expect=MagicMock())
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.dict('sys.modules', {'playwright.sync_api': api}), \
                 patch('collector.MapNavigator', return_value=SimpleNamespace(open=lambda: None, status=200, steps=[])), \
-                patch('collector.wait_for_map', side_effect=TimeoutError('map unavailable')), \
+                patch('frontend_api.fetch_liquidation_map', side_effect=TimeoutError('map unavailable')), \
                 patch('collector.save_page_diagnostics'), patch('collector.save_session') as save:
             args = SimpleNamespace(session=Path(tmp) / 'session.json', progress=None)
-            with self.assertRaisesRegex(RuntimeError, 'Не загрузился заголовок'):
+            with self.assertRaisesRegex(RuntimeError, 'frontend_request'):
                 collect_symbol(args, Path(tmp), page, context, 'BTC')
             save.assert_not_called()
             self.assertFalse(args.session.exists())
@@ -87,7 +89,7 @@ class BrowserLoadingTests(unittest.TestCase):
             call.locator().wait_for(state='visible', timeout=60000)])
         self.assertIs(card, heading.locator.return_value)
 
-    def test_map_failure_before_canvas_saves_masked_diagnostics(self):
+    def test_map_failure_before_canvas_saves_json_without_screenshot(self):
         page = MagicMock()
         page.url = 'https://www.coinglass.com/ru/pro/futures/LiquidationMap?secret=example'
         page.locator.return_value.count.return_value = 0
@@ -98,8 +100,8 @@ class BrowserLoadingTests(unittest.TestCase):
             text = (Path(tmp) / 'page-state.json').read_text()
             self.assertNotIn('secret', text)
             self.assertEqual(json.loads(text)['canvas_count'], 0)
-            page.screenshot.assert_called_once()
-            self.assertEqual(len(page.screenshot.call_args.kwargs['mask']), 3)
+            page.screenshot.assert_not_called()
+            self.assertNotIn('screenshot', json.loads(text))
 
     def test_auth_pages_and_password_form_are_not_screenshotted(self):
         for url, password_visible in [

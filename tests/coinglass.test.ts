@@ -8,6 +8,18 @@ import {
 } from "../src/domain/coinglass";
 import { supportedIndicators } from "../src/domain/shared-indicators";
 test("CoinGlass normalizes corrupt settings and preserves implemented remote indicator", () => {
+  assert.equal(coinglassParams({}).rangeDays, 90);
+  assert.equal(coinglassParams({}).requestLimit, 1440);
+  assert.equal(
+    coinglassParams({ rangeDays: 2, requestLimit: -1 }).rangeDays,
+    90,
+  );
+  assert.equal(coinglassParams({ requestLimit: 1441 }).requestLimit, 1440);
+  const collection = calculationParams(
+    coinglassParams({ rangeDays: 30, requestLimit: 720 }),
+  );
+  assert.equal(collection.rangeDays, 30);
+  assert.equal(collection.requestLimit, 720);
   assert.equal(coinglassParams({ limit: NaN, aboveColor: "bad" }).limit, 5);
   assert.equal(
     coinglassParams({ limit: NaN, aboveColor: "bad" }).aboveColor,
@@ -183,6 +195,46 @@ test("CoinGlass preview is pinned, stateless and protected by proxy validation",
       403,
     );
     assert.equal(calls.length, 1);
+    const collectionParams = {
+      ...body.params,
+      rangeDays: 30,
+      requestLimit: 720,
+    };
+    assert.equal(
+      (
+        await call("/api/coinglass/run", {
+          symbol: body.symbol,
+          params: collectionParams,
+        })
+      ).status,
+      202,
+    );
+    assert.deepEqual(calls.at(-1)?.body, {
+      asset: "BTC",
+      params: collectionParams,
+    });
+    for (const invalid of [{ rangeDays: 2 }, { requestLimit: 1441 }]) {
+      assert.equal(
+        (
+          await call("/api/coinglass/run", {
+            symbol: body.symbol,
+            params: { ...collectionParams, ...invalid },
+          })
+        ).status,
+        400,
+      );
+    }
+    const { rangeDays, requestLimit, ...legacyParams } = body.params;
+    assert.equal(
+      (
+        await call("/api/coinglass/run", {
+          symbol: body.symbol,
+          params: legacyParams,
+        })
+      ).status,
+      202,
+    );
+    assert.deepEqual(calls.at(-1)?.body, { asset: "BTC", params: body.params });
     assert.equal(
       (await call(`/api/coinglass/snapshot?symbol=BTCUSDT&snapshotId=${id}`))
         .status,

@@ -25,6 +25,8 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
+CoinGlass устанавливается и запускается вместе с терминалом: Compose собирает Python-сервис с Playwright и Chromium, подключает постоянный том данных и адрес сервиса автоматически. Дополнительный Compose-файл не требуется.
+
 Откройте http://localhost:3000. По умолчанию порт опубликован только на loopback. Для другого компьютера используйте reverse proxy или явно измените привязку в compose.yaml.
 
 ```bash
@@ -157,4 +159,4 @@ npm run build:standalone
 
 ## CoinGlass
 
-Фоновый парсер 90-дневной карты и индикатор уровней ликвидаций: [установка, запуск и мониторинг](docs/COINGLASS.md). Для работы нужен отдельный Python-сервис с Playwright Chromium и Tesseract; он запускается без окон. Вариант Compose: `docker compose -f compose.yaml -f compose.coinglass.yaml up -d --build` после размещения credentials.txt в coinglass-secrets.
+Фоновый парсер карты ликвидаций с выбором периода: [установка, запуск и мониторинг](docs/COINGLASS.md). Команда `docker compose up -d --build` устанавливает и запускает CoinGlass вместе с проектом. Браузер Liquidation Map запускается при первом обращении и сохраняется между заданиями; после сбоя восстанавливается. Сессия при наличии читается из `coinglass-secrets/session.json`. Heatmap Model 3 использует ту же постоянную браузерную сессию и общую очередь заданий.
