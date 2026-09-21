@@ -38,8 +38,12 @@ class CoinglassApiError(ValueError):
     def __init__(self, code):
         self.api_code = str(code) if type(code) in (str, int) and str(code).isdigit() and len(str(code)) <= 8 else 'unknown'
         self.code = 'coinglass_api_' + self.api_code
-        super().__init__('CoinGlass требует входа в аккаунт (код 40000). Проверьте credentials.txt или сохранённую сессию.'
-                         if self.api_code == '40000' else f'CoinGlass отклонил запрос (код {self.api_code}).')
+        messages = {
+            '40000': 'CoinGlass требует входа в аккаунт (код 40000). Проверьте credentials.txt или сохранённую сессию.',
+            '40001': 'CoinGlass отклонил запрос (код 40001). Причина не указана. Проверьте доступность выбранной монеты и периода на сайте CoinGlass в том же аккаунте.',
+            '40003': 'Выбранная монета и период доступны только с подпиской CoinGlass (код 40003).',
+        }
+        super().__init__(messages.get(self.api_code, f'CoinGlass отклонил запрос (код {self.api_code}).'))
 
 
 def fetch_liquidation_map(page, symbol, range_days=90, request_limit=1440):

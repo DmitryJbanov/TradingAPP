@@ -27,6 +27,11 @@ import type { OrderBlockOverlay } from "../hooks/use-order-blocks";
 import { OrderBlocksRenderer } from "../indicators/order-blocks-renderer";
 import { PriceOverlaysRenderer } from "../indicators/price-overlays-renderer";
 import type { PriceOverlay } from "../hooks/use-overlays";
+import type { StochRsiPane } from "../hooks/use-stoch-rsi";
+import {
+  StochRsiRenderer,
+  type StochRsiChartData,
+} from "../indicators/stoch-rsi-renderer";
 import type {
   CustomSeriesOptions,
   Time,
@@ -60,6 +65,7 @@ export function MarketChart({
   timeframe,
   resetKey,
   vmcPanes,
+  stochRsiPanes = [],
   orderBlocks,
   priceOverlays,
   historyCount,
@@ -72,6 +78,7 @@ export function MarketChart({
   timeframe: Timeframe;
   resetKey: number;
   vmcPanes: VmcPane[];
+  stochRsiPanes?: StochRsiPane[];
   orderBlocks: OrderBlockOverlay[];
   priceOverlays: PriceOverlay[];
   historyCount: number;
@@ -88,6 +95,20 @@ export function MarketChart({
   const vmcSeries = useRef(
     new Map<string, { series: VmcSeries; renderer: VmcRenderer }>(),
   );
+  const stochSeries = useRef(
+    new Map<
+      string,
+      ISeriesApi<
+        "Custom",
+        Time,
+        StochRsiChartData | WhitespaceData<Time>,
+        CustomSeriesOptions
+      >
+    >(),
+  );
+  const [stochCursor, setStochCursor] = useState<
+    Record<string, StochRsiChartData["point"]>
+  >({});
   const orderBlocksRenderer = useRef<OrderBlocksRenderer | null>(null);
   const priceOverlaysRenderer = useRef<PriceOverlaysRenderer | null>(null);
   const fitted = useRef("");
@@ -193,6 +214,13 @@ export function MarketChart({
         if (d && "point" in d) values[id] = (d as VmcChartData).point;
       });
       setIndicatorCursor(values);
+      const stochValues: Record<string, StochRsiChartData["point"]> = {};
+      stochSeries.current.forEach((s, id) => {
+        const data = p.seriesData.get(s);
+        if (data && "point" in data)
+          stochValues[id] = (data as StochRsiChartData).point;
+      });
+      setStochCursor(stochValues);
       if (!p.point || !p.time || p.point.x < 0 || p.point.y < 0) {
         setCursor(null);
         setOhlc(null);
@@ -217,6 +245,7 @@ export function MarketChart({
     return () => {
       drawingContext.disposed = true;
       vmcSeries.current.clear();
+      stochSeries.current.clear();
       s.detachPrimitive(obRenderer);
       s.detachPrimitive(overlaysRenderer);
       priceOverlaysRenderer.current = null;
@@ -351,6 +380,37 @@ export function MarketChart({
     if (!hadPanes && vmcPanes.length) c.panes()[0]?.setStretchFactor(2.5);
   }, [vmcPanes, palette]);
   useEffect(() => {
+    const c = chart.current;
+    if (!c) return;
+    const ids = new Set(stochRsiPanes.map((p) => p.id));
+    for (const [id, s] of stochSeries.current) {
+      if (!ids.has(id)) {
+        c.removeSeries(s);
+        stochSeries.current.delete(id);
+      }
+    }
+    stochRsiPanes.forEach((pane, index) => {
+      let s = stochSeries.current.get(pane.id);
+      if (!s) {
+        s = c.addCustomSeries(new StochRsiRenderer(), {}, c.panes().length);
+        stochSeries.current.set(pane.id, s);
+        s.priceScale().applyOptions({
+          scaleMargins: { top: 0.08, bottom: 0.08 },
+        });
+        s.getPane().setStretchFactor(1);
+      }
+      const paneIndex = vmcPanes.length + index + 1;
+      if (s.getPane().paneIndex() !== paneIndex) s.getPane().moveTo(paneIndex);
+      s.setData(
+        pane.points.map((point) => ({
+          time: point.time as UTCTimestamp,
+          point,
+        })),
+      );
+    });
+    if (stochRsiPanes.length) c.panes()[0]?.setStretchFactor(2.5);
+  }, [stochRsiPanes, vmcPanes]);
+  useEffect(() => {
     const s = series.current;
     if (!s) return;
     const lines = coinglass.flatMap((overlay) =>
@@ -366,7 +426,7 @@ export function MarketChart({
             lineWidth: overlay.params.lineWidth as LineWidth,
             lineStyle: LineStyle.Dashed,
             axisLabelVisible: overlay.params.showLabels,
-            title: overlay.params.showLabels ? `CG 90d #${index + 1}` : "",
+            title: overlay.params.showLabels ? `CG #${index + 1}` : "",
           }),
         ),
     );
@@ -428,7 +488,9 @@ export function MarketChart({
         className="chart-container"
         style={{
           background: palette.background,
-          ...(vmcPanes.length ? { height: 560 + vmcPanes.length * 230 } : {}),
+          ...(vmcPanes.length + stochRsiPanes.length
+            ? { height: 560 + (vmcPanes.length + stochRsiPanes.length) * 230 }
+            : {}),
         }}
       >
         <div className="chart-ohlc" style={{ color: palette.text }}>
@@ -495,6 +557,24 @@ export function MarketChart({
           Charts by TradingView
         </a>
       </div>
+      {stochRsiPanes.length > 0 && (
+        <div className="vmc-readouts">
+          {stochRsiPanes.map((pane, index) => {
+            const point = stochCursor[pane.id] ?? pane.points.at(-1);
+            return (
+              <div key={pane.id}>
+                <b>Stoch RSI #{index + 1}</b>
+                <span style={{ color: "#2962FF" }}>
+                  K <strong>{point?.k?.toFixed(2) ?? "—"}</strong>
+                </span>
+                <span style={{ color: "#FF6D00" }}>
+                  D <strong>{point?.d?.toFixed(2) ?? "—"}</strong>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {vmcPanes.length > 0 && (
         <div className="vmc-readouts">
           {vmcPanes.map((pane, index) => {

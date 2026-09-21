@@ -375,10 +375,10 @@ def select_symbol(page, card, symbol):
     wait_for_tooltips(page, chart, previous)
 
 
-def open_frontend_map(page, navigation=None):
+def open_frontend_map(page, navigation=None, *, force_reload=False):
     # The persistent page already has the client needed for every symbol/period.
     # Avoid a hard reload: CoinGlass can reject deep links while its router works.
-    if safe_path(page.url) in MAP_PATHS and page.evaluate(READY_JS) is True:
+    if not force_reload and safe_path(page.url) in MAP_PATHS and page.evaluate(READY_JS) is True:
         if navigation is not None:
             navigation.append(dict(method='reuse_frontend', path=safe_path(page.url), http_status=None))
         return None
@@ -420,6 +420,16 @@ def collect_symbol(args, run, page, context, symbol):
         stage = 'frontend_request'
         if getattr(args, 'progress', None): args.progress(35, f'Получение и декодирование карты за {range_days} дн.')
         raw = fetch_liquidation_map(page, symbol, range_days, request_limit)
+        if isinstance(raw, dict) and str(raw.get('code')) == '40001':
+            # Refresh a potentially stale frontend once, retaining the account/session.
+            if getattr(args, 'progress', None): args.progress(35, 'CoinGlass вернул 40001; обновление страницы и повтор запроса')
+            stage = 'map_navigation'
+            response = open_frontend_map(page, navigation, force_reload=True)
+            status = response.status if response is not None else None
+            if status is not None and status >= 400:
+                raise MapNavigationError(f'Страница карты вернула HTTP {status}; сбор остановлен.')
+            stage = 'frontend_request'
+            raw = fetch_liquidation_map(page, symbol, range_days, request_limit)
         stage = 'response_validation'
         try:
             parsed = parse_liquidation_map(raw, symbol)

@@ -31,7 +31,13 @@ Binance; настройки хранятся под прежними ключа�
 и сохранение иконок. Для конкретной интеграции читайте соответствующий документ
 в `docs/`, а не все документы сразу.
 
-Оставшиеся задачи: Fixed Range Volume Profile, Stochastic RSI,
+Stochastic RSI: `src/indicators/stoch-rsi.ts`, `stoch-rsi-renderer.ts`,
+`src/hooks/use-stoch-rsi.ts`, `src/components/stoch-rsi-settings-dialog.tsx`.
+Отдельная панель с K/D и уровнями 20/50/80; параметры по умолчанию 3/3/14/14.
+Открытый график запрашивает две последние свечи каждые 2 секунды; их серверный
+кеш — 2 секунды. Полная история загружается отдельно.
+
+Оставшиеся задачи: Fixed Range Volume Profile,
 реальные логотипы активов. Они не входят в выполненные 15 пунктов версии 0.1.3.
 
 CoinGlass Liquidation Map: `services/coinglass/frontend_api.py` вызывает функцию

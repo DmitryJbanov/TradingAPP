@@ -122,10 +122,15 @@ export function CoinglassCandles({
       host.current,
       chart.current,
       series.current,
-      params.showLabels ? report.result.levels.map((l) => l.price) : [],
+      [
+        ...(params.showLabels ? report.result.levels.map((l) => l.price) : []),
+        ...(baseline?.result.levels
+          .filter((l) => !report.result.levels.some((v) => v.price === l.price))
+          .map((l) => l.price) ?? []),
+      ],
       setCopyStatus,
     );
-  }, [report, params.showLabels, palette]);
+  }, [report, baseline, params.showLabels, palette]);
   return (
     <>
       {copyStatus && <p role="status">{copyStatus}</p>}

@@ -119,6 +119,33 @@ class FrontendTests(unittest.TestCase):
         self.assertIn('credentials.txt', str(error))
         self.assertNotIn('secret_value', str(error))
 
+    def test_40001_refreshes_once_without_changing_request_or_logging_in(self):
+        for second in (response(), {'code': '40001', 'success': False}):
+            with tempfile.TemporaryDirectory() as folder, \
+                    patch('frontend_api.fetch_liquidation_map', side_effect=[{'code': '40001'}, second]) as fetch, \
+                    patch('collector.open_frontend_map', return_value=None) as navigate, \
+                    patch('collector.authenticate') as login, patch('collector.save_session'), \
+                    patch('collector.save_page_diagnostics'):
+                args = SimpleNamespace(price=None, session=None, min_relative='0.5',
+                                       min_prominence='0.35', side='both', limit=5,
+                                       range_days=30, request_limit=720)
+                page, context = MagicMock(), MagicMock()
+                if second.get('code') == '40001':
+                    with self.assertRaises(CollectionError) as caught:
+                        collect_symbol(args, Path(folder), page, context, 'BTC')
+                    self.assertEqual(caught.exception.code, 'coinglass_api_40001')
+                    self.assertIn('Причина не указана', str(caught.exception))
+                    self.assertFalse((Path(folder)/'observations.json').exists())
+                else:
+                    collect_symbol(args, Path(folder), page, context, 'BTC')
+                    self.assertTrue((Path(folder)/'observations.json').exists())
+                self.assertEqual(fetch.call_count, 2)
+                fetch.assert_called_with(page, 'BTC', 30, 720)
+                self.assertEqual(navigate.call_count, 2)
+                self.assertTrue(navigate.call_args.kwargs['force_reload'])
+                login.assert_not_called()
+                context.close.assert_not_called()
+
     def test_login_retries_once_and_preserves_browser(self):
         rejected = {'code': '40000', 'success': False}
         for second in (response(), rejected):

@@ -266,7 +266,7 @@ export async function candles(
   const item = await resolveInstrument(symbol, config.DATA_MODE === "demo");
   return cached(
     `candles:${symbol}:${tf}:${count}:${config.DATA_MODE}:${!!config.TWELVE_DATA_API_KEY}`,
-    15000,
+    count === 2 ? 2000 : 15000,
     force,
     async () => {
       const asOf = new Date().toISOString();

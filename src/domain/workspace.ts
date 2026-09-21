@@ -9,6 +9,7 @@ import { computeSmc } from "../indicators/smc";
 import type { DrzParams } from "../indicators/drz-settings";
 import type { SmcParams } from "../indicators/smc-settings";
 import type { Candle, Timeframe } from "./market";
+import { computeStochRsi, type StochRsiParams } from "../indicators/stoch-rsi";
 /** Serializable workspace document: each future pane owns its series and drawings. */
 export interface IndicatorInstance {
   id: string;
@@ -19,6 +20,7 @@ export interface IndicatorInstance {
   color: string;
   paneId: string;
   params?:
+    | Partial<StochRsiParams>
     | Partial<VmcParams>
     | Partial<OrderBlockParams>
     | Partial<DrzParams>
@@ -55,6 +57,14 @@ export interface IndicatorDefinition {
   compute?: (bars: Candle[], params: Record<string, unknown>) => unknown;
 }
 export const indicatorRegistry: IndicatorDefinition[] = [
+  {
+    id: "stoch-rsi",
+    name: "Stochastic RSI · Stoch RSI",
+    description:
+      "Отдельная панель: K / D, RSI 14, Stochastic 14, сглаживание 3 / 3 и уровни 20 / 50 / 80.",
+    implemented: true,
+    compute: computeStochRsi,
+  },
   {
     id: "coinglass-heatmap",
     name: "CoinGlass Heatmap · Model 3",

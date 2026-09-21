@@ -1,5 +1,6 @@
 import { resolveInstrument, SymbolError } from "./symbol-service";
 import { coinglassParams, calculationParams } from "../domain/coinglass";
+import { isHeatmapRange } from "../domain/heatmap";
 export interface CoinglassConfig {
   COINGLASS_SERVICE_URL?: string;
   COINGLASS_TOKEN?: string;
@@ -110,6 +111,9 @@ export async function handleCoinglass(
         throw new SymbolError("Не указан symbol", 400);
       const asset = await coinglassAsset(body.symbol, config);
       const normalized = calculationParams(coinglassParams(body.params));
+      const heatmapRange = body.params?.range ?? "365d";
+      if (heatmap && !isHeatmapRange(heatmapRange))
+        throw new SymbolError("Некорректный период карты", 400);
       if (
         !heatmap &&
         (!body.params ||
@@ -137,7 +141,7 @@ export async function handleCoinglass(
           config,
           {
             asset,
-            params: normalized,
+            params: heatmap ? { range: heatmapRange } : normalized,
             ...(isPreview ? { snapshotId: body.snapshotId } : {}),
           },
         ),

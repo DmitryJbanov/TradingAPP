@@ -79,11 +79,6 @@ export function CoinglassPanel({
           Повторить расчёт
         </button>
       )}
-      {state.snapshotId && job?.result?.snapshotId !== state.snapshotId && (
-        <p>
-          Выбран закреплённый снимок. Новую карту можно выбрать в настройках.
-        </p>
-      )}
       {job && (
         <progress
           aria-label="Прогресс парсинга"
@@ -98,7 +93,7 @@ export function CoinglassPanel({
           USD/USDT/USDC.
         </p>
       )}
-      {job?.state === "error" && result && (
+      {(job?.state === "error" || state.error) && result && (
         <p className="warning">
           Обновление не удалось. На графике остаётся предыдущий снимок.
         </p>

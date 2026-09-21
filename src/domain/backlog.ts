@@ -12,12 +12,6 @@ export const backlog: readonly {
   },
 
   {
-    id: "stochastic-rsi",
-    title: "Добавление индикатора Stochastic RSI",
-    description:
-      "Реализовать технический индикатор Stochastic RSI с основными настраиваемыми параметрами периода, сглаживания и уровней перекупленности и перепроданности.",
-  },
-  {
     id: "trading-pair-icons",
     title: "Добавление полноценных иконок торговых пар",
     description:

@@ -26,19 +26,12 @@ class Messages:
 
 
 def run(request, runtime=None):
-    from playwright.sync_api import sync_playwright
     data = Path(os.environ.get('COINGLASS_DATA_DIR', './coinglass-data')).resolve()
     heatmap = request.get('type') == 'heatmap'
     folder = (data / 'heatmap' if heatmap else data) / 'runs' / request['id']
     folder.mkdir(parents=True, exist_ok=True)
-    p = request['params']
-    args = SimpleNamespace(headless=True, price=None,
-        credentials=Path(os.environ.get('COINGLASS_CREDENTIALS', str(data / 'credentials.txt'))),
-        range_days=p.get('rangeDays', 90), request_limit=p.get('requestLimit', 1440),
-        session=data / 'session.json', hover_ms=p['hoverMs'], min_relative=str(p['minRelative']),
-        min_prominence=str(p['minProminence']), side=p['side'], limit=p['limit'],
-        progress=lambda percent, message: emit('progress', progress=percent, message=message))
     if runtime is None:
+        from playwright.sync_api import sync_playwright
         with sync_playwright() as pw:
             owned = BrowserRuntime(pw, data)
             try:
@@ -52,6 +45,13 @@ def run(request, runtime=None):
         result, snapshot = run_heatmap(request, runtime, folder)
         emit('result', result=result, snapshot=snapshot)
         return
+    p = request['params']
+    args = SimpleNamespace(headless=True, price=None,
+        credentials=Path(os.environ.get('COINGLASS_CREDENTIALS', str(data / 'credentials.txt'))),
+        range_days=p.get('rangeDays', 90), request_limit=p.get('requestLimit', 1440),
+        session=data / 'session.json', hover_ms=p['hoverMs'], min_relative=str(p['minRelative']),
+        min_prominence=str(p['minProminence']), side=p['side'], limit=p['limit'],
+        progress=lambda percent, message: emit('progress', progress=percent, message=message))
     with contextlib.redirect_stdout(Messages()):
         current, peaks = collect_symbol(args, folder, page, context, request['asset'])
     from selection import preview
@@ -94,7 +94,9 @@ class BrowserRuntime:
 
 
 def report_error(exc):
-    if isinstance(exc, (LoginError, BrowserStartError, CollectionError)):
+    from heatmap_worker import SubscriptionRequired, HeatmapApiError
+    from map_navigation import MapNavigationError
+    if isinstance(exc, (LoginError, BrowserStartError, CollectionError, SubscriptionRequired, HeatmapApiError, MapNavigationError)):
         emit('error', message=str(exc))
     elif isinstance(exc, UnsupportedSymbol):
         emit('error', message='Этот актив не поддерживается картой CoinGlass')

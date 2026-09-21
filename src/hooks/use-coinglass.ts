@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCoinglassPreview } from "./use-coinglass-preview";
 import { useResource } from "./use-resource";
 import type { IndicatorInstance } from "../domain/workspace";
@@ -8,6 +8,7 @@ import {
   coinglassParams,
   type CoinglassJob,
   type CoinglassOverlay,
+  type CoinglassResult,
 } from "../domain/coinglass";
 import type { Timeframe } from "../domain/market";
 export function useCoinglass(
@@ -49,7 +50,7 @@ export function useCoinglass(
   const job = resource.data?.job;
   const settings = coinglassParams(instances[0]?.params);
   const snapshotId = job?.asset
-    ? (settings.snapshotIds?.[job.asset] ?? job.result?.snapshotId)
+    ? (job.result?.snapshotId ?? settings.snapshotIds?.[job.asset])
     : undefined;
   const preview = useCoinglassPreview(
     symbol,
@@ -57,8 +58,19 @@ export function useCoinglass(
     settings,
     instances.length > 0,
   );
-  // Older installations keep their legacy levels until a full snapshot is collected.
-  const result = snapshotId ? preview.data?.result : job?.result;
+  const [lastResult, setLastResult] = useState<{
+    symbol: string;
+    result: CoinglassResult;
+  }>();
+  const freshResult = preview.data?.result;
+  useEffect(() => {
+    if (freshResult) setLastResult({ symbol, result: freshResult });
+  }, [symbol, freshResult]);
+  // Keep the displayed map until its replacement has loaded and recalculated.
+  const result =
+    freshResult ??
+    (lastResult?.symbol === symbol ? lastResult.result : undefined) ??
+    job?.result;
   const overlays: CoinglassOverlay[] = result
     ? instances
         .filter(

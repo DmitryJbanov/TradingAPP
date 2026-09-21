@@ -1,6 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { compact, priceFormat } from "../domain/market";
+import { copyCoinglassPrice } from "./coinglass-price-copy";
 import {
   selectionReasons,
   type CoinglassParams,
@@ -24,6 +25,7 @@ export function CoinglassMap({
   baseline?: CoinglassPreview;
 }) {
   const [focus, setFocus] = useState<number>();
+  const [copyStatus, setCopyStatus] = useState("");
   const [all, setAll] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [center, setCenter] = useState(50);
@@ -47,6 +49,7 @@ export function CoinglassMap({
       : p.reasons.map((r) => selectionReasons[r] ?? r).join("; ");
   return (
     <section className="cg-map">
+      {copyStatus && <p role="status">{copyStatus}</p>}
       <div className="cg-legend">
         {Object.entries(exchangeColors).map(([name, color]) => (
           <span key={name}>
@@ -379,7 +382,15 @@ export function CoinglassMap({
               .map((p) => (
                 <tr key={p.price} data-selected={p.selected}>
                   <td>
-                    <button type="button" onClick={() => setFocus(p.price)}>
+                    <button
+                      type="button"
+                      title="Скопировать цену уровня"
+                      aria-label={`Скопировать цену уровня ${p.price}`}
+                      onClick={() => {
+                        setFocus(p.price);
+                        void copyCoinglassPrice(p.price, setCopyStatus);
+                      }}
+                    >
                       {priceFormat(p.price)}
                     </button>
                   </td>

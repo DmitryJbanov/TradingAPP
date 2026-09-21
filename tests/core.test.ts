@@ -1,6 +1,7 @@
 import "./coinglass.test";
 import "./heatmap.test";
 import "./interface.test";
+import "./stoch-rsi.test";
 import "./drawings.test";
 import "./symbol-search.test";
 import "./shared-indicators.test";

@@ -97,7 +97,7 @@ class Manager:
 
     def submit(self, asset, settings):
         if not isinstance(asset,str) or not re.fullmatch(r'[A-Z0-9]{1,20}',asset): raise ValueError('Неверный актив')
-        settings=params(settings)
+        settings=self.normalize_params(settings)
         with self.lock:
             old=self.jobs.get(asset,{})
             if old.get('state') in ('queued','running'): return old,False
@@ -110,6 +110,9 @@ class Manager:
     def update(self,job,**changes):
         with self.lock:
             job.update(**changes,updatedAt=now()); self.save(job)
+
+    def normalize_params(self, settings):
+        return params(settings)
 
     def request_browser(self):
         self.browser_requested.set()
@@ -133,7 +136,7 @@ class Manager:
         self.update(job,state='running',progress=1,message=(
             'Получение данных через открытый браузер' if self.worker.is_running()
             else 'Запуск фонового браузера'))
-        label = 'Heatmap Model 3 · 365d' if self.kind == 'heatmap' else f"карты за {job['params']['rangeDays']} дн."
+        label = f"Heatmap Model 3 · {job['params'].get('range', '365d')}" if self.kind == 'heatmap' else f"карты за {job['params']['rangeDays']} дн."
         self.event('INFO', f"{job['asset']}: запуск парсинга {label}")
         self.request_browser()
         result = snapshot = failure = None
@@ -177,6 +180,12 @@ class HeatmapManager(Manager):
     def __init__(self, directory, owner, timeout=180):
         super().__init__(directory, timeout=timeout, start_worker=False, owner=owner)
         self.kind = 'heatmap'
+
+    def normalize_params(self, settings):
+        from heatmap_worker import validate_range
+        if not isinstance(settings, dict):
+            raise ValueError('Неверные настройки')
+        return dict(range=validate_range(settings.get('range', '365d')))
 
 
 class Handler(BaseHTTPRequestHandler):

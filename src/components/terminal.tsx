@@ -90,8 +90,12 @@ import { useOverlays } from "../hooks/use-overlays";
 import { OverlaySettingsDialog } from "./overlay-settings-dialog";
 import { drzDefaults } from "../indicators/drz-settings";
 import { smcDefaults } from "../indicators/smc-settings";
+import { useStochRsi } from "../hooks/use-stoch-rsi";
+import { stochRsiDefaults } from "../indicators/stoch-rsi";
+import { StochRsiSettingsDialog } from "./stoch-rsi-settings-dialog";
 const hasIndicatorSettings = (id: string) =>
   [
+    "stoch-rsi",
     "vmc",
     "sonarlab-ob",
     "drz",
@@ -963,7 +967,7 @@ function PairWorkspace({
       encodeURIComponent(symbol) +
       "&interval=" +
       tf,
-    30000,
+    2000,
   );
   const [candleState, setCandleState] = useState<{
     base: CandleResponse | undefined;
@@ -1012,6 +1016,7 @@ function PairWorkspace({
     historyCount,
   );
   const orderBlocks = useOrderBlocks(tf, candleData, indicators);
+  const stochRsi = useStochRsi(tf, candleData, indicators);
   const overlays = useOverlays(
     symbol,
     tf,
@@ -1196,6 +1201,7 @@ function PairWorkspace({
               palette={palette}
               resetKey={reset}
               vmcPanes={vmc.panes}
+              stochRsiPanes={stochRsi}
               orderBlocks={orderBlocks}
               priceOverlays={overlays.overlays}
               historyCount={historyCount}
@@ -1221,6 +1227,13 @@ function PairWorkspace({
           />
           <HeatmapPanel
             state={heatmap}
+            onChange={(params) =>
+              changeIndicators(
+                indicators.map((i) =>
+                  i.id === heatmap.instance?.id ? { ...i, params } : i,
+                ),
+              )
+            }
             openSettings={() =>
               heatmap.instance && openIndicatorSettings(heatmap.instance.id)
             }
@@ -1397,26 +1410,32 @@ function PairWorkspace({
                           enabled: true,
                           period: d.id === "vmc" ? 9 : 20,
                           color:
-                            d.id === "sonarlab-ob"
-                              ? orderBlockDefaults.col_bullish
-                              : "#99a5ff",
-                          paneId: d.id === "vmc" ? "oscillator" : "main",
-                          ...(d.id === "vmc"
-                            ? {
-                                params: { ...vmcDefaults },
-                                style: { ...vmcStyleDefaults },
-                              }
-                            : d.id === "sonarlab-ob"
-                              ? { params: { ...orderBlockDefaults } }
-                              : d.id === "drz"
-                                ? { params: { ...drzDefaults } }
-                                : d.id === "smc"
-                                  ? { params: { ...smcDefaults } }
-                                  : d.id === "coinglass"
-                                    ? { params: { ...coinglassDefaults } }
-                                    : d.id === "coinglass-heatmap"
-                                      ? { params: { ...heatmapDefaults } }
-                                      : {}),
+                            d.id === "stoch-rsi"
+                              ? "#2962FF"
+                              : d.id === "sonarlab-ob"
+                                ? orderBlockDefaults.col_bullish
+                                : "#99a5ff",
+                          paneId: ["vmc", "stoch-rsi"].includes(d.id)
+                            ? "oscillator"
+                            : "main",
+                          ...(d.id === "stoch-rsi"
+                            ? { params: { ...stochRsiDefaults } }
+                            : d.id === "vmc"
+                              ? {
+                                  params: { ...vmcDefaults },
+                                  style: { ...vmcStyleDefaults },
+                                }
+                              : d.id === "sonarlab-ob"
+                                ? { params: { ...orderBlockDefaults } }
+                                : d.id === "drz"
+                                  ? { params: { ...drzDefaults } }
+                                  : d.id === "smc"
+                                    ? { params: { ...smcDefaults } }
+                                    : d.id === "coinglass"
+                                      ? { params: { ...coinglassDefaults } }
+                                      : d.id === "coinglass-heatmap"
+                                        ? { params: { ...heatmapDefaults } }
+                                        : {}),
                         },
                       ])
                     }
@@ -1499,7 +1518,7 @@ function PairWorkspace({
                       Настройки
                     </button>
                     <span className="muted">
-                      {i.definitionId === "vmc"
+                      {["vmc", "stoch-rsi"].includes(i.definitionId)
                         ? "Отдельная панель"
                         : "На ценовом графике"}{" "}
                       · расчёт подключён
@@ -1599,6 +1618,18 @@ function PairWorkspace({
           palette={palette}
           timeframe={tf}
           candleSource={candleData?.source}
+          instance={editingIndicator}
+          onClose={() => setSettingsId(null)}
+          onApply={(next) =>
+            changeIndicators(
+              indicators.map((i) => (i.id === next.id ? next : i)),
+            )
+          }
+        />
+      )}
+      {editingIndicator?.definitionId === "stoch-rsi" && (
+        <StochRsiSettingsDialog
+          key={editingIndicator.id}
           instance={editingIndicator}
           onClose={() => setSettingsId(null)}
           onApply={(next) =>

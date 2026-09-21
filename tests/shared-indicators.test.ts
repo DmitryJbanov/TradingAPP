@@ -49,6 +49,7 @@ test("only rendered and calculated indicators remain in the catalog", () => {
     "drz",
     "smc",
     "sonarlab-ob",
+    "stoch-rsi",
     "vmc",
   ]);
   assert.ok(

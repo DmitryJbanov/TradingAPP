@@ -47,12 +47,11 @@ export function CoinglassSettingsDialog({
 }) {
   const [params, setParams] = useState(() => coinglassParams(instance.params));
   const [saved] = useState(() => coinglassParams(instance.params));
-  const [snapshotId, setSnapshotId] = useState(state.snapshotId);
+  const snapshotId = state.snapshotId;
   const [compare, setCompare] = useState(false);
   const [candles, setCandles] = useState(true);
   const [tab, setTab] = useState("map");
   const [error, setError] = useState("");
-  const latestId = state.job?.result?.snapshotId;
   const now = useSnapshotClock();
   const source = useResource<{ snapshot: CoinglassSnapshot }>(
     `/api/coinglass/snapshot?symbol=${encodeURIComponent(symbol)}&snapshotId=${snapshotId ?? ""}`,
@@ -179,13 +178,7 @@ export function CoinglassSettingsDialog({
     }
     onApply({
       ...instance,
-      params: {
-        ...normalized,
-        snapshotIds: {
-          ...normalized.snapshotIds,
-          [snapshot.asset]: snapshot.snapshotId,
-        },
-      },
+      params: { ...normalized, snapshotIds: {} },
       color: normalized.aboveColor,
     });
     onClose();
@@ -228,14 +221,6 @@ export function CoinglassSettingsDialog({
                 по этим сохранённым данным.
               </p>
             )}
-          {latestId && latestId !== snapshotId && (
-            <button className="button" onClick={() => setSnapshotId(latestId)}>
-              {snapshotId
-                ? "Перейти на новый снимок от"
-                : "Открыть собранную карту от"}{" "}
-              {new Date(state.job!.result!.collectedAt).toLocaleString("ru-RU")}
-            </button>
-          )}
           <button
             className="button"
             disabled={working || !valid}

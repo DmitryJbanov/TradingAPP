@@ -78,7 +78,7 @@ export function useHeatmap(
       const response = await fetch("/api/coinglass/heatmap-run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol }),
+        body: JSON.stringify({ symbol, params: { range: settings.range } }),
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw Error(body.error || "Ошибка сбора карты");
