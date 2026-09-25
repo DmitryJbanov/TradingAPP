@@ -3,23 +3,23 @@
 Приложение React 19 / TypeScript. Два способа запуска используют один UI:
 Next/Vinext (`app/`) и переносимый Vite + Node (`standalone/`). Версия 0.1.3.
 
-| Задача | Начать здесь | Следующий файл при необходимости |
-| --- | --- | --- |
-| Главная, таблица, избранное, настройки тем | `src/components/terminal.tsx`: Terminal | `app/globals.css` |
-| Страница пары, менеджер индикаторов | тот же файл: PairWorkspace | `src/domain/workspace.ts` |
-| Поиск всех пар Binance | `src/components/symbol-search.tsx` | `src/server/symbol-service.ts` |
-| Темы, отступы, адаптивность | `app/globals.css` | выбор темы в Terminal |
-| График, метка дельты, уровни | `src/components/chart.tsx` | `coinglass-price-copy.ts`, `drawing-tools.tsx` |
-| Иконки индикаторов | `src/components/indicator-icon.tsx` | `IndicatorInstance.icon`, менеджер в PairWorkspace |
-| Общие сохранённые индикаторы | `src/hooks/use-shared-indicators.ts` | `src/domain/shared-indicators.ts` |
-| CoinGlass: UI | `src/components/coinglass-settings-dialog.tsx` | `coinglass-map.tsx`, `coinglass-candles.tsx` |
-| CoinGlass: данные | `src/hooks/use-coinglass.ts` | `src/server/coinglass-service.ts`, `src/domain/coinglass.ts` |
-| CoinGlass Heatmap Model 3 | `docs/COINGLASS_HEATMAP.md`, `src/components/heatmap.tsx` | `src/domain/heatmap.ts`, `src/hooks/use-heatmap.ts`, `coinglass_heatmap/collector.py` |
-| Расчёты индикаторов | `src/indicators/` (имя индикатора) | соответствующий хук в `src/hooks/` |
-| Свечи и котировки | `src/server/market-service.ts` | `binance-history.ts`, `src/domain/market.ts` |
-| Торговые сессии обеих страниц | `src/components/sessions.tsx` | тесты сессий в `tests/core.test.ts` |
-| Беклог главной и /backlog | `src/domain/backlog.ts` | `src/components/backlog-page.tsx` |
-| Сборка и HTTP smoke | `standalone/build.mjs`, `tests/smoke.mjs` | `standalone/server.ts` |
+| Задача                                     | Начать здесь                                                       | Следующий файл при необходимости                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| Главная, таблица, избранное, настройки тем | `src/components/terminal.tsx`: Terminal                            | `app/globals.css`                                                                     |
+| Страница пары, менеджер индикаторов        | тот же файл: PairWorkspace                                         | `src/domain/workspace.ts`                                                             |
+| Поиск всех пар Binance                     | `src/components/symbol-search.tsx`                                 | `src/server/symbol-service.ts`                                                        |
+| Темы, отступы, адаптивность                | `app/globals.css`                                                  | выбор темы в Terminal                                                                 |
+| График, метка дельты, уровни               | `src/components/chart.tsx`                                         | `coinglass-price-copy.ts`, `drawing-tools.tsx`                                        |
+| Иконки активов и индикаторов               | `src/components/terminal.tsx`, `src/components/indicator-icon.tsx` | `IndicatorInstance.icon`, менеджер в PairWorkspace                                    |
+| Общие сохранённые индикаторы               | `src/hooks/use-shared-indicators.ts`                               | `src/domain/shared-indicators.ts`                                                     |
+| CoinGlass: UI                              | `src/components/coinglass-settings-dialog.tsx`                     | `coinglass-map.tsx`, `coinglass-candles.tsx`                                          |
+| CoinGlass: данные                          | `src/hooks/use-coinglass.ts`                                       | `src/server/coinglass-service.ts`, `src/domain/coinglass.ts`                          |
+| CoinGlass Heatmap Model 3                  | `docs/COINGLASS_HEATMAP.md`, `src/components/heatmap.tsx`          | `src/domain/heatmap.ts`, `src/hooks/use-heatmap.ts`, `coinglass_heatmap/collector.py` |
+| Расчёты индикаторов                        | `src/indicators/` (имя индикатора)                                 | соответствующий хук в `src/hooks/` (MTM: `use-mtm.ts`)                                |
+| Свечи и котировки                          | `src/server/market-service.ts`                                     | `binance-history.ts`, `src/domain/market.ts`                                          |
+| Торговые сессии обеих страниц              | `src/components/sessions.tsx`                                      | тесты сессий в `tests/core.test.ts`                                                   |
+| Беклог главной и /backlog                  | `src/domain/backlog.ts`                                            | `src/components/backlog-page.tsx`                                                     |
+| Сборка и HTTP smoke                        | `standalone/build.mjs`, `tests/smoke.mjs`                          | `standalone/server.ts`                                                                |
 
 Особенности: один поисковый запрос фильтрует локальный список и вызывает поиск
 Binance; настройки хранятся под прежними ключами `vector.*`; палитра свечного
@@ -37,8 +37,9 @@ Stochastic RSI: `src/indicators/stoch-rsi.ts`, `stoch-rsi-renderer.ts`,
 Открытый график запрашивает две последние свечи каждые 2 секунды; их серверный
 кеш — 2 секунды. Полная история загружается отдельно.
 
-Оставшиеся задачи: Fixed Range Volume Profile,
-реальные логотипы активов. Они не входят в выполненные 15 пунктов версии 0.1.3.
+Fixed Range Volume Profile находится в инструментах рисования; он хранится рядом
+с пользовательской разметкой. Логотипы криптоактивов загружаются из CoinCap.
+MTM рисуется отдельной панелью по формуле close − close[N] и средней этого ряда.
 
 CoinGlass Liquidation Map: `services/coinglass/frontend_api.py` вызывает функцию
 клиента CoinGlass `bvP` в браузерной сессии; `collector.py` проверяет ответ и

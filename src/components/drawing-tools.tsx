@@ -128,6 +128,16 @@ export function DrawingTools({
       tool,
       color,
       points: [p],
+      ...(tool === "volume-profile"
+        ? {
+            profile: {
+              rows: 150,
+              valueArea: 70,
+              showPoc: true,
+              showValueArea: true,
+            },
+          }
+        : {}),
     };
     setDraft(active.current);
   }
@@ -204,12 +214,9 @@ export function DrawingTools({
           Отменить добавление
         </button>
       </div>
-      <p>
-        {tool === "navigate"
-          ? "Выберите инструмент для разметки графика."
-          : "Нажмите и перетащите в области свечей. Esc — отмена и возврат к навигации."}{" "}
-        Сохранение: {symbol}, {timeframe}.
-      </p>
+      {tool !== "navigate" && (
+        <p>Перетащите инструмент по графику · Esc — отмена.</p>
+      )}
       {storageError && <p role="status">{storageError}</p>}
       {drawings.length >= 200 && (
         <p role="status">Достигнут лимит 200 объектов. Удалите ненужные.</p>
@@ -243,6 +250,126 @@ export function DrawingTools({
               >
                 Удалить
               </button>
+              {d.tool === "volume-profile" && (
+                <details>
+                  <summary>Настройки профиля</summary>
+                  <label>
+                    Количество строк
+                    <input
+                      type="number"
+                      min="10"
+                      max="200"
+                      value={d.profile?.rows ?? 150}
+                      onChange={(e) =>
+                        setDrawings((prev) =>
+                          prev.map((x) =>
+                            x.id === d.id
+                              ? {
+                                  ...x,
+                                  profile: {
+                                    rows: Math.max(
+                                      10,
+                                      Math.min(
+                                        200,
+                                        Number(e.target.value) || 10,
+                                      ),
+                                    ),
+                                    valueArea: x.profile?.valueArea ?? 70,
+                                    showPoc: x.profile?.showPoc ?? true,
+                                    showValueArea:
+                                      x.profile?.showValueArea ?? true,
+                                  },
+                                }
+                              : x,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    Объём области стоимости, %
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={d.profile?.valueArea ?? 70}
+                      onChange={(e) =>
+                        setDrawings((prev) =>
+                          prev.map((x) =>
+                            x.id === d.id
+                              ? {
+                                  ...x,
+                                  profile: {
+                                    rows: x.profile?.rows ?? 150,
+                                    valueArea: Math.max(
+                                      1,
+                                      Math.min(
+                                        100,
+                                        Number(e.target.value) || 1,
+                                      ),
+                                    ),
+                                    showPoc: x.profile?.showPoc ?? true,
+                                    showValueArea:
+                                      x.profile?.showValueArea ?? true,
+                                  },
+                                }
+                              : x,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={d.profile?.showPoc ?? true}
+                      onChange={(e) =>
+                        setDrawings((prev) =>
+                          prev.map((x) =>
+                            x.id === d.id
+                              ? {
+                                  ...x,
+                                  profile: {
+                                    rows: x.profile?.rows ?? 150,
+                                    valueArea: x.profile?.valueArea ?? 70,
+                                    showPoc: e.target.checked,
+                                    showValueArea:
+                                      x.profile?.showValueArea ?? true,
+                                  },
+                                }
+                              : x,
+                          ),
+                        )
+                      }
+                    />
+                    Показывать POC
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={d.profile?.showValueArea ?? true}
+                      onChange={(e) =>
+                        setDrawings((prev) =>
+                          prev.map((x) =>
+                            x.id === d.id
+                              ? {
+                                  ...x,
+                                  profile: {
+                                    rows: x.profile?.rows ?? 150,
+                                    valueArea: x.profile?.valueArea ?? 70,
+                                    showPoc: x.profile?.showPoc ?? true,
+                                    showValueArea: e.target.checked,
+                                  },
+                                }
+                              : x,
+                          ),
+                        )
+                      }
+                    />
+                    Показывать VAH / VAL
+                  </label>
+                </details>
+              )}
             </li>
           ))}
         </ul>

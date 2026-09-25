@@ -9,6 +9,9 @@ import { computeSmc } from "../indicators/smc";
 import type { DrzParams } from "../indicators/drz-settings";
 import type { SmcParams } from "../indicators/smc-settings";
 import type { Candle, Timeframe } from "./market";
+export interface MtmParams {
+  maPeriod?: number;
+}
 import { computeStochRsi, type StochRsiParams } from "../indicators/stoch-rsi";
 /** Serializable workspace document: each future pane owns its series and drawings. */
 export interface IndicatorInstance {
@@ -26,7 +29,8 @@ export interface IndicatorInstance {
     | Partial<DrzParams>
     | Partial<SmcParams>
     | Partial<CoinglassParams>
-    | Partial<HeatmapParams>;
+    | Partial<HeatmapParams>
+    | Partial<MtmParams>;
   style?: Partial<VmcStyle>;
   timeframes?: Timeframe[];
 }
@@ -57,6 +61,13 @@ export interface IndicatorDefinition {
   compute?: (bars: Candle[], params: Record<string, unknown>) => unknown;
 }
 export const indicatorRegistry: IndicatorDefinition[] = [
+  {
+    id: "mtm",
+    name: "MTM · Momentum",
+    description:
+      "Импульс close − close[N] и его скользящая средняя (N=6, MA=6).",
+    implemented: true,
+  },
   {
     id: "stoch-rsi",
     name: "Stochastic RSI · Stoch RSI",

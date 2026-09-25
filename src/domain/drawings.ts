@@ -5,6 +5,7 @@ export const drawingTools = {
   vertical: "Вертикальная линия",
   rectangle: "Прямоугольник",
   fibonacci: "Фибоначчи",
+  "volume-profile": "Fixed Range Volume Profile",
 } as const;
 export type DrawingTool = keyof typeof drawingTools;
 export interface DrawingPoint {
@@ -16,6 +17,12 @@ export interface Drawing {
   tool: DrawingTool;
   color: string;
   points: DrawingPoint[];
+  profile?: {
+    rows: number;
+    valueArea: number;
+    showPoc: boolean;
+    showValueArea: boolean;
+  };
 }
 export const fibLevels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
 /** Interpolate in candle space, preserving anchors as timestamps across history updates. */
@@ -66,7 +73,16 @@ export function readDrawings(raw: unknown): Drawing[] {
         d.points.every(
           (p: DrawingPoint) =>
             p && Number.isFinite(p.time) && Number.isFinite(p.price),
-        ),
+        ) &&
+        (!d.profile ||
+          (Number.isInteger(d.profile.rows) &&
+            d.profile.rows >= 10 &&
+            d.profile.rows <= 200 &&
+            Number.isFinite(d.profile.valueArea) &&
+            d.profile.valueArea >= 1 &&
+            d.profile.valueArea <= 100 &&
+            typeof d.profile.showPoc === "boolean" &&
+            typeof d.profile.showValueArea === "boolean")),
     )
     .slice(-200);
 }

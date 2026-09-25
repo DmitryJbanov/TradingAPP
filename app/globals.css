@@ -531,6 +531,12 @@ h1 {
   font-weight: 700;
   flex-shrink: 0;
 }
+.coin-icon img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
 .featured-head strong {
   font-size: 14px;
 }
@@ -1219,6 +1225,10 @@ h1 {
   font-size: 11px;
   color: var(--muted-foreground);
   margin-top: 5px;
+}
+.pair-heading p .source-badge {
+  margin-left: 6px;
+  vertical-align: middle;
 }
 .pair-price {
   margin-left: 20px;
@@ -1985,22 +1995,6 @@ h1 {
 .vmc-settings-actions > span {
   flex: 1;
 }
-.vmc-readouts {
-  padding: 10px 14px;
-  border-top: 1px solid var(--border);
-  font:
-    12px ui-monospace,
-    monospace;
-}
-.vmc-readouts > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin: 4px 0;
-}
-.vmc-readouts strong {
-  font-weight: 500;
-}
 .history-count {
   display: flex;
   align-items: center;
@@ -2220,12 +2214,22 @@ h1 {
   font-size: 12px;
 }
 .coinglass-panel {
-  padding: 16px;
+  padding: 10px 12px;
   border-top: 1px solid var(--border);
 }
 .coinglass-panel p {
-  font-size: 12px;
-  margin: 8px 0;
+  font-size: 11px;
+  margin: 5px 0;
+}
+.coinglass-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 7px;
+}
+.coinglass-controls > p {
+  flex-basis: 100%;
 }
 .coinglass-panel progress,
 .coinglass-monitor progress {
@@ -2484,31 +2488,66 @@ h1 {
   flex-shrink: 0;
 }
 .heatmap-panel {
-  padding: 16px;
+  padding: 10px 12px;
   border-top: 1px solid var(--border);
+}
+.heatmap-panel .section-heading {
+  padding: 0 0 8px;
+  gap: 8px;
+}
+.heatmap-panel .section-heading h2 {
+  font-size: 14px;
 }
 .heatmap-panel canvas {
   display: block;
   width: 100%;
   height: auto;
-  margin-top: 12px;
+  margin-top: 7px;
 }
 .heatmap-panel p {
-  margin-top: 10px;
-  font-size: 12px;
+  margin: 6px 0;
+  font-size: 11px;
 }
 .heatmap-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 7px;
+  margin: 3px 0;
 }
 .heatmap-actions label {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 13px;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
 }
 .heatmap-actions input {
   max-width: 240px;
+}
+.compact-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.compact-filter [data-slot="select-trigger"] {
+  min-width: 82px;
+  height: 30px;
+  padding: 4px 8px;
+  border-color: var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  font-size: 11px;
+}
+.compact-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.2;
 }

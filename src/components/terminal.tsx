@@ -91,6 +91,7 @@ import { OverlaySettingsDialog } from "./overlay-settings-dialog";
 import { drzDefaults } from "../indicators/drz-settings";
 import { smcDefaults } from "../indicators/smc-settings";
 import { useStochRsi } from "../hooks/use-stoch-rsi";
+import { useMtm } from "../hooks/use-mtm";
 import { stochRsiDefaults } from "../indicators/stoch-rsi";
 import { StochRsiSettingsDialog } from "./stoch-rsi-settings-dialog";
 const hasIndicatorSettings = (id: string) =>
@@ -120,6 +121,8 @@ function Badge({ q }: { q: Quote }) {
   );
 }
 function Coin({ base }: { base: string }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [base]);
   const colors: Record<string, string> = {
     BTC: "#efac53",
     ETH: "#929df7",
@@ -136,10 +139,22 @@ function Coin({ base }: { base: string }) {
         background: (colors[base] ?? "#9badd4") + "16",
       }}
     >
-      {base === "BTC" ? "₿" : base.slice(0, 2)}
+      {!failed && itemCrypto(base) ? (
+        <img
+          src={`https://assets.coincap.io/assets/icons/${base.toLowerCase()}@2x.png`}
+          alt=""
+          onError={() => setFailed(true)}
+        />
+      ) : base === "BTC" ? (
+        "₿"
+      ) : (
+        base.slice(0, 2)
+      )}
     </span>
   );
 }
+const itemCrypto = (base: string) =>
+  catalog.some((item) => item.base === base && item.category === "crypto");
 function Range({ q }: { q: Quote }) {
   const percent =
     q.high > q.low
@@ -1017,6 +1032,7 @@ function PairWorkspace({
   );
   const orderBlocks = useOrderBlocks(tf, candleData, indicators);
   const stochRsi = useStochRsi(tf, candleData, indicators);
+  const mtmPanes = useMtm(tf, candleData, indicators);
   const overlays = useOverlays(
     symbol,
     tf,
@@ -1087,10 +1103,7 @@ function PairWorkspace({
                 {item.base}
                 <small> / {item.quote}</small>
               </h1>
-              <p>
-                {item.name}{" "}
-                <span>· {candleData?.provider ?? "Подключение"}</span>
-              </p>
+              <p>{item.name}</p>
             </div>
             <div className="pair-price">
               <strong className="mono">
@@ -1099,7 +1112,11 @@ function PairWorkspace({
               {q && <Change value={q.change} />}
             </div>
             <span className={"source-badge " + (candleData?.source ?? "demo")}>
-              {candleData?.source === "live" ? "API" : "DEMO"}
+              {candleData?.source === "live"
+                ? candleData.provider
+                : candleData?.source === "stale"
+                  ? `${candleData.provider} · устарели`
+                  : "DEMO"}
             </span>
             <button
               className={
@@ -1192,6 +1209,25 @@ function PairWorkspace({
           {candleData?.source !== "demo" && candleData?.warning && (
             <div className="notice">{candleData.warning}</div>
           )}
+          {indicators.length > 0 && (
+            <div className="indicator-strip">
+              {indicators.map((i) => (
+                <button
+                  key={i.id}
+                  onClick={() =>
+                    hasIndicatorSettings(i.definitionId)
+                      ? openIndicatorSettings(i.id)
+                      : setManager(true)
+                  }
+                  style={{ opacity: i.enabled ? 1 : 0.5 }}
+                >
+                  <IndicatorIcon name={i.icon} color={i.color} />
+                  {indicatorRegistry.find((x) => x.id === i.definitionId)?.name}
+                  <small>{i.enabled ? "активен" : "скрыт"}</small>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="chart-stage">
             <MarketChart
               key={symbol}
@@ -1202,6 +1238,7 @@ function PairWorkspace({
               resetKey={reset}
               vmcPanes={vmc.panes}
               stochRsiPanes={stochRsi}
+              mtmPanes={mtmPanes}
               orderBlocks={orderBlocks}
               priceOverlays={overlays.overlays}
               historyCount={historyCount}
@@ -1256,61 +1293,6 @@ function PairWorkspace({
           {!overlays.loading && overlays.warnings.length > 0 && (
             <div className="notice" role="status">
               {overlays.warnings.join(" ")}
-            </div>
-          )}
-          {overlays.overlays.some((o) => o.result.signals.length > 0) && (
-            <div className="overlay-signals">
-              {overlays.overlays.map((o) => {
-                const signal = o.result.signals.at(-1);
-                return signal ? (
-                  <span key={o.id}>
-                    {o.name}: {signal.type} ·{" "}
-                    {new Date(signal.time * 1000).toLocaleString("ru-RU", {
-                      timeZone: "UTC",
-                    })}{" "}
-                    UTC
-                  </span>
-                ) : null;
-              })}
-            </div>
-          )}
-          {indicators.length > 0 && (
-            <div className="indicator-strip">
-              {indicators.map((i) => (
-                <button
-                  key={i.id}
-                  onClick={() =>
-                    hasIndicatorSettings(i.definitionId)
-                      ? openIndicatorSettings(i.id)
-                      : setManager(true)
-                  }
-                  style={{ opacity: i.enabled ? 1 : 0.5 }}
-                >
-                  <IndicatorIcon name={i.icon} color={i.color} />
-                  {
-                    indicatorRegistry.find((x) => x.id === i.definitionId)?.name
-                  }{" "}
-                  {hasIndicatorSettings(i.definitionId) ? (
-                    <small>
-                      {[
-                        ...coinglass.overlays,
-                        ...vmc.panes,
-                        ...orderBlocks,
-                        ...overlays.overlays,
-                        ...(heatmap.visible && heatmap.model && heatmap.instance
-                          ? [heatmap.instance]
-                          : []),
-                      ].some((p) => p.id === i.id)
-                        ? "настройки ⚙"
-                        : "скрыт · настройки ⚙"}
-                    </small>
-                  ) : (
-                    <>
-                      ({i.period})<small>ожидает расчёта</small>
-                    </>
-                  )}
-                </button>
-              ))}
             </div>
           )}
         </section>
@@ -1408,34 +1390,36 @@ function PairWorkspace({
                           id: crypto.randomUUID(),
                           definitionId: d.id,
                           enabled: true,
-                          period: d.id === "vmc" ? 9 : 20,
+                          period: d.id === "vmc" ? 9 : d.id === "mtm" ? 60 : 20,
                           color:
                             d.id === "stoch-rsi"
                               ? "#2962FF"
                               : d.id === "sonarlab-ob"
                                 ? orderBlockDefaults.col_bullish
                                 : "#99a5ff",
-                          paneId: ["vmc", "stoch-rsi"].includes(d.id)
+                          paneId: ["vmc", "stoch-rsi", "mtm"].includes(d.id)
                             ? "oscillator"
                             : "main",
-                          ...(d.id === "stoch-rsi"
-                            ? { params: { ...stochRsiDefaults } }
-                            : d.id === "vmc"
-                              ? {
-                                  params: { ...vmcDefaults },
-                                  style: { ...vmcStyleDefaults },
-                                }
-                              : d.id === "sonarlab-ob"
-                                ? { params: { ...orderBlockDefaults } }
-                                : d.id === "drz"
-                                  ? { params: { ...drzDefaults } }
-                                  : d.id === "smc"
-                                    ? { params: { ...smcDefaults } }
-                                    : d.id === "coinglass"
-                                      ? { params: { ...coinglassDefaults } }
-                                      : d.id === "coinglass-heatmap"
-                                        ? { params: { ...heatmapDefaults } }
-                                        : {}),
+                          ...(d.id === "mtm"
+                            ? { params: { maPeriod: 60 } }
+                            : d.id === "stoch-rsi"
+                              ? { params: { ...stochRsiDefaults } }
+                              : d.id === "vmc"
+                                ? {
+                                    params: { ...vmcDefaults },
+                                    style: { ...vmcStyleDefaults },
+                                  }
+                                : d.id === "sonarlab-ob"
+                                  ? { params: { ...orderBlockDefaults } }
+                                  : d.id === "drz"
+                                    ? { params: { ...drzDefaults } }
+                                    : d.id === "smc"
+                                      ? { params: { ...smcDefaults } }
+                                      : d.id === "coinglass"
+                                        ? { params: { ...coinglassDefaults } }
+                                        : d.id === "coinglass-heatmap"
+                                          ? { params: { ...heatmapDefaults } }
+                                          : {}),
                         },
                       ])
                     }
@@ -1495,6 +1479,7 @@ function PairWorkspace({
                 </div>
                 <label className="instance-options">
                   Иконка
+                  <IndicatorIcon name={i.icon ?? "layers"} color={i.color} />
                   <Choice
                     label="Иконка индикатора"
                     value={i.icon ?? "layers"}
@@ -1527,11 +1512,11 @@ function PairWorkspace({
                 ) : (
                   <div className="instance-options">
                     <label>
-                      Период
+                      {i.definitionId === "mtm" ? "N · импульс" : "Период"}
                       <input
                         type="number"
                         min="1"
-                        max="500"
+                        max={i.definitionId === "mtm" ? 100 : 500}
                         value={i.period}
                         onChange={(e) =>
                           changeIndicators(
@@ -1542,7 +1527,7 @@ function PairWorkspace({
                                     period: Math.max(
                                       1,
                                       Math.min(
-                                        500,
+                                        i.definitionId === "mtm" ? 100 : 500,
                                         Number(e.target.value) || 1,
                                       ),
                                     ),
@@ -1553,6 +1538,43 @@ function PairWorkspace({
                         }
                       />
                     </label>
+                    {i.definitionId === "mtm" && (
+                      <label>
+                        N1 · средняя MTM
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={
+                            Number(
+                              (i.params as { maPeriod?: number } | undefined)
+                                ?.maPeriod,
+                            ) || 60
+                          }
+                          onChange={(e) =>
+                            changeIndicators(
+                              indicators.map((x) =>
+                                x.id === i.id
+                                  ? {
+                                      ...x,
+                                      params: {
+                                        ...x.params,
+                                        maPeriod: Math.max(
+                                          1,
+                                          Math.min(
+                                            100,
+                                            Number(e.target.value) || 1,
+                                          ),
+                                        ),
+                                      },
+                                    }
+                                  : x,
+                              ),
+                            )
+                          }
+                        />
+                      </label>
+                    )}
                     <label>
                       Цвет
                       <input
@@ -1569,7 +1591,11 @@ function PairWorkspace({
                         }
                       />
                     </label>
-                    <span className="muted">Расчёт не подключён</span>
+                    <span className="muted">
+                      {i.definitionId === "mtm"
+                        ? "Отдельная панель · close − close[N] и SMA(MTM, N1)"
+                        : "Расчёт не подключён"}
+                    </span>
                   </div>
                 )}
               </div>

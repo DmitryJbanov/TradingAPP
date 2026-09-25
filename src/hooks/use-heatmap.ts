@@ -1,12 +1,7 @@
 "use client";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useResource } from "./use-resource";
-import {
-  heatmapModel,
-  heatmapParams,
-  parseHeatmap,
-  type HeatmapData,
-} from "../domain/heatmap";
+import { heatmapModel, heatmapParams, parseHeatmap } from "../domain/heatmap";
 import type { IndicatorInstance } from "../domain/workspace";
 import type { Timeframe } from "../domain/market";
 
@@ -35,7 +30,6 @@ export function useHeatmap(
     0,
     !!instance && !!id,
   );
-  const [imported, setImported] = useState<HeatmapData>();
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const activeSymbol = useRef(symbol);
@@ -46,7 +40,6 @@ export function useHeatmap(
     };
   }, [symbol]);
   const parsed = useMemo(() => {
-    if (imported?.symbol === asset) return { data: imported, error: "" };
     try {
       return {
         data: snapshot.data
@@ -57,7 +50,7 @@ export function useHeatmap(
     } catch (e) {
       return { data: undefined, error: (e as Error).message };
     }
-  }, [snapshot.data, imported, asset]);
+  }, [snapshot.data, asset]);
   const settings = useMemo(
     () => heatmapParams(instance?.params),
     [instance?.params],
@@ -83,27 +76,12 @@ export function useHeatmap(
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw Error(body.error || "Ошибка сбора карты");
       if (activeSymbol.current !== requestedSymbol) return;
-      setImported(undefined);
       await status.refresh();
     } catch (e) {
       if (activeSymbol.current === requestedSymbol)
         setError((e as Error).message);
     } finally {
       setSubmitting(false);
-    }
-  }
-  async function importFile(file: File) {
-    const requestedSymbol = symbol;
-    try {
-      if (file.size > 50 * 1024 * 1024)
-        throw Error("JSON должен быть меньше 50 МБ");
-      const data = parseHeatmap(JSON.parse(await file.text()), asset);
-      if (activeSymbol.current !== requestedSymbol) return;
-      setImported(data);
-      setError("");
-    } catch (e) {
-      if (activeSymbol.current === requestedSymbol)
-        setError((e as Error).message);
     }
   }
   return {
@@ -113,9 +91,7 @@ export function useHeatmap(
     data: parsed.data,
     visible,
     job: status.data?.job,
-    imported: imported?.symbol === asset,
     run,
-    importFile,
     busy:
       submitting ||
       ["queued", "running"].includes(status.data?.job?.state ?? ""),

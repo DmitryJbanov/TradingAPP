@@ -8,6 +8,7 @@ import {
   createChart,
   CandlestickSeries,
   HistogramSeries,
+  LineSeries,
   ColorType,
   CrosshairMode,
   LineStyle,
@@ -71,6 +72,7 @@ export function MarketChart({
   historyCount,
   coinglass = [],
   heatmapLevels = [],
+  mtmPanes = [],
 }: {
   bars: Candle[];
   symbol: string;
@@ -84,6 +86,10 @@ export function MarketChart({
   historyCount: number;
   coinglass?: CoinglassOverlay[];
   heatmapLevels?: { price: number; value: number }[];
+  mtmPanes?: {
+    id: string;
+    points: { time: number; value: number; average: number }[];
+  }[];
 }) {
   const [drawingApi, setDrawingApi] = useState<DrawingChart>();
   const [copyStatus, setCopyStatus] = useState("");
@@ -106,15 +112,15 @@ export function MarketChart({
       >
     >(),
   );
-  const [stochCursor, setStochCursor] = useState<
-    Record<string, StochRsiChartData["point"]>
-  >({});
+  const mtmSeries = useRef(
+    new Map<
+      string,
+      { value: ISeriesApi<"Line">; average: ISeriesApi<"Line"> }
+    >(),
+  );
   const orderBlocksRenderer = useRef<OrderBlocksRenderer | null>(null);
   const priceOverlaysRenderer = useRef<PriceOverlaysRenderer | null>(null);
   const fitted = useRef("");
-  const [indicatorCursor, setIndicatorCursor] = useState<
-    Record<string, VmcChartData["point"]>
-  >({});
   const [cursor, setCursor] = useState<{
     x: number;
     y: number;
@@ -208,19 +214,6 @@ export function MarketChart({
     s.attachPrimitive(overlaysRenderer);
     priceOverlaysRenderer.current = overlaysRenderer;
     c.subscribeCrosshairMove((p) => {
-      const values: Record<string, VmcChartData["point"]> = {};
-      vmcSeries.current.forEach((entry, id) => {
-        const d = p.seriesData.get(entry.series);
-        if (d && "point" in d) values[id] = (d as VmcChartData).point;
-      });
-      setIndicatorCursor(values);
-      const stochValues: Record<string, StochRsiChartData["point"]> = {};
-      stochSeries.current.forEach((s, id) => {
-        const data = p.seriesData.get(s);
-        if (data && "point" in data)
-          stochValues[id] = (data as StochRsiChartData).point;
-      });
-      setStochCursor(stochValues);
       if (!p.point || !p.time || p.point.x < 0 || p.point.y < 0) {
         setCursor(null);
         setOhlc(null);
@@ -246,6 +239,7 @@ export function MarketChart({
       drawingContext.disposed = true;
       vmcSeries.current.clear();
       stochSeries.current.clear();
+      mtmSeries.current.clear();
       s.detachPrimitive(obRenderer);
       s.detachPrimitive(overlaysRenderer);
       priceOverlaysRenderer.current = null;
@@ -411,6 +405,71 @@ export function MarketChart({
     if (stochRsiPanes.length) c.panes()[0]?.setStretchFactor(2.5);
   }, [stochRsiPanes, vmcPanes]);
   useEffect(() => {
+    const c = chart.current;
+    if (!c) return;
+    const ids = new Set(mtmPanes.map((pane) => pane.id));
+    for (const [id, entry] of mtmSeries.current) {
+      if (!ids.has(id)) {
+        c.removeSeries(entry.value);
+        c.removeSeries(entry.average);
+        mtmSeries.current.delete(id);
+      }
+    }
+    mtmPanes.forEach((pane, index) => {
+      let entry = mtmSeries.current.get(pane.id);
+      if (!entry) {
+        const paneIndex = c.panes().length;
+        entry = {
+          value: c.addSeries(
+            LineSeries,
+            {
+              color: "#36a2eb",
+              lineWidth: 2,
+              priceLineVisible: false,
+              lastValueVisible: false,
+            },
+            paneIndex,
+          ),
+          average: c.addSeries(
+            LineSeries,
+            {
+              color: "#ff9f43",
+              lineWidth: 2,
+              priceLineVisible: false,
+              lastValueVisible: false,
+            },
+            paneIndex,
+          ),
+        };
+        entry.value
+          .priceScale()
+          .applyOptions({ scaleMargins: { top: 0.08, bottom: 0.08 } });
+        entry.value.getPane().setStretchFactor(1);
+        mtmSeries.current.set(pane.id, entry);
+      }
+      const paneIndex = vmcPanes.length + stochRsiPanes.length + index + 1;
+      if (entry.value.getPane().paneIndex() !== paneIndex) {
+        entry.value.getPane().moveTo(paneIndex);
+        entry.average.getPane().moveTo(paneIndex);
+      }
+      entry.value.setData(
+        pane.points.map((point) => ({
+          time: point.time as UTCTimestamp,
+          value: point.value,
+          color: point.value >= point.average ? "#26a69a" : "#ef5350",
+        })),
+      );
+      entry.average.setData(
+        pane.points.map((point) => ({
+          time: point.time as UTCTimestamp,
+          value: point.average,
+          color: point.value >= point.average ? "#26a69a" : "#ef5350",
+        })),
+      );
+    });
+    if (mtmPanes.length) c.panes()[0]?.setStretchFactor(2.5);
+  }, [mtmPanes, vmcPanes.length, stochRsiPanes.length]);
+  useEffect(() => {
     const s = series.current;
     if (!s) return;
     const lines = coinglass.flatMap((overlay) =>
@@ -488,8 +547,13 @@ export function MarketChart({
         className="chart-container"
         style={{
           background: palette.background,
-          ...(vmcPanes.length + stochRsiPanes.length
-            ? { height: 560 + (vmcPanes.length + stochRsiPanes.length) * 230 }
+          ...(vmcPanes.length + stochRsiPanes.length + mtmPanes.length
+            ? {
+                height:
+                  560 +
+                  (vmcPanes.length + stochRsiPanes.length + mtmPanes.length) *
+                    230,
+              }
             : {}),
         }}
       >
@@ -557,85 +621,6 @@ export function MarketChart({
           Charts by TradingView
         </a>
       </div>
-      {stochRsiPanes.length > 0 && (
-        <div className="vmc-readouts">
-          {stochRsiPanes.map((pane, index) => {
-            const point = stochCursor[pane.id] ?? pane.points.at(-1);
-            return (
-              <div key={pane.id}>
-                <b>Stoch RSI #{index + 1}</b>
-                <span style={{ color: "#2962FF" }}>
-                  K <strong>{point?.k?.toFixed(2) ?? "—"}</strong>
-                </span>
-                <span style={{ color: "#FF6D00" }}>
-                  D <strong>{point?.d?.toFixed(2) ?? "—"}</strong>
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {vmcPanes.length > 0 && (
-        <div className="vmc-readouts">
-          {vmcPanes.map((pane, index) => {
-            const point = indicatorCursor[pane.id] ?? pane.result.points.at(-1);
-            return (
-              <div key={pane.id}>
-                <b>VMC #{index + 1}</b>
-                {point &&
-                  Object.entries(point.values)
-                    .filter(
-                      ([key]) => key !== "sommi" || pane.params.sommiShowVwap,
-                    )
-                    .map(([key, v]) => (
-                      <span key={key}>
-                        {key.toUpperCase()}{" "}
-                        <strong>{v?.toFixed(2) ?? "—"}</strong>
-                      </span>
-                    ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {orderBlocks.length > 0 && (
-        <div className="vmc-readouts">
-          {orderBlocks.map((overlay, index) => {
-            const event = overlay.result.events.at(-1);
-            return (
-              <div key={overlay.id}>
-                <b>Sonarlab OB #{index + 1}</b>
-                <span>
-                  Бычьи зоны{" "}
-                  <strong>
-                    {
-                      overlay.result.blocks.filter((b) => b.side === "bullish")
-                        .length
-                    }
-                  </strong>
-                </span>
-                <span>
-                  Медвежьи зоны{" "}
-                  <strong>
-                    {
-                      overlay.result.blocks.filter((b) => b.side === "bearish")
-                        .length
-                    }
-                  </strong>
-                </span>
-                <span>
-                  Последний сигнал:{" "}
-                  <strong>
-                    {event
-                      ? `${event.side === "bullish" ? "Buy" : "Sell"} · ${new Date(event.time * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC`
-                      : "—"}
-                  </strong>
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </>
   );
 }

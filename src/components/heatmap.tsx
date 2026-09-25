@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { Download, Settings2 } from "lucide-react";
 import type { useHeatmap } from "../hooks/use-heatmap";
 import {
   heatmapColor,
@@ -19,6 +20,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 type State = ReturnType<typeof useHeatmap>;
 
 export function HeatmapSettings({
@@ -316,50 +324,40 @@ export function HeatmapPanel({
     <section className="heatmap-panel" aria-label="CoinGlass Heatmap">
       <div className="section-heading">
         <h2>CoinGlass Heatmap · Model 3</h2>
-        <button className="button" onClick={openSettings}>
-          Настройки карты
+        <button className="button compact-action" onClick={openSettings}>
+          <Settings2 size={14} /> Настройки
         </button>
       </div>
       <div className="heatmap-actions">
-        <label>
-          Период{" "}
-          <select
-            aria-label="Период Heatmap Model 3"
+        <label className="compact-filter">
+          <span>Период</span>
+          <Select
             value={settings.range}
             disabled={state.busy}
-            onChange={(e) =>
-              onChange({
-                ...settings,
-                range: e.target.value as HeatmapParams["range"],
-              })
+            onValueChange={(range) =>
+              onChange({ ...settings, range: range as HeatmapParams["range"] })
             }
           >
-            {heatmapRanges.map((range) => (
-              <option key={range} value={range}>
-                {heatmapRangeLabels[range]}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger size="sm" aria-label="Период Heatmap Model 3">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {heatmapRanges.map((range) => (
+                <SelectItem key={range} value={range}>
+                  {heatmapRangeLabels[range]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
         <button
-          className="button"
+          className="button compact-action"
           disabled={state.busy}
           onClick={() => void state.run()}
         >
-          {state.busy ? "Сбор карты…" : "Загрузить карту CoinGlass"}
+          <Download size={14} />
+          {state.busy ? "Сбор карты…" : "Загрузить карту"}
         </button>
-        <label>
-          Импорт JSON
-          <input
-            type="file"
-            accept=".json,application/json"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void state.importFile(file);
-              e.target.value = "";
-            }}
-          />
-        </label>
       </div>
       {state.error && <p role="alert">{state.error}</p>}
       {state.job && (
@@ -375,40 +373,6 @@ export function HeatmapPanel({
       )}
       {state.data ? (
         <>
-          <p className="muted">
-            {state.data.symbol} · {heatmapRangeLabels[state.data.range]} ·{" "}
-            {state.imported
-              ? "Импортированный JSON (до перезагрузки страницы)"
-              : `Снимок ${state.data.collectedAt ? new Date(state.data.collectedAt).toLocaleString("ru-RU") : ""}`}{" "}
-            · {state.data.liquidation_levels.length.toLocaleString()} ячеек
-          </p>
-          <div className="heatmap-actions">
-            <button
-              className="button"
-              aria-label="Приблизить карту"
-              onClick={() => changeView((v) => zoomHeatmap(v, 0.7))}
-            >
-              +
-            </button>
-            <button
-              className="button"
-              aria-label="Отдалить карту"
-              onClick={() => changeView((v) => zoomHeatmap(v, 1 / 0.7))}
-            >
-              −
-            </button>
-            <button
-              className="button"
-              onClick={() => changeView(() => heatmapFullView)}
-            >
-              Вся карта
-            </button>
-            <span>Масштаб: {(1 / view.size).toFixed(1)}×</span>
-          </div>
-          <p className="muted">
-            Колесо — масштаб у курсора; перетаскивание — движение по времени и
-            цене. Двойной щелчок — вся карта.
-          </p>
           <canvas
             ref={canvas}
             width={1200}
@@ -485,10 +449,6 @@ export function HeatmapPanel({
               }
             }}
           />
-          <p className="muted">
-            Уровни на основном графике — сильнейшие ячейки последнего среза
-            карты. Исторические ячейки показаны по исходным индексам CoinGlass.
-          </p>
           {settings.showCandles && !data?.candles.length && (
             <p className="warning">
               В этом снимке нет данных свечей. Загрузите карту CoinGlass заново.
@@ -500,8 +460,7 @@ export function HeatmapPanel({
         </>
       ) : (
         <p className="muted">
-          Загрузите карту или импортируйте JSON, полученный скриптами
-          coinglass_heatmap.
+          Подгрузите карту CoinGlass для этого инструмента.
         </p>
       )}
     </section>

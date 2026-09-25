@@ -1,4 +1,5 @@
 "use client";
+import { RefreshCw, Settings2 } from "lucide-react";
 import {
   coinglassParams,
   calculationParams,
@@ -9,6 +10,13 @@ import { useSnapshotClock } from "../hooks/use-coinglass-preview";
 import { useResource } from "../hooks/use-resource";
 import type { useCoinglass } from "../hooks/use-coinglass";
 import type { IndicatorInstance } from "../domain/workspace";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export function CoinglassMonitor() {
   const r = useResource<{ jobs: CoinglassJob[]; headless: boolean }>(
@@ -86,13 +94,6 @@ export function CoinglassPanel({
           value={job.progress}
         />
       )}
-      {result && (
-        <p>
-          Снимок: {new Date(result.collectedAt).toLocaleString("ru-RU")} ·
-          уровней: {result.levels.length}. Цены карты — USD; наложение на
-          USD/USDT/USDC.
-        </p>
-      )}
       {(job?.state === "error" || state.error) && result && (
         <p className="warning">
           Обновление не удалось. На графике остаётся предыдущий снимок.
@@ -111,7 +112,7 @@ export function CoinglassPanel({
               result!.params[key as keyof typeof result.params] !== value,
           );
         return (
-          <div key={i.id}>
+          <div className="coinglass-controls" key={i.id}>
             {stale && (
               <p className="warning">
                 Снимок старше {params.staleHours} ч. Запустите обновление.
@@ -126,41 +127,42 @@ export function CoinglassPanel({
             {!i.enabled && <p>Индикатор скрыт.</p>}
             <button
               type="button"
-              className="button"
+              className="button compact-action"
               onClick={() => openSettings(i.id)}
             >
-              Визуальная настройка
+              <Settings2 size={14} /> Визуально
             </button>{" "}
-            <label>
-              Период{" "}
-              <select
-                aria-label="Период карты ликвидаций"
-                value={params.rangeDays}
+            <label className="compact-filter">
+              <span>Период</span>
+              <Select
+                value={String(params.rangeDays)}
                 disabled={
                   state.submitting ||
                   job?.state === "running" ||
                   job?.state === "queued"
                 }
-                onChange={(event) =>
+                onValueChange={(value) =>
                   onChange({
                     ...i,
-                    params: {
-                      ...params,
-                      rangeDays: Number(event.target.value),
-                    },
+                    params: { ...params, rangeDays: Number(value) },
                   })
                 }
               >
-                {[1, 7, 30, 90, 180, 365].map((days) => (
-                  <option key={days} value={days}>
-                    {days} дн.
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger size="sm" aria-label="Период карты ликвидаций">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 7, 30, 90, 180, 365].map((days) => (
+                    <SelectItem key={days} value={String(days)}>
+                      {days} дн.
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>{" "}
             <button
               type="button"
-              className="button"
+              className="button compact-action"
               disabled={
                 state.submitting ||
                 job?.state === "running" ||
@@ -168,7 +170,8 @@ export function CoinglassPanel({
               }
               onClick={() => void state.run(i)}
             >
-              {state.submitting ? "Запуск…" : "Запустить / обновить парсинг"}
+              <RefreshCw size={14} />
+              {state.submitting ? "Парсинг…" : "Обновить"}
             </button>
           </div>
         );
