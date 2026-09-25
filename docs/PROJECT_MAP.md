@@ -15,6 +15,7 @@ Next/Vinext (`app/`) и переносимый Vite + Node (`standalone/`). Ве
 | CoinGlass: UI                              | `src/components/coinglass-settings-dialog.tsx`                     | `coinglass-map.tsx`, `coinglass-candles.tsx`                                          |
 | CoinGlass: данные                          | `src/hooks/use-coinglass.ts`                                       | `src/server/coinglass-service.ts`, `src/domain/coinglass.ts`                          |
 | CoinGlass Heatmap Model 3                  | `docs/COINGLASS_HEATMAP.md`, `src/components/heatmap.tsx`          | `src/domain/heatmap.ts`, `src/hooks/use-heatmap.ts`, `coinglass_heatmap/collector.py` |
+| RSI Heatmap top 50                         | `src/components/rsi-heatmap-page.tsx`                              | `src/server/coinglass-service.ts`, `services/coinglass/rsi_heatmap_worker.py`          |
 | Расчёты индикаторов                        | `src/indicators/` (имя индикатора)                                 | соответствующий хук в `src/hooks/` (MTM: `use-mtm.ts`)                                |
 | Свечи и котировки                          | `src/server/market-service.ts`                                     | `binance-history.ts`, `src/domain/market.ts`                                          |
 | Торговые сессии обеих страниц              | `src/components/sessions.tsx`                                      | тесты сессий в `tests/core.test.ts`                                                   |

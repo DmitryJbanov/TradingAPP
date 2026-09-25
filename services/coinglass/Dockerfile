@@ -6,7 +6,7 @@ COPY services/coinglass/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt && python -m playwright install --with-deps chromium && apt-get update && apt-get install -y --no-install-recommends tesseract-ocr && rm -rf /var/lib/apt/lists/* && useradd --uid 10001 --create-home collector && mkdir /data && chown collector:collector /data && chmod -R a+rX /opt/browsers
 COPY services/coinglass/*.py ./
 COPY coinglass_heatmap/collector.py /app/coinglass_heatmap/collector.py
-RUN python -c "import service, worker, persistent_worker, frontend_api, collector, selection, heatmap_worker"
+RUN python -c "import service, worker, persistent_worker, frontend_api, collector, selection, heatmap_worker, rsi_heatmap_worker"
 USER collector
 EXPOSE 8090
 CMD ["python", "service.py"]

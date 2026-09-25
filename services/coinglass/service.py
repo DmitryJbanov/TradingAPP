@@ -136,7 +136,10 @@ class Manager:
         self.update(job,state='running',progress=1,message=(
             'Получение данных через открытый браузер' if self.worker.is_running()
             else 'Запуск фонового браузера'))
-        label = f"Heatmap Model 3 · {job['params'].get('range', '365d')}" if self.kind == 'heatmap' else f"карты за {job['params']['rangeDays']} дн."
+        label = (f"Heatmap Model 3 · {job['params'].get('range', '365d')}" if self.kind == 'heatmap'
+                 else 'Fear & Greed Index' if self.kind == 'fear-greed'
+                 else f"RSI Heatmap · {job['params']['period']}" if self.kind == 'rsi-heatmap'
+                 else f"карты за {job['params']['rangeDays']} дн.")
         self.event('INFO', f"{job['asset']}: запуск парсинга {label}")
         self.request_browser()
         result = snapshot = failure = None
@@ -153,8 +156,11 @@ class Manager:
                     self.event('INFO', job['asset'] + ': ' + message)
             if result and not failure:
                 if snapshot is not None: self.save_snapshot(job, snapshot)
-                self.update(job, state='done', progress=100, message='Уровни обновлены', result=result)
-                self.event('INFO', f"{job['asset']}: готово, значимых уровней: {len(result['levels'])}")
+                message = 'Данные обновлены' if self.kind in ('fear-greed', 'rsi-heatmap') else 'Уровни обновлены'
+                self.update(job, state='done', progress=100, message=message, result=result)
+                detail = ('сбор данных завершён' if self.kind in ('fear-greed', 'rsi-heatmap')
+                          else f"готово, значимых уровней: {len(result['levels'])}")
+                self.event('INFO', f"{job['asset']}: {detail}")
             else:
                 self.update(job, state='error', message=failure or 'Обработчик завершился без результата')
                 self.event('ERROR', job['asset'] + ': ' + job['message'])
@@ -188,9 +194,35 @@ class HeatmapManager(Manager):
         return dict(range=validate_range(settings.get('range', '365d')))
 
 
+class FearGreedManager(Manager):
+    """CoinMarketCap sentiment history with the same persistent browser queue."""
+    def __init__(self, directory, owner, timeout=90):
+        super().__init__(directory, timeout=timeout, start_worker=False, owner=owner)
+        self.kind = 'fear-greed'
+
+    def normalize_params(self, settings):
+        if not isinstance(settings, dict) or settings:
+            raise ValueError('Неверные настройки')
+        return {}
+
+
+class RsiHeatmapManager(Manager):
+    """Top 50 RSI heatmap rows scraped from CoinGlass."""
+    def __init__(self, directory, owner, timeout=180):
+        super().__init__(directory, timeout=timeout, start_worker=False, owner=owner)
+        self.kind = 'rsi-heatmap'
+
+    def normalize_params(self, settings):
+        if not isinstance(settings, dict) or settings.get('period', '4h') not in ('4h', '24h', '1w'):
+            raise ValueError('Неверный период RSI')
+        return {'period': settings.get('period', '4h')}
+
+
 class Handler(BaseHTTPRequestHandler):
     manager=None
     heatmap_manager=None
+    fear_greed_manager=None
+    rsi_heatmap_manager=None
     token=''
     def setup(self):
         super().setup(); self.connection.settimeout(10)
@@ -209,6 +241,12 @@ class Handler(BaseHTTPRequestHandler):
         if url.path.startswith('/heatmap/'):
             self.manager = self.heatmap_manager
             url = url._replace(path=url.path.removeprefix('/heatmap'))
+        elif url.path.startswith('/fear-greed/'):
+            self.manager = self.fear_greed_manager
+            url = url._replace(path=url.path.removeprefix('/fear-greed'))
+        elif url.path.startswith('/rsi-heatmap/'):
+            self.manager = self.rsi_heatmap_manager
+            url = url._replace(path=url.path.removeprefix('/rsi-heatmap'))
         if url.path in ('/status', '/snapshot', '/events'): self.manager.request_browser()
         with self.manager.lock:
             if url.path=='/status':
@@ -229,6 +267,12 @@ class Handler(BaseHTTPRequestHandler):
         self.manager = type(self).manager
         if self.path == '/heatmap/jobs':
             self.manager = self.heatmap_manager
+            self.path = '/jobs'
+        elif self.path == '/fear-greed/jobs':
+            self.manager = self.fear_greed_manager
+            self.path = '/jobs'
+        elif self.path == '/rsi-heatmap/jobs':
+            self.manager = self.rsi_heatmap_manager
             self.path = '/jobs'
         if self.path not in ('/jobs', '/preview'): self.respond(404,{'error':'Not found'}); return
         try:
@@ -252,11 +296,15 @@ if __name__=='__main__':
     os.umask(0o077)
     Handler.manager=Manager(os.environ.get('COINGLASS_DATA_DIR','./coinglass-data'))
     Handler.heatmap_manager=HeatmapManager(Path(os.environ.get('COINGLASS_DATA_DIR','./coinglass-data')) / 'heatmap', owner=Handler.manager)
+    Handler.fear_greed_manager=FearGreedManager(Path(os.environ.get('COINGLASS_DATA_DIR','./coinglass-data')) / 'fear-greed', owner=Handler.manager)
+    Handler.rsi_heatmap_manager=RsiHeatmapManager(Path(os.environ.get('COINGLASS_DATA_DIR','./coinglass-data')) / 'rsi-heatmap', owner=Handler.manager)
     Handler.token=os.environ.get('COINGLASS_TOKEN','')
     server=ThreadingHTTPServer((os.environ.get('COINGLASS_HOST','127.0.0.1'),int(os.environ.get('COINGLASS_PORT','8090'))),Handler)
     def stop(*_):
         Handler.heatmap_manager.close()
+        Handler.fear_greed_manager.close()
+        Handler.rsi_heatmap_manager.close()
         Handler.manager.close(); threading.Thread(target=server.shutdown,daemon=True).start()
     signal.signal(signal.SIGTERM,stop); signal.signal(signal.SIGINT,stop)
     try: server.serve_forever()
-    finally: server.server_close(); Handler.manager.close(); Handler.heatmap_manager.close()
+    finally: server.server_close(); Handler.manager.close(); Handler.heatmap_manager.close(); Handler.fear_greed_manager.close(); Handler.rsi_heatmap_manager.close()

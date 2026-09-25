@@ -55,8 +55,8 @@ export interface ChartPalette {
 export const defaultPalette: ChartPalette = {
   background: "#101318",
   grid: "#20262f",
-  up: "#44d7a8",
-  down: "#ef7185",
+  up: "#0ECB81",
+  down: "#F6465D",
   text: "#8f9bab",
 };
 export function MarketChart({

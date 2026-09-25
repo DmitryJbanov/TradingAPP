@@ -94,6 +94,7 @@ import { useStochRsi } from "../hooks/use-stoch-rsi";
 import { useMtm } from "../hooks/use-mtm";
 import { stochRsiDefaults } from "../indicators/stoch-rsi";
 import { StochRsiSettingsDialog } from "./stoch-rsi-settings-dialog";
+import { SiteHeader } from "./site-header";
 const hasIndicatorSettings = (id: string) =>
   [
     "stoch-rsi",
@@ -309,6 +310,19 @@ export default function Terminal({ symbol }: { symbol?: string }) {
       "ETHUSDT",
       "SOLUSDT",
     ]);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem("vector.chart.v1") ?? "null",
+      ) as Partial<ChartPalette> | null;
+      if (!saved) return;
+      setPalette((current) => ({
+        ...current,
+        ...(saved.up === "#44d7a8" ? { up: defaultPalette.up } : {}),
+        ...(saved.down === "#ef7185" ? { down: defaultPalette.down } : {}),
+      }));
+    } catch {}
+  }, [setPalette]);
   const [settings, setSettings] = useState(false),
     [query, setQuery] = useState(""),
     [category, setCategory] = useState("crypto"),
@@ -395,34 +409,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
   ].filter(Boolean).length;
   return (
     <div className="terminal-shell">
-      <header className="topbar">
-        <a href="/" className="brand">
-          <span className="brand-mark">
-            <ChartNoAxesCombined size={22} />
-          </span>
-          DiVMoney<span className="brand-tag">TERMINAL</span>
-        </a>
-        <nav>
-          <a href="/backlog">Беклог</a>
-          <a className={!symbol ? "active" : ""} href="/">
-            <LayoutGrid size={16} /> Рынки
-          </a>
-          <a className={symbol ? "active" : ""} href="/pair/BTCUSDT">
-            <ChartNoAxesCombined size={17} /> График
-          </a>
-        </nav>
-        <div className="topbar-right">
-          <span className="workspace-label">Личная рабочая область</span>
-          <button
-            className="icon-button"
-            aria-label="Настройки оформления"
-            onClick={() => setSettings(true)}
-          >
-            <Settings2 size={19} />
-          </button>
-          <span className="avatar">DM</span>
-        </div>
-      </header>
+      <SiteHeader active={symbol ? "chart" : "markets"} onOpenSettings={() => setSettings(true)} />
       {symbol ? (
         <PairWorkspace
           symbol={symbol}

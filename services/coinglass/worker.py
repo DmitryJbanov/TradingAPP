@@ -45,6 +45,22 @@ def run(request, runtime=None):
         result, snapshot = run_heatmap(request, runtime, folder)
         emit('result', result=result, snapshot=snapshot)
         return
+    if request.get('type') == 'fear-greed':
+        from fear_greed_worker import run as run_fear_greed
+        result, snapshot = run_fear_greed(request, runtime, folder)
+        emit('result', result=result, snapshot=snapshot)
+        return
+    if request.get('type') == 'rsi-heatmap':
+        from rsi_heatmap_worker import run as run_rsi_heatmap
+        try:
+            result, snapshot = run_rsi_heatmap(request, runtime, folder)
+        except Exception as exc:
+            from rsi_heatmap_worker import RsiHeatmapError
+            if isinstance(exc, RsiHeatmapError):
+                raise
+            raise RsiHeatmapError(f'Ошибка обработки RSI ({type(exc).__name__}).') from exc
+        emit('result', result=result, snapshot=snapshot)
+        return
     p = request['params']
     args = SimpleNamespace(headless=True, price=None,
         credentials=Path(os.environ.get('COINGLASS_CREDENTIALS', str(data / 'credentials.txt'))),
@@ -95,8 +111,10 @@ class BrowserRuntime:
 
 def report_error(exc):
     from heatmap_worker import SubscriptionRequired, HeatmapApiError
+    from fear_greed_worker import FearGreedError
+    from rsi_heatmap_worker import RsiHeatmapError
     from map_navigation import MapNavigationError
-    if isinstance(exc, (LoginError, BrowserStartError, CollectionError, SubscriptionRequired, HeatmapApiError, MapNavigationError)):
+    if isinstance(exc, (LoginError, BrowserStartError, CollectionError, SubscriptionRequired, HeatmapApiError, MapNavigationError, FearGreedError, RsiHeatmapError)):
         emit('error', message=str(exc))
     elif isinstance(exc, UnsupportedSymbol):
         emit('error', message='Этот актив не поддерживается картой CoinGlass')
