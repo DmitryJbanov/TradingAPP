@@ -68,36 +68,40 @@ export function HeatmapSettings({
         </label>
         <label className="settings-row">
           Шкала
-          <select
+          <Select
             value={p.scale}
-            onChange={(e) =>
-              onChange({
-                ...p,
-                scale: e.target.value as HeatmapParams["scale"],
-              })
+            onValueChange={(value) =>
+              onChange({ ...p, scale: value as HeatmapParams["scale"] })
             }
           >
-            <option value="log">Логарифмическая</option>
-            <option value="linear">Линейная</option>
-            <option value="percentile">Перцентили</option>
-          </select>
+            <SelectTrigger size="sm" aria-label="Шкала тепловой карты">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="log">Логарифмическая</SelectItem>
+              <SelectItem value="linear">Линейная</SelectItem>
+              <SelectItem value="percentile">Перцентили</SelectItem>
+            </SelectContent>
+          </Select>
         </label>
         <label className="settings-row">
           Цвета
-          <select
+          <Select
             value={p.scheme}
-            onChange={(e) =>
-              onChange({
-                ...p,
-                scheme: e.target.value as HeatmapParams["scheme"],
-              })
+            onValueChange={(value) =>
+              onChange({ ...p, scheme: value as HeatmapParams["scheme"] })
             }
           >
-            <option value="coinglass">CoinGlass</option>
-            <option value="fire">Огонь</option>
-            <option value="ice">Лёд</option>
-            <option value="mono">Монохром</option>
-          </select>
+            <SelectTrigger size="sm" aria-label="Цветовая схема тепловой карты">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="coinglass">CoinGlass</SelectItem>
+              <SelectItem value="fire">Огонь</SelectItem>
+              <SelectItem value="ice">Лёд</SelectItem>
+              <SelectItem value="mono">Монохром</SelectItem>
+            </SelectContent>
+          </Select>
         </label>
         <label className="settings-row">
           Свечи на тепловой карте

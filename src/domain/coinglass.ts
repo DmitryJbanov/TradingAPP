@@ -8,7 +8,9 @@ export interface CoinglassParams {
   hoverMs: number;
   aboveColor: string;
   belowColor: string;
-  lineWidth: number;
+  volumeColors: [string, string, string, string, string, string];
+  volumeOpacities: [number, number, number, number, number, number];
+  showLevels: boolean;
   showLabels: boolean;
   staleHours: number;
   /** Pinned source per asset; selection parameters remain shared across instruments. */
@@ -24,7 +26,9 @@ export const coinglassDefaults: CoinglassParams = {
   hoverMs: 180,
   aboveColor: "#ef7185",
   belowColor: "#49d5ac",
-  lineWidth: 2,
+  volumeColors: ["#14192d", "#26306e", "#5a2396", "#be2d4b", "#f57823", "#ffe146"],
+  volumeOpacities: [5, 6, 25, 23, 27, 44],
+  showLevels: true,
   showLabels: true,
   staleHours: 24,
 };
@@ -46,6 +50,39 @@ export function coinglassParams(value: unknown): CoinglassParams {
     (!integer || Number.isInteger(p[key]))
       ? (p[key] as number)
       : (coinglassDefaults[key] as number);
+  const savedVolumeColors =
+    Array.isArray(p.volumeColors) && p.volumeColors.length === 6
+      ? p.volumeColors
+      : [];
+  const volumeColors = coinglassDefaults.volumeColors.map((fallback, index) => {
+    const value = savedVolumeColors[index];
+    return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)
+      ? value
+      : fallback;
+  }) as CoinglassParams["volumeColors"];
+  const legacyOpacity =
+    typeof p.opacity === "number" && Number.isFinite(p.opacity)
+      ? Math.max(0, Math.min(100, p.opacity))
+      : coinglassDefaults.volumeOpacities[0];
+  const savedVolumeOpacities = Array.isArray(p.volumeOpacities)
+    ? p.volumeOpacities
+    : [];
+  const migratedDefaultOpacities =
+    (savedVolumeOpacities.length === 6 &&
+      (savedVolumeOpacities.every((value) => value === 72) ||
+        savedVolumeOpacities.every((value, index) => value === [15, 30, 40, 50, 70, 90][index]))) ||
+    (savedVolumeOpacities.length === 0 && p.opacity === 72)
+      ? null
+      : savedVolumeOpacities;
+  const volumeOpacities = coinglassDefaults.volumeOpacities.map((fallback, index) => {
+    if (migratedDefaultOpacities === null) return fallback;
+    const value = migratedDefaultOpacities[index];
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100
+      ? value
+      : migratedDefaultOpacities.length === 0
+        ? legacyOpacity
+        : fallback;
+  }) as CoinglassParams["volumeOpacities"];
   const color = (key: "aboveColor" | "belowColor") =>
     typeof p[key] === "string" && /^#[0-9a-f]{6}$/i.test(p[key] as string)
       ? (p[key] as string)
@@ -72,7 +109,9 @@ export function coinglassParams(value: unknown): CoinglassParams {
     side: p.side === "above" || p.side === "below" ? p.side : "both",
     aboveColor: color("aboveColor"),
     belowColor: color("belowColor"),
-    lineWidth: numeric("lineWidth", 1, 4, true),
+    volumeColors,
+    volumeOpacities,
+    showLevels: typeof p.showLevels === "boolean" ? p.showLevels : true,
     showLabels: typeof p.showLabels === "boolean" ? p.showLabels : true,
     staleHours: numeric("staleHours", 1, 720, true),
   };
@@ -123,6 +162,21 @@ export interface CoinglassOverlay {
   id: string;
   result: CoinglassResult;
   params: CoinglassParams;
+  points?: CoinglassPoint[];
+}
+
+export function coinglassVolumeColorIndex(value: number, min: number, max: number) {
+  const low = Math.log1p(Math.max(0, min));
+  const high = Math.log1p(Math.max(0, max));
+  const normalized = high === low
+    ? 0.5
+    : (Math.log1p(Math.max(0, value)) - low) / (high - low);
+  return Math.min(5, Math.floor(Math.max(0, Math.min(1, normalized)) * 6));
+}
+
+export function coinglassColorOpacity(color: string, opacity: number) {
+  const value = Number.parseInt(color.slice(1), 16);
+  return `rgba(${value >> 16}, ${(value >> 8) & 255}, ${value & 255}, ${Math.max(0, Math.min(100, opacity)) / 100})`;
 }
 
 export interface CoinglassSnapshot {

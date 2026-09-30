@@ -6,6 +6,7 @@ import {
 } from "./coinglass";
 import { useCoinglass } from "../hooks/use-coinglass";
 import { coinglassDefaults } from "../domain/coinglass";
+import { isSiteTheme, siteThemes } from "../domain/themes";
 import { heatmapDefaults } from "../domain/heatmap";
 import { useHeatmap } from "../hooks/use-heatmap";
 import { HeatmapPanel, HeatmapSettings } from "./heatmap";
@@ -337,9 +338,11 @@ export default function Terminal({ symbol }: { symbol?: string }) {
     [sort, setSort] = useState("volume"),
     [count, setCount] = useState("20");
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
+    const selectedTheme = isSiteTheme(theme) ? theme : "dark";
+    if (selectedTheme !== theme) setTheme(selectedTheme);
+    document.documentElement.dataset.theme = selectedTheme;
     document.documentElement.style.setProperty("--brand", accent);
-  }, [theme, accent]);
+  }, [theme, accent, setTheme]);
   function star(s: string) {
     setFavorites((prev) =>
       prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
@@ -864,21 +867,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
               value={theme}
               onChange={setTheme}
               label="Тема сайта"
-              items={[
-                ["dark", "Графит"],
-                ["midnight", "Полночь"],
-                ["light", "Светлая"],
-                ["ocean", "Океан"],
-                ["forest", "Лес"],
-                ["plum", "Слива"],
-                ["coffee", "Кофе"],
-                ["slate", "Сланец"],
-                ["burgundy", "Бордо"],
-                ["teal", "Лагуна"],
-                ["indigo", "Индиго"],
-                ["olive", "Олива"],
-                ["rose", "Роза"],
-              ]}
+              items={siteThemes.map(([id, name]) => [id, name] as [string, string])}
             />
           </div>
           <label className="settings-row">
@@ -1037,6 +1026,18 @@ function PairWorkspace({
   const q = rows.find((x) => x.symbol === symbol),
     item = catalog.find((x) => x.symbol === symbol) ?? candleData?.instrument;
   const heatmap = useHeatmap(symbol, item?.base ?? "", indicators, tf);
+  const heatmapLayer = useMemo(() => {
+    if (!heatmap.visible || !heatmap.data || !heatmap.model) return undefined;
+    return {
+      axis: heatmap.data.y,
+      columns: heatmap.model.columns,
+      times: heatmap.data.candles.map(({ x, time }) => ({ x, time })),
+      cells: heatmap.model.visible,
+      intensity: heatmap.model.intensity,
+      threshold: heatmap.settings.threshold,
+      scheme: heatmap.settings.scheme,
+    };
+  }, [heatmap.visible, heatmap.data, heatmap.model, heatmap.settings.threshold, heatmap.settings.scheme]);
   const bars = candleData?.data ?? [],
     last = bars.at(-1);
   const list = rows.filter(
@@ -1199,19 +1200,37 @@ function PairWorkspace({
           {indicators.length > 0 && (
             <div className="indicator-strip">
               {indicators.map((i) => (
-                <button
-                  key={i.id}
-                  onClick={() =>
-                    hasIndicatorSettings(i.definitionId)
-                      ? openIndicatorSettings(i.id)
-                      : setManager(true)
-                  }
-                  style={{ opacity: i.enabled ? 1 : 0.5 }}
-                >
-                  <IndicatorIcon name={i.icon} color={i.color} />
-                  {indicatorRegistry.find((x) => x.id === i.definitionId)?.name}
-                  <small>{i.enabled ? "активен" : "скрыт"}</small>
-                </button>
+                <div className="indicator-chip" key={i.id}>
+                  <button
+                    type="button"
+                    className="indicator-chip-main"
+                    onClick={() =>
+                      hasIndicatorSettings(i.definitionId)
+                        ? openIndicatorSettings(i.id)
+                        : setManager(true)
+                    }
+                    style={{ opacity: i.enabled ? 1 : 0.5 }}
+                  >
+                    <IndicatorIcon name={i.icon} color={i.color} />
+                    {indicatorRegistry.find((x) => x.id === i.definitionId)?.name}
+                  </button>
+                  <button
+                    type="button"
+                    className={`indicator-visibility${i.enabled ? " is-visible" : ""}`}
+                    aria-label={`${i.enabled ? "Скрыть" : "Показать"} индикатор ${indicatorRegistry.find((x) => x.id === i.definitionId)?.name ?? ""}`}
+                    aria-pressed={i.enabled}
+                    title={i.enabled ? "Скрыть индикатор" : "Показать индикатор"}
+                    onClick={() =>
+                      changeIndicators(
+                        indicators.map((x) =>
+                          x.id === i.id ? { ...x, enabled: !x.enabled } : x,
+                        ),
+                      )
+                    }
+                  >
+                    <span />
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -1231,6 +1250,7 @@ function PairWorkspace({
               historyCount={historyCount}
               coinglass={coinglass.overlays}
               heatmapLevels={heatmap.levels}
+              heatmapLayer={heatmapLayer}
             />
             {!bars.length && (
               <div className="chart-loading">

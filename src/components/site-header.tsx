@@ -3,13 +3,7 @@ import { useEffect, useState } from "react";
 import { Activity, ChartNoAxesCombined, LayoutGrid, Settings2, Waves } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useStored } from "../hooks/use-resource";
-
-const themes = [
-  ["dark", "Графит"], ["midnight", "Полночь"], ["light", "Светлая"],
-  ["ocean", "Океан"], ["forest", "Лес"], ["plum", "Слива"],
-  ["coffee", "Кофе"], ["slate", "Сланец"], ["burgundy", "Бордо"],
-  ["teal", "Лагуна"], ["indigo", "Индиго"], ["olive", "Олива"], ["rose", "Роза"],
-];
+import { isSiteTheme, siteThemes } from "../domain/themes";
 
 export function SiteHeader({
   active,
@@ -22,9 +16,11 @@ export function SiteHeader({
   const [accent, setAccent] = useStored("vector.accent.v1", "#99a5ff");
   const [settings, setSettings] = useState(false);
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
+    const selectedTheme = isSiteTheme(theme) ? theme : "dark";
+    if (selectedTheme !== theme) setTheme(selectedTheme);
+    document.documentElement.dataset.theme = selectedTheme;
     document.documentElement.style.setProperty("--brand", accent);
-  }, [theme, accent]);
+  }, [theme, accent, setTheme]);
 
   return (
     <>
@@ -53,7 +49,7 @@ export function SiteHeader({
           <DialogHeader><DialogTitle>Настройки оформления</DialogTitle></DialogHeader>
           <label className="settings-row">Тема сайта
             <select value={theme} onChange={event => setTheme(event.target.value)}>
-              {themes.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+              {siteThemes.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
             </select>
           </label>
           <label className="settings-row">Акцент интерфейса

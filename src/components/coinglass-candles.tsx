@@ -9,12 +9,17 @@ import {
   type IChartApi,
   type ISeriesApi,
   type UTCTimestamp,
-  type LineWidth,
   type AutoscaleInfo,
 } from "lightweight-charts";
 import type { Candle } from "../domain/market";
-import type { CoinglassParams, CoinglassPreview } from "../domain/coinglass";
+import {
+  coinglassVolumeColorIndex,
+  type CoinglassOverlay,
+  type CoinglassParams,
+  type CoinglassPreview,
+} from "../domain/coinglass";
 import type { ChartPalette } from "./chart";
+import { CoinGlassLevelsRenderer } from "../indicators/coinglass-levels-renderer";
 export function CoinglassCandles({
   bars,
   palette,
@@ -32,6 +37,7 @@ export function CoinglassCandles({
   const [copyStatus, setCopyStatus] = useState("");
   const chart = useRef<IChartApi | null>(null);
   const series = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const levelsRenderer = useRef<CoinGlassLevelsRenderer | null>(null);
   useEffect(() => {
     if (!host.current) return;
     const c = createChart(host.current, {
@@ -44,6 +50,17 @@ export function CoinglassCandles({
         vertLines: { color: palette.grid },
         horzLines: { color: palette.grid },
       },
+      rightPriceScale: {
+        borderColor: palette.grid,
+        minimumWidth: 104,
+        alignLabels: true,
+      },
+      timeScale: {
+        borderColor: palette.grid,
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 2,
+      },
     });
     chart.current = c;
     series.current = c.addSeries(CandlestickSeries, {
@@ -53,13 +70,23 @@ export function CoinglassCandles({
       wickDownColor: palette.down,
       borderVisible: false,
     });
+    const renderer = new CoinGlassLevelsRenderer();
+    series.current.attachPrimitive(renderer);
+    levelsRenderer.current = renderer;
     return () => {
+      series.current?.detachPrimitive(renderer);
+      levelsRenderer.current = null;
       series.current = null;
       chart.current = null;
       c.remove();
     };
   }, [palette]);
   useEffect(() => {
+    const currentPrice = bars.at(-1)?.close ?? 1;
+    const precision = currentPrice < 0.01 ? 8 : currentPrice < 1 ? 6 : currentPrice < 10 ? 4 : 2;
+    series.current?.applyOptions({
+      priceFormat: { type: "price", precision, minMove: 10 ** -precision },
+    });
     series.current?.setData(
       bars.map((b) => ({ ...b, time: b.time as UTCTimestamp })),
     );
@@ -68,6 +95,24 @@ export function CoinglassCandles({
   useEffect(() => {
     const s = series.current;
     if (!s) return;
+    const currentLevels = report.points.length
+      ? report.points
+      : report.result.levels;
+    const minIntensity = currentLevels.reduce(
+      (min, level) => Math.min(min, level.intensity),
+      Infinity,
+    );
+    const maxIntensity = currentLevels.reduce(
+      (max, level) => Math.max(max, level.intensity),
+      0,
+    );
+    const overlay: CoinglassOverlay = {
+      id: "settings-preview",
+      result: report.result,
+      params,
+      points: report.points,
+    };
+    levelsRenderer.current?.configure([overlay], bars, palette);
     const levels = report.result.levels;
     const previous =
       baseline?.result.levels.filter(
@@ -88,19 +133,20 @@ export function CoinglassCandles({
       },
     });
     const lines = [
-      ...levels.map((l, i) =>
-        s.createPriceLine({
+      ...levels.map((l, i) => {
+        const colorIndex = coinglassVolumeColorIndex(
+          l.intensity,
+          minIntensity,
+          maxIntensity,
+        );
+        return s.createPriceLine({
           price: l.price,
-          color:
-            l.price >= report.result.currentPrice
-              ? params.aboveColor
-              : params.belowColor,
-          lineWidth: params.lineWidth as LineWidth,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: params.showLabels,
-          title: params.showLabels ? `CG #${i + 1}` : "",
-        }),
-      ),
+          color: params.volumeColors[colorIndex],
+          lineVisible: false,
+          axisLabelVisible: params.showLevels && params.showLabels,
+          title: params.showLevels && params.showLabels ? `CG #${i + 1}` : "",
+        });
+      }),
       ...previous.map((l) =>
         s.createPriceLine({
           price: l.price,
@@ -115,7 +161,7 @@ export function CoinglassCandles({
     return () => {
       if (series.current === s) lines.forEach((l) => s.removePriceLine(l));
     };
-  }, [report, baseline, params, palette]);
+  }, [report, baseline, params, palette, bars]);
   useEffect(() => {
     if (!host.current || !chart.current || !series.current) return;
     return bindCoinglassPriceCopy(

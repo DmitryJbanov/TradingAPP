@@ -71,13 +71,14 @@ export function useCoinglass(
     freshResult ??
     (lastResult?.symbol === symbol ? lastResult.result : undefined) ??
     job?.result;
+  const points = preview.data?.points ?? preview.previousData?.points;
   const overlays: CoinglassOverlay[] = result
     ? instances
         .filter(
           (i) =>
             i.enabled && (!i.timeframes || i.timeframes.includes(timeframe)),
         )
-        .map((i) => ({ id: i.id, result, params: coinglassParams(i.params) }))
+        .map((i) => ({ id: i.id, result, params: coinglassParams(i.params), points }))
     : [];
   return {
     instances,

@@ -68,10 +68,12 @@ export function CoinglassSettingsDialog({
       "hoverMs",
       "rangeDays",
       "requestLimit",
-      "lineWidth",
       "staleHours",
     ] as const
-  ).every((k) => normalized[k] === params[k]);
+  ).every((k) => normalized[k] === params[k]) &&
+    normalized.volumeOpacities.every(
+      (value, index) => value === params.volumeOpacities[index],
+    );
   const preview = useCoinglassPreview(
     symbol,
     snapshot?.snapshotId,
@@ -100,7 +102,6 @@ export function CoinglassSettingsDialog({
       | "limit"
       | "hoverMs"
       | "requestLimit"
-      | "lineWidth"
       | "staleHours",
     label: string,
     min: number,
@@ -144,7 +145,7 @@ export function CoinglassSettingsDialog({
         />{" "}
         Показать уровни на свечном графике
       </label>
-      {candles && report && (
+      {candles && displayReport && (
         <section>
           <p>
             {symbol} · {timeframe} ·{" "}
@@ -161,7 +162,7 @@ export function CoinglassSettingsDialog({
               bars={bars}
               palette={palette}
               params={normalized}
-              report={report}
+              report={displayReport}
               baseline={compare ? baseline.data : undefined}
             />
           ) : (
@@ -179,7 +180,7 @@ export function CoinglassSettingsDialog({
     onApply({
       ...instance,
       params: { ...normalized, snapshotIds: {} },
-      color: normalized.aboveColor,
+      color: normalized.volumeColors[0],
     });
     onClose();
   }
@@ -191,7 +192,7 @@ export function CoinglassSettingsDialog({
       }}
     >
       <DialogContent
-        className="coinglass-dialog cg-visual-dialog"
+        className="coinglass-dialog cg-visual-dialog cg-visual-dialog-wide"
         aria-describedby={undefined}
       >
         <DialogHeader>
@@ -380,27 +381,6 @@ export function CoinglassSettingsDialog({
             </label>
             <details open>
               <summary>Оформление</summary>
-              <label className="cg-field">
-                Выше цены
-                <input
-                  type="color"
-                  value={params.aboveColor}
-                  onChange={(e) =>
-                    setParams((p) => ({ ...p, aboveColor: e.target.value }))
-                  }
-                />
-              </label>
-              <label className="cg-field">
-                Ниже цены
-                <input
-                  type="color"
-                  value={params.belowColor}
-                  onChange={(e) =>
-                    setParams((p) => ({ ...p, belowColor: e.target.value }))
-                  }
-                />
-              </label>
-              {field("lineWidth", "Толщина линий", 1, 4, 1)}
               <label>
                 <input
                   type="checkbox"
@@ -411,6 +391,79 @@ export function CoinglassSettingsDialog({
                 />{" "}
                 Подписи уровней
               </label>
+            </details>
+            <details open>
+              <summary>Уровни на графике: цвет и прозрачность</summary>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={normalized.showLevels}
+                  onChange={(e) =>
+                    setParams((p) => ({ ...p, showLevels: e.target.checked }))
+                  }
+                />{" "}
+                Показывать цветные уровни на графике
+              </label>
+              <p className="cg-help">
+                Цвета назначаются по логарифмическому объёму от минимального к максимальному на карте.
+              </p>
+              <p className="cg-help">
+                Справа на графике отображается профиль накопленного объёма по ценовым уровням; сумма показана над профилем.
+              </p>
+              {(["Очень низкий", "Низкий", "Средний", "Выше среднего", "Высокий", "Максимальный"] as const).map((label, index) => (
+                <div className="cg-volume-tier" key={label}>
+                  <span>{label} объём</span>
+                  <input
+                    type="color"
+                    aria-label={`Цвет: ${label} объём`}
+                    value={normalized.volumeColors[index]}
+                    onChange={(e) =>
+                      setParams((p) => ({
+                        ...p,
+                        volumeColors: p.volumeColors.map((color, i) =>
+                          i === index ? e.target.value : color,
+                        ) as CoinglassParams["volumeColors"],
+                      }))
+                    }
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    aria-label={`Прозрачность: ${label} объём`}
+                    value={normalized.volumeOpacities[index]}
+                    onChange={(e) =>
+                      setParams((p) => ({
+                        ...p,
+                        volumeOpacities: p.volumeOpacities.map((opacity, i) =>
+                          i === index ? Number(e.target.value) : opacity,
+                        ) as CoinglassParams["volumeOpacities"],
+                      }))
+                    }
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    aria-label={`Прозрачность: ${label} объём, %`}
+                    value={normalized.volumeOpacities[index]}
+                    onChange={(e) =>
+                      setParams((p) => ({
+                        ...p,
+                        volumeOpacities: p.volumeOpacities.map((opacity, i) =>
+                          i === index
+                            ? e.target.value === ""
+                              ? NaN
+                              : Number(e.target.value)
+                            : opacity,
+                        ) as CoinglassParams["volumeOpacities"],
+                      }))
+                    }
+                  />
+                </div>
+              ))}
             </details>
             <details>
               <summary>Сбор и актуальность</summary>

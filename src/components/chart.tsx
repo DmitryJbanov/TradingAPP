@@ -1,7 +1,6 @@
 "use client";
 import { bindCoinglassPriceCopy } from "./coinglass-price-copy";
 import type { CoinglassOverlay } from "../domain/coinglass";
-import type { LineWidth } from "lightweight-charts";
 import { DrawingTools, type DrawingChart } from "./drawing-tools";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -28,6 +27,11 @@ import type { OrderBlockOverlay } from "../hooks/use-order-blocks";
 import { OrderBlocksRenderer } from "../indicators/order-blocks-renderer";
 import { PriceOverlaysRenderer } from "../indicators/price-overlays-renderer";
 import type { PriceOverlay } from "../hooks/use-overlays";
+import { CoinGlassHeatmapRenderer, type CoinGlassHeatmapLayer } from "../indicators/coinglass-heatmap-renderer";
+import { CoinGlassLevelsRenderer } from "../indicators/coinglass-levels-renderer";
+import {
+  coinglassVolumeColorIndex,
+} from "../domain/coinglass";
 import type { StochRsiPane } from "../hooks/use-stoch-rsi";
 import {
   StochRsiRenderer,
@@ -72,6 +76,7 @@ export function MarketChart({
   historyCount,
   coinglass = [],
   heatmapLevels = [],
+  heatmapLayer,
   mtmPanes = [],
 }: {
   bars: Candle[];
@@ -86,6 +91,7 @@ export function MarketChart({
   historyCount: number;
   coinglass?: CoinglassOverlay[];
   heatmapLevels?: { price: number; value: number }[];
+  heatmapLayer?: CoinGlassHeatmapLayer;
   mtmPanes?: {
     id: string;
     points: { time: number; value: number; average: number }[];
@@ -120,6 +126,8 @@ export function MarketChart({
   );
   const orderBlocksRenderer = useRef<OrderBlocksRenderer | null>(null);
   const priceOverlaysRenderer = useRef<PriceOverlaysRenderer | null>(null);
+  const heatmapRenderer = useRef<CoinGlassHeatmapRenderer | null>(null);
+  const coinglassLevelsRenderer = useRef<CoinGlassLevelsRenderer | null>(null);
   const fitted = useRef("");
   const [cursor, setCursor] = useState<{
     x: number;
@@ -213,6 +221,12 @@ export function MarketChart({
     const overlaysRenderer = new PriceOverlaysRenderer();
     s.attachPrimitive(overlaysRenderer);
     priceOverlaysRenderer.current = overlaysRenderer;
+    const hmRenderer = new CoinGlassHeatmapRenderer();
+    s.attachPrimitive(hmRenderer);
+    heatmapRenderer.current = hmRenderer;
+    const cgLevelsRenderer = new CoinGlassLevelsRenderer();
+    s.attachPrimitive(cgLevelsRenderer);
+    coinglassLevelsRenderer.current = cgLevelsRenderer;
     c.subscribeCrosshairMove((p) => {
       if (!p.point || !p.time || p.point.x < 0 || p.point.y < 0) {
         setCursor(null);
@@ -242,7 +256,11 @@ export function MarketChart({
       mtmSeries.current.clear();
       s.detachPrimitive(obRenderer);
       s.detachPrimitive(overlaysRenderer);
+      s.detachPrimitive(hmRenderer);
+      s.detachPrimitive(cgLevelsRenderer);
       priceOverlaysRenderer.current = null;
+      heatmapRenderer.current = null;
+      coinglassLevelsRenderer.current = null;
       orderBlocksRenderer.current = null;
       c.remove();
       chart.current = null;
@@ -314,6 +332,12 @@ export function MarketChart({
   useEffect(() => {
     priceOverlaysRenderer.current?.configure(priceOverlays, palette.text);
   }, [priceOverlays, palette.text]);
+  useEffect(() => {
+    heatmapRenderer.current?.configure(heatmapLayer, bars);
+  }, [heatmapLayer, bars]);
+  useEffect(() => {
+    coinglassLevelsRenderer.current?.configure(coinglass, bars, palette);
+  }, [coinglass, bars, palette]);
   useEffect(() => {
     orderBlocksRenderer.current?.configure(orderBlocks);
   }, [orderBlocks]);
@@ -472,23 +496,33 @@ export function MarketChart({
   useEffect(() => {
     const s = series.current;
     if (!s) return;
-    const lines = coinglass.flatMap((overlay) =>
-      overlay.result.levels
-        .filter((level) => Number.isFinite(level.price) && level.price > 0)
-        .map((level, index) =>
-          s.createPriceLine({
-            price: level.price,
-            color:
-              level.price >= overlay.result.currentPrice
-                ? overlay.params.aboveColor
-                : overlay.params.belowColor,
-            lineWidth: overlay.params.lineWidth as LineWidth,
-            lineStyle: LineStyle.Dashed,
-            axisLabelVisible: overlay.params.showLabels,
-            title: overlay.params.showLabels ? `CG #${index + 1}` : "",
-          }),
-        ),
-    );
+    const lines = coinglass.flatMap((overlay) => {
+      const levels = overlay.result.levels.filter(
+        (level) => Number.isFinite(level.price) && level.price > 0,
+      );
+      const volumes = (overlay.points?.length ? overlay.points : levels).map(
+        (level) => level.intensity,
+      );
+      const maxIntensity = volumes.reduce(
+        (max, volume) => Math.max(max, volume),
+        0,
+      );
+      const minIntensity = volumes.reduce((min, value) => Math.min(min, value), Infinity);
+      return levels.map((level, index) => {
+        const colorIndex = coinglassVolumeColorIndex(
+          level.intensity,
+          minIntensity,
+          maxIntensity,
+        );
+        return s.createPriceLine({
+          price: level.price,
+          color: overlay.params.volumeColors[colorIndex],
+          lineVisible: false,
+          axisLabelVisible: overlay.params.showLevels && overlay.params.showLabels,
+          title: overlay.params.showLevels && overlay.params.showLabels ? `CG #${index + 1}` : "",
+        });
+      });
+    });
     return () => {
       if (series.current === s)
         lines.forEach((line) => s.removePriceLine(line));

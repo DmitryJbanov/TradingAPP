@@ -15,6 +15,46 @@ import {
 } from "../src/domain/heatmap";
 import { handleApi } from "../src/server/market-service";
 import fixture from "./fixtures/heatmap-btc.json";
+import { CoinGlassHeatmapRenderer } from "../src/indicators/coinglass-heatmap-renderer";
+
+test("heatmap draws fractional columns at their historical position on every timeframe", () => {
+  for (const barStep of [3600, 14400, 86400]) {
+    for (const cellStep of [300, 900, 3600, 14400, 28800]) {
+      for (const spacing of [4, 12]) {
+        const start = 1788134400;
+        const bars = Array.from({ length: 100 }, (_, i) => ({
+          time: start + i * barStep, open: 100, high: 110, low: 90, close: 100, volume: 1,
+        }));
+        const times = [0, 1, 2].map(x => ({ x, time: start + 50 * barStep + x * cellStep }));
+        const renderer = new CoinGlassHeatmapRenderer();
+        const rectangles: number[][] = [];
+        renderer.attached({
+          chart: { timeScale: () => ({
+            // Matches Lightweight Charts 5.0.9: fractional input returns zero.
+            logicalToCoordinate: (x: number) => Number.isInteger(x) ? 20 + x * spacing : 0,
+          }) },
+          series: { priceToCoordinate: (price: number) => 200 - price },
+          requestUpdate() {},
+        } as any);
+        renderer.configure({ axis: [90, 100, 110], columns: 3, times,
+          cells: [[0, 1, 1], [1, 1, 1], [2, 1, 1]],
+          intensity: x => x, threshold: 0, scheme: "coinglass",
+        }, bars);
+        renderer.paneViews()[0].renderer()!.draw({ useMediaCoordinateSpace: (draw: any) => draw({
+          mediaSize: { width: 2000, height: 400 },
+          context: { save() {}, restore() {}, beginPath() {}, rect() {}, clip() {},
+            fillRect: (...rect: number[]) => rectangles.push(rect) },
+        }) } as any);
+        assert.equal(rectangles.length, 3, `bar=${barStep}, cell=${cellStep}`);
+        rectangles.forEach((rect, i) => {
+          const expected = 20 + (50 + (i - 0.5) * cellStep / barStep) * spacing;
+          assert.ok(Math.abs(rect[0] - expected) < 1e-6);
+          assert.ok(Math.abs(rect[2] - (cellStep / barStep * spacing + 0.5)) < 1e-6);
+        });
+      }
+    }
+  }
+});
 
 test("heatmap validates axes, asset, indices, sizes and deduplicates by maximum", () => {
   const d = parseHeatmap(
