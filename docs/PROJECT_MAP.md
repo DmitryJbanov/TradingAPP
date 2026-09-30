@@ -1,61 +1,45 @@
-# Карта DiVMoney
+# Карта проекта DiVMoney · 0.2.0
 
-Приложение React 19 / TypeScript. Два способа запуска используют один UI:
-Next/Vinext (`app/`) и переносимый Vite + Node (`standalone/`). Версия 0.1.3.
+Карта актуальна для версии из корневого `package.json`. React 19 / TypeScript; интерфейс собирается как hosted-приложение через Vite/Vinext или как автономный Node.js runtime. Основной стек разработки и запуска — Node.js 22.13+.
 
-| Задача                                     | Начать здесь                                                       | Следующий файл при необходимости                                                      |
-| ------------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| Главная, таблица, избранное, настройки тем | `src/components/terminal.tsx`: Terminal                            | `app/globals.css`                                                                     |
-| Страница пары, менеджер индикаторов        | тот же файл: PairWorkspace                                         | `src/domain/workspace.ts`                                                             |
-| Поиск всех пар Binance                     | `src/components/symbol-search.tsx`                                 | `src/server/symbol-service.ts`                                                        |
-| Темы, отступы, адаптивность                | `app/globals.css`                                                  | выбор темы в Terminal                                                                 |
-| График, метка дельты, уровни               | `src/components/chart.tsx`                                         | `coinglass-price-copy.ts`, `drawing-tools.tsx`                                        |
-| Иконки активов и индикаторов               | `src/components/terminal.tsx`, `src/components/indicator-icon.tsx` | `IndicatorInstance.icon`, менеджер в PairWorkspace                                    |
-| Общие сохранённые индикаторы               | `src/hooks/use-shared-indicators.ts`                               | `src/domain/shared-indicators.ts`                                                     |
-| CoinGlass: UI                              | `src/components/coinglass-settings-dialog.tsx`                     | `coinglass-map.tsx`, `coinglass-candles.tsx`                                          |
-| CoinGlass: данные                          | `src/hooks/use-coinglass.ts`                                       | `src/server/coinglass-service.ts`, `src/domain/coinglass.ts`                          |
-| CoinGlass Heatmap Model 3                  | `docs/COINGLASS_HEATMAP.md`, `src/components/heatmap.tsx`          | `src/domain/heatmap.ts`, `src/hooks/use-heatmap.ts`, `coinglass_heatmap/collector.py` |
-| RSI Heatmap top 50                         | `src/components/rsi-heatmap-page.tsx`                              | `src/server/coinglass-service.ts`, `services/coinglass/rsi_heatmap_worker.py`          |
-| Расчёты индикаторов                        | `src/indicators/` (имя индикатора)                                 | соответствующий хук в `src/hooks/` (MTM: `use-mtm.ts`)                                |
-| Свечи и котировки                          | `src/server/market-service.ts`                                     | `binance-history.ts`, `src/domain/market.ts`                                          |
-| Торговые сессии обеих страниц              | `src/components/sessions.tsx`                                      | тесты сессий в `tests/core.test.ts`                                                   |
-| Беклог главной и /backlog                  | `src/domain/backlog.ts`                                            | `src/components/backlog-page.tsx`                                                     |
-| Сборка и HTTP smoke                        | `standalone/build.mjs`, `tests/smoke.mjs`                          | `standalone/server.ts`                                                                |
+| Задача | Основные файлы |
+| --- | --- |
+| Главная, каталог рынков, тема, общая навигация | `src/components/terminal.tsx`, `src/components/site-header.tsx`, `app/globals.css` |
+| Поиск инструментов и каталог | `src/components/symbol-search.tsx`, `src/server/symbol-service.ts`, `src/domain/catalog.ts` |
+| Рабочая область пары, список индикаторов | `src/components/terminal.tsx`, `src/domain/workspace.ts` |
+| Свечной график и overlays | `src/components/chart.tsx`, `src/components/drawing-tools.tsx`, `src/components/drawings-renderer.ts` |
+| Fixed Range Volume Profile | drawing tools и renderer в `src/components/`; типы разметки в `src/domain/workspace.ts` |
+| Индикаторы | `src/indicators/`, `src/hooks/use-*.ts`, `src/components/*settings-dialog.tsx` |
+| MTM и Stoch RSI | `src/indicators/`, `src/hooks/use-mtm.ts`, `src/hooks/use-stoch-rsi.ts` |
+| DRZ, SMC, VMC, Sonarlab | `src/indicators/`, `src/hooks/`, `docs/INDICATORS_DRZ_SMC.md`, `docs/INDICATOR_VMC.md`, `docs/INDICATOR_ORDER_BLOCKS.md` |
+| CoinGlass: уровни ликвидаций и Model 3 | `src/components/coinglass*.tsx`, `src/domain/coinglass.ts`, `src/domain/heatmap.ts`, `src/server/coinglass-service.ts` |
+| CoinGlass: сборщик и workers | `services/coinglass/`, `coinglass_heatmap/` |
+| Fear & Greed, RSI Heatmap | `src/components/fear-greed-page.tsx`, `src/components/rsi-heatmap-page.tsx`, `services/coinglass/` |
+| Котировки, история свечей, кеш | `src/server/market-service.ts`, `src/domain/market.ts` |
+| Hosted API-адаптер | `app/api/*/route.ts` |
+| Автономный Node server/build | `standalone/server.ts`, `standalone/build.mjs`, `standalone/main.tsx` |
+| Тесты | `tests/`, `services/coinglass/test_*.py` |
 
-Особенности: один поисковый запрос фильтрует локальный список и вызывает поиск
-Binance; настройки хранятся под прежними ключами `vector.*`; палитра свечного
-графика независима от темы сайта. CoinGlassMap держит состояние выбора пика и
-получает свечной предпросмотр через `beforeTable`.
+## Основные страницы
 
-Проверки: `tests/run.mjs` собирает `tests/core.test.ts`, который импортирует
-тесты подсистем. `tests/interface.test.ts` проверяет попадание в ценовые метки
-и сохранение иконок. Для конкретной интеграции читайте соответствующий документ
-в `docs/`, а не все документы сразу.
+- `/` — каталог рынков.
+- `/pair/[symbol]` — рабочая область инструмента.
+- `/fear-greed` — индекс Fear & Greed.
+- `/rsi-heatmap` — карта RSI top 50 с периодами 4 часа, 24 часа и неделя.
+- `/backlog` — внутренний список задач/беклог.
 
-Stochastic RSI: `src/indicators/stoch-rsi.ts`, `stoch-rsi-renderer.ts`,
-`src/hooks/use-stoch-rsi.ts`, `src/components/stoch-rsi-settings-dialog.tsx`.
-Отдельная панель с K/D и уровнями 20/50/80; параметры по умолчанию 3/3/14/14.
-Открытый график запрашивает две последние свечи каждые 2 секунды; их серверный
-кеш — 2 секунды. Полная история загружается отдельно.
+Общие тема и расположение навигации задаются общими компонентами, а не отдельными темами страниц.
 
-Fixed Range Volume Profile находится в инструментах рисования; он хранится рядом
-с пользовательской разметкой. Логотипы криптоактивов загружаются из CoinCap.
-MTM рисуется отдельной панелью по формуле close − close[N] и средней этого ряда.
+## Индикаторы и графические инструменты
 
-CoinGlass Liquidation Map: `services/coinglass/frontend_api.py` вызывает функцию
-клиента CoinGlass `bvP` в браузерной сессии; `collector.py` проверяет ответ и
-суммирует уровни. Периоды: 1, 7, 30, 90, 180, 365 дней; выбор рядом с кнопкой
-парсинга. Лимит запроса 1–1440 — в визуальных настройках. Новый период требует
-нового сбора; предпросмотр сохранённого снимка сохраняет его исходный период.
-Сервис сохраняет отдельные обработчики Liquidation Map и Heatmap Model 3.
+Реестр в `src/domain/workspace.ts` включает MTM, Stochastic RSI, CoinGlass Heatmap Model 3, CoinGlass liquidation levels, DRZ, SMC, VMC и Sonarlab Order Blocks. Иконка индикатора хранится в экземпляре и выбирается через UI. Список активных индикаторов отображается над графиком; кружок состояния переключает видимость.
 
-Жизненный цикл CoinGlass: `services/coinglass/persistent_worker.py` держит
-процесс `worker.py --persistent`; `Manager` в `service.py` запускает его лениво,
-повторно использует между заданиями и восстанавливает после сбоя.
-`HeatmapManager` хранит отдельные результаты Model 3, но использует очередь,
-блокировку и `PersistentWorker` основного `Manager`. Только основной менеджер
-владеет потоком очереди и завершает браузер. `worker.py` выбирает сборщик по типу
-задания; `heatmap_worker.py` получает существующий `BrowserRuntime`.
-`compose.yaml` устанавливает оба сервиса сразу; `compose.coinglass.yaml`
-оставлен для совместимости команд. Контекст сборки CoinGlass — корень проекта,
-чтобы включить пакет `coinglass_heatmap`.
+Fixed Range Volume Profile является инструментом разметки: пользователь задаёт два края диапазона, по умолчанию 150 строк и Value Area 70%. MTM показывает импульс `close − close[N]` и SMA этого ряда; значения N и N1 по умолчанию — 60.
+
+## CoinGlass
+
+Сбор данных выполняет отдельный Python-сервис с Playwright/Chromium; Node backend проксирует маршруты `/api/coinglass/*`. Heatmap Model 3 хранит временные ячейки и накладывает их на свечной график; отображение ограничивается загруженными свечами и учитывает выбранный timeframe. Liquidation levels отображаются независимо по уровням объёма. Настройки, палитры/прозрачность и блок кумулятивного объёма документированы в [COINGLASS.md](COINGLASS.md), [COINGLASS_HEATMAP.md](COINGLASS_HEATMAP.md), [COINGLASS_VISUAL_SETTINGS.md](COINGLASS_VISUAL_SETTINGS.md).
+
+## Поддержка карты
+
+Сначала смотрите документ конкретной подсистемы из [индекса документации](../README.md#документация). `docs/APPLY_*_PATCH.md` и `docs/RELEASE_0.1.3.md` сохранены только как исторические записи и не описывают текущую установку.

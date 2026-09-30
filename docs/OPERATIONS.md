@@ -1,8 +1,10 @@
 # Эксплуатация
 
+Для актуального способа запуска используйте `docker compose up -d --build`: `compose.yaml` уже поднимает `terminal` и `coinglass`. Node standalone запускается командами из [корневого README](../README.md). Старые инструкции с дополнительным `-f compose.coinglass.yaml` оставлены для совместимости и в обычном запуске не нужны.
+
 ## Самостоятельный runtime
 
-Рекомендуемый старт для личной установки: `docker compose up -d --build`. В образе multi-stage build, непривилегированный user node, read-only root filesystem, tmpfs /tmp, drop capabilities, restart policy и healthcheck. Данные на диске не записываются, persistent volume не нужен.
+Рекомендуемый старт для личной установки: `docker compose up -d --build`. Compose запускает приложение и отдельный CoinGlass worker. Worker сохраняет снимки в volume `coinglass-data`; не удаляйте его при обновлении. Конфиденциальные файлы для сайта монтируются из `coinglass-secrets/` только для чтения. Образы используют read-only root filesystem, tmpfs, ограниченные capabilities и restart policy.
 
 Готовый `release/` работает обычным Node.js. Всё frontend содержимое в release/public, сервер — один ESM bundle без npm runtime-зависимостей. Системному времени сервера и браузера нужно быть корректным; UTC-ось не зависит от locale устройства.
 

@@ -1,5 +1,7 @@
 # HTTP API
 
+Документ обновлён для DiVMoney 0.2.0. API выдаёт JSON и используется обоими runtime. Маршруты, связанные с CoinGlass, приведены ниже; детали форматов снимков см. в документах [CoinGlass](COINGLASS.md) и [Model 3](COINGLASS_HEATMAP.md).
+
 Одинаковый API доступен в hosted и standalone сборке. Формат JSON, методы GET, `Cache-Control: no-store`. Кеш приложения живёт на сервере независимо от HTTP-заголовка. Все даты ISO 8601 UTC; время свечей UNIX seconds.
 
 ## `GET /api/markets`
@@ -113,6 +115,28 @@ curl -fsS 'http://localhost:3000/api/candles?symbol=BTCUSDT&interval=4h'
 curl -fsS 'http://localhost:3000/api/markets?refresh=1'
 curl -fsS http://localhost:3000/api/logs
 ```
+
+## Дополнительные маршруты 0.2.0
+
+### Поиск и страницы
+
+- `GET /api/symbols?q=BTC` — поиск/подсказки инструментов Binance.
+- `GET /fear-greed` и `GET /rsi-heatmap` — страницы интерфейса; это не API-маршруты.
+- `GET /backlog` — страница внутреннего беклога.
+
+### CoinGlass
+
+Общие маршруты: `GET /api/coinglass/status`, `GET /api/coinglass/snapshot?symbol=BTCUSDT[&snapshotId=…]`, `POST /api/coinglass/run` и `POST /api/coinglass/preview`. POST принимает JSON с `symbol` и `params`; запросы проверяют Origin, content-type, размер и допустимость параметров.
+
+Специализированные маршруты используют тот же backend:
+
+| Функция | Статус | Снимок | Запуск |
+| --- | --- | --- | --- |
+| Heatmap Model 3 | `/api/coinglass/heatmap-status?symbol=BTCUSDT` | `/api/coinglass/heatmap-snapshot?symbol=BTCUSDT[&snapshotId=…]` | `POST /api/coinglass/heatmap-run` |
+| Fear & Greed | `/api/coinglass/fear-greed-status` | `/api/coinglass/fear-greed-snapshot` | `POST /api/coinglass/fear-greed-run` |
+| RSI Heatmap top 50 | `/api/coinglass/rsi-heatmap-status` | `/api/coinglass/rsi-heatmap-snapshot` | `POST /api/coinglass/rsi-heatmap-run` |
+
+Fear & Greed запускается JSON `{ "symbol": "CMC" }`. RSI Heatmap принимает `{ "symbol": "TOP50", "params": { "period": "4h" } }`; допустимые `period`: `4h`, `24h`, `1w`. Heatmap Model 3 принимает symbol пары и период карты в `params.range`. Ответы снимков содержат формат, зависящий от подсистемы. Endpoint CoinGlass требует настроенный фоновый Python-сервис; иначе backend возвращает ошибку конфигурации/связи.
 
 ## Дополнение VMC
 

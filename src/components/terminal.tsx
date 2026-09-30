@@ -852,7 +852,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
               </div>
             </aside>
           </div>
-          <footer className="footer">0.1.3</footer>
+          <footer className="footer">0.2.0</footer>
         </main>
       )}
       <Dialog open={settings} onOpenChange={setSettings}>
