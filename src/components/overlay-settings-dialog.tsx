@@ -17,6 +17,7 @@ import {
   type Timeframe,
 } from "../domain/market";
 import { drzFields, normalizeDrzParams } from "../indicators/drz-settings";
+import { fvgFields, normalizeFvgParams } from "../indicators/fvg-settings";
 import { smcFields, normalizeSmcParams } from "../indicators/smc-settings";
 import type {
   OverlayField,
@@ -35,8 +36,13 @@ export function OverlaySettingsDialog({
   onApply: (i: IndicatorInstance) => void;
 }) {
   const isDrz = instance.definitionId === "drz",
-    fields = isDrz ? drzFields : smcFields,
-    normalize = isDrz ? normalizeDrzParams : normalizeSmcParams;
+    isFvg = instance.definitionId === "fvg-luxalgo",
+    fields = isDrz ? drzFields : isFvg ? fvgFields : smcFields,
+    normalize = isDrz
+      ? normalizeDrzParams
+      : isFvg
+        ? normalizeFvgParams
+        : normalizeSmcParams;
   const [params, setParams] = useState<Record<string, ParameterValue>>(() =>
       normalize(instance.params),
     ),
@@ -71,7 +77,9 @@ export function OverlaySettingsDialog({
       timeframes: frames,
       color: isDrz
         ? normalizeDrzParams(next).lower_zone_color
-        : normalizeSmcParams(next).swingBullColorInput,
+        : isFvg
+          ? normalizeFvgParams(next).bullish_color
+          : normalizeSmcParams(next).swingBullColorInput,
     });
     onClose();
   }
@@ -93,7 +101,7 @@ export function OverlaySettingsDialog({
           items={(f.options ?? [])
             .filter(
               (v) =>
-                f.key !== "fairValueGapsTimeframeInput" ||
+                !["fairValueGapsTimeframeInput", "timeframe"].includes(f.key) ||
                 v === "Chart" ||
                 candleIntervals[v as CandleInterval] >=
                   candleIntervals[timeframe],
@@ -132,7 +140,11 @@ export function OverlaySettingsDialog({
       <DialogContent className="vmc-settings-dialog">
         <DialogHeader>
           <DialogTitle>
-            {isDrz ? "DRZ · BOSWaves" : "SMC · LuxAlgo"} · Настройки
+            {isDrz
+              ? "DRZ · BOSWaves"
+              : isFvg
+                ? "Fair Value Gap · LuxAlgo"
+                : "SMC · LuxAlgo"} · Настройки
           </DialogTitle>
           <DialogDescription>
             Параметры этого экземпляра. Изменения вступят в силу после
@@ -172,7 +184,9 @@ export function OverlaySettingsDialog({
                   <p className="muted">
                     {isDrz
                       ? "Дельта оценивается по направлению свечи и объёму. Размер тика можно указать вручную. Статистика зон находится справа: сдвиньте график влево для её просмотра."
-                      : "FVG: текущий или старший таймфрейм. Подтверждённый режим ждёт закрытия старшей свечи. Pine lookahead может перерисовывать историю. Уровни D/W/M используют календарь UTC."}
+                      : isFvg
+                        ? "Bullish gap: low текущей свечи выше high две свечи назад, bearish gap — high ниже low. Старший таймфрейм используется после закрытия свечи, поэтому незакрытая HTF история не подмешивается."
+                        : "FVG: текущий или старший таймфрейм. Подтверждённый режим ждёт закрытия старшей свечи. Pine lookahead может перерисовывать историю. Уровни D/W/M используют календарь UTC."}
                   </p>
                 )}
               </TabsContent>

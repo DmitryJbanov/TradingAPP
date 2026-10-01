@@ -47,6 +47,7 @@ test("only rendered and calculated indicators remain in the catalog", () => {
     "coinglass",
     "coinglass-heatmap",
     "drz",
+    "fvg-luxalgo",
     "smc",
     "sonarlab-ob",
     "stoch-rsi",

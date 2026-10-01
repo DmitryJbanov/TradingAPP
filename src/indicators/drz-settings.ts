@@ -13,6 +13,7 @@ export const drzDefaults = {
   lower_zone_color: "#00ff00",
   upper_zone_color: "#ff0000",
   show_zone_boxes: true,
+  show_historical_zones: true,
   show_signals: true,
   extend_bars: 65,
   stats_box_bars: 30,
@@ -132,6 +133,13 @@ export const drzFields: OverlayField[] = [
   {
     key: "show_zone_boxes",
     label: "Show Zone Boxes",
+    group: "Visualization",
+    kind: "boolean",
+    default: true,
+  },
+  {
+    key: "show_historical_zones",
+    label: "Показывать исторические дельта-зоны",
     group: "Visualization",
     kind: "boolean",
     default: true,

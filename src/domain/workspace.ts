@@ -8,6 +8,8 @@ import { computeDrz } from "../indicators/drz";
 import { computeSmc } from "../indicators/smc";
 import type { DrzParams } from "../indicators/drz-settings";
 import type { SmcParams } from "../indicators/smc-settings";
+import { computeFvg } from "../indicators/fvg";
+import type { FvgParams } from "../indicators/fvg-settings";
 import type { Candle, Timeframe } from "./market";
 export interface MtmParams {
   maPeriod?: number;
@@ -28,6 +30,7 @@ export interface IndicatorInstance {
     | Partial<OrderBlockParams>
     | Partial<DrzParams>
     | Partial<SmcParams>
+    | Partial<FvgParams>
     | Partial<CoinglassParams>
     | Partial<HeatmapParams>
     | Partial<MtmParams>;
@@ -107,6 +110,14 @@ export const indicatorRegistry: IndicatorDefinition[] = [
       "LuxAlgo: BOS / CHoCH, order blocks, EQH / EQL, FVG и уровни периодов.",
     implemented: true,
     compute: computeSmc,
+  },
+  {
+    id: "fvg-luxalgo",
+    name: "Fair Value Gap · LuxAlgo",
+    description:
+      "Трёхсвечные дисбалансы: авто/ручной порог, старший ТФ, динамические зоны и уровни заполнения.",
+    implemented: true,
+    compute: computeFvg,
   },
   {
     id: "vmc",

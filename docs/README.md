@@ -14,6 +14,7 @@
 - [VMC Cipher B](INDICATOR_VMC.md)
 - [DRZ и SMC](INDICATORS_DRZ_SMC.md)
 - [Sonarlab Order Blocks](INDICATOR_ORDER_BLOCKS.md)
+- [Fair Value Gap · LuxAlgo](INDICATOR_FVG.md)
 - Fixed Range Volume Profile доступен в инструментах разметки графика; MTM — в списке индикаторов. Текущие параметры см. в их настройках приложения и исходниках `src/components/drawing-tools.tsx`, `src/components/terminal.tsx`.
 
 ## CoinGlass

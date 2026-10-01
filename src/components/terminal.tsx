@@ -91,6 +91,7 @@ import { useOverlays } from "../hooks/use-overlays";
 import { OverlaySettingsDialog } from "./overlay-settings-dialog";
 import { drzDefaults } from "../indicators/drz-settings";
 import { smcDefaults } from "../indicators/smc-settings";
+import { fvgDefaults } from "../indicators/fvg-settings";
 import { useStochRsi } from "../hooks/use-stoch-rsi";
 import { useMtm } from "../hooks/use-mtm";
 import { stochRsiDefaults } from "../indicators/stoch-rsi";
@@ -103,6 +104,7 @@ const hasIndicatorSettings = (id: string) =>
     "sonarlab-ob",
     "drz",
     "smc",
+    "fvg-luxalgo",
     "coinglass",
     "coinglass-heatmap",
   ].includes(id);
@@ -1420,8 +1422,10 @@ function PairWorkspace({
                                   ? { params: { ...orderBlockDefaults } }
                                   : d.id === "drz"
                                     ? { params: { ...drzDefaults } }
+                                  : d.id === "fvg-luxalgo"
+                                    ? { params: { ...fvgDefaults } }
                                     : d.id === "smc"
-                                      ? { params: { ...smcDefaults } }
+                                          ? { params: { ...smcDefaults } }
                                       : d.id === "coinglass"
                                         ? { params: { ...coinglassDefaults } }
                                         : d.id === "coinglass-heatmap"
@@ -1616,7 +1620,7 @@ function PairWorkspace({
         </DialogContent>
       </Dialog>
       {editingIndicator &&
-        ["drz", "smc"].includes(editingIndicator.definitionId) && (
+        ["drz", "smc", "fvg-luxalgo"].includes(editingIndicator.definitionId) && (
           <OverlaySettingsDialog
             key={editingIndicator.id}
             instance={editingIndicator}

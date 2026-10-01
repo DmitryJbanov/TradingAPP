@@ -90,6 +90,7 @@ export function computeDrz(
     neg.push(neg[i] + Math.max(-d, 0));
   });
   let zones: DeltaZone[] = [];
+  const historicalZones: { zone: DeltaZone; to: number }[] = [];
   for (let i = 0; i < bars.length; i++) {
     const at = i - p.pivot_length;
     for (const lower of [false, true]) {
@@ -138,13 +139,20 @@ export function computeDrz(
         existing.lastTouch = i;
       } else {
         zones.push(z);
-        if (zones.length > p.maximum_zones) zones.shift();
+        if (zones.length > p.maximum_zones) {
+          const removed = zones.shift()!;
+          if (p.show_historical_zones)
+            historicalZones.push({ zone: { ...removed }, to: i });
+        }
       }
     }
     const bar = bars[i];
     zones = zones.filter((z) => {
       if (bar.high >= z.bottom && bar.low <= z.top) z.lastTouch = i;
-      return z.lower ? bar.close >= z.bottom : bar.close <= z.top;
+      const active = z.lower ? bar.close >= z.bottom : bar.close <= z.top;
+      if (!active && p.show_historical_zones)
+        historicalZones.push({ zone: { ...z }, to: i });
+      return active;
     });
     if (i)
       for (const lower of [true, false]) {
@@ -171,6 +179,28 @@ export function computeDrz(
       }
   }
   const right = bars.length - 1 + p.extend_bars;
+  for (const { zone, to } of historicalZones) {
+    const color = zone.lower ? p.lower_zone_color : p.upper_zone_color,
+      end = Math.max(zone.from + 1, to);
+    if (p.show_zone_boxes)
+      result.boxes.push({
+        from: zone.from,
+        to: end,
+        top: zone.top,
+        bottom: zone.bottom,
+        color,
+        opacity: 0.14,
+        border: color,
+      });
+    else
+      result.lines.push({
+        from: zone.from,
+        to: end,
+        price: zone.mid,
+        color,
+        dash: "Dashed",
+      });
+  }
   for (const z of zones) {
     const color = z.lower ? p.lower_zone_color : p.upper_zone_color;
     result.lines.push({

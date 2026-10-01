@@ -8,6 +8,7 @@ import type {
 import type { IndicatorInstance } from "../domain/workspace";
 import { computeDrz } from "../indicators/drz";
 import { computeSmc, requiredSmcIntervals } from "../indicators/smc";
+import { computeFvg, requiredFvgIntervals } from "../indicators/fvg";
 import type { OverlayResult } from "../indicators/overlay-model";
 export interface PriceOverlay {
   id: string;
@@ -25,7 +26,7 @@ export function useOverlays(
   const signature = JSON.stringify(
     indicators.filter(
       (i) =>
-        ["drz", "smc"].includes(i.definitionId) &&
+        ["drz", "smc", "fvg-luxalgo"].includes(i.definitionId) &&
         i.enabled &&
         (!i.timeframes || i.timeframes.includes(timeframe)),
     ),
@@ -37,8 +38,13 @@ export function useOverlays(
   const requests = [
     ...new Set(
       active
-        .filter((i) => i.definitionId === "smc")
-        .flatMap((i) => requiredSmcIntervals(i.params, timeframe)),
+        .flatMap((i) =>
+          i.definitionId === "smc"
+            ? requiredSmcIntervals(i.params, timeframe)
+            : i.definitionId === "fvg-luxalgo"
+              ? requiredFvgIntervals(i.params, timeframe)
+              : [],
+        ),
     ),
   ]
     .sort()
@@ -77,10 +83,10 @@ export function useOverlays(
         if (r.status === "fulfilled") {
           histories[r.value.tf] = r.value.data.data;
           if (r.value.data.source !== "demo" && r.value.data.warning)
-            warnings.push(`SMC ${r.value.tf}: ${r.value.data.warning}`);
+            warnings.push(`${r.value.tf}: ${r.value.data.warning}`);
         } else
           warnings.push(
-            `SMC ${frames[i]}: история недоступна; зависимые элементы скрыты.`,
+            `История ${frames[i]} недоступна; зависимые элементы скрыты.`,
           );
       });
       setState({ key, histories, warnings });
@@ -98,7 +104,13 @@ export function useOverlays(
             ? computeDrz(main?.data ?? [], i.params, {
                 tickSize: main?.tickSize,
               })
-            : computeSmc(main?.data ?? [], i.params, {
+            : i.definitionId === "fvg-luxalgo"
+              ? computeFvg(main?.data ?? [], i.params, {
+                  interval: timeframe,
+                  histories: ready ? state.histories : {},
+                  now: main ? Date.parse(main.asOf) / 1000 : undefined,
+                })
+              : computeSmc(main?.data ?? [], i.params, {
                 interval: timeframe,
                 histories: ready ? state.histories : {},
                 now: main ? Date.parse(main.asOf) / 1000 : undefined,
