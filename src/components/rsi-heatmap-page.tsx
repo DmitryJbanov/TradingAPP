@@ -49,10 +49,10 @@ function RsiChart({ rows }: { rows: Row[] }) {
       const labelY = Math.max(top + 12, pointY - 10 - (index % 3) * 9);
       const pair = row.symbol.endsWith("USDT") ? row.symbol : `${row.symbol}USDT`;
       return <a key={row.symbol} href={`/pair/${encodeURIComponent(pair)}`} className="rsi-point" aria-label={`Открыть график ${coinName(row)}, цена $${fmt(row.price)}`} onMouseEnter={event => {
-        const rect = event.currentTarget.ownerSVGElement!.getBoundingClientRect();
+        const rect = event.currentTarget.closest("svg")!.getBoundingClientRect();
         setHover({ row, x: Math.min(event.clientX - rect.left + 14, rect.width - 210), y: Math.min(Math.max(8, event.clientY - rect.top + 14), rect.height - 90) });
       }} onMouseMove={event => {
-        const rect = event.currentTarget.ownerSVGElement!.getBoundingClientRect();
+        const rect = event.currentTarget.closest("svg")!.getBoundingClientRect();
         setHover({ row, x: Math.min(event.clientX - rect.left + 14, rect.width - 210), y: Math.min(Math.max(8, event.clientY - rect.top + 14), rect.height - 90) });
       }} onMouseLeave={() => setHover(null)} onFocus={() => setHover({ row, x: 56, y: Math.max(8, (pointY / height) * 500 - 64) })} onBlur={() => setHover(null)}>
         <title>{`${coinName(row)} · $${fmt(row.price)}`}</title>

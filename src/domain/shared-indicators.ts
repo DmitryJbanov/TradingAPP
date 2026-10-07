@@ -1,4 +1,5 @@
 import { indicatorRegistry, type IndicatorInstance } from "./workspace";
+import { isPineScript } from "./pine-scripts";
 
 export const SHARED_INDICATORS_KEY = "vector.indicators.shared.v1";
 export const LEGACY_INDICATORS_KEY = "vector.indicators.v1";
@@ -15,7 +16,9 @@ export function supportedIndicators(value: unknown): IndicatorInstance[] {
         (definition) =>
           definition.id === item.definitionId &&
           definition.implemented &&
-          (definition.compute || definition.dataSource === "remote"),
+          (definition.compute ||
+            definition.dataSource === "remote" ||
+            (definition.dataSource === "script" && isPineScript(item.pine))),
       ),
   );
 }

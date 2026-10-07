@@ -50,6 +50,11 @@ def run(request, runtime=None):
         result, snapshot = run_fear_greed(request, runtime, folder)
         emit('result', result=result, snapshot=snapshot)
         return
+    if request.get('type') == 'whale-market':
+        from whale_market_worker import run as run_whale_market
+        result, snapshot = run_whale_market(request, runtime, folder)
+        emit('result', result=result, snapshot=snapshot)
+        return
     if request.get('type') == 'rsi-heatmap':
         from rsi_heatmap_worker import run as run_rsi_heatmap
         try:

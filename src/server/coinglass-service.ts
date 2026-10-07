@@ -58,13 +58,95 @@ export async function handleCoinglass(
   config: CoinglassConfig,
 ) {
   const url = new URL(request.url);
+  if (url.pathname.startsWith("/api/coinglass/whales-")) {
+    try {
+      const action = url.pathname.replace("/api/coinglass/whales-", "");
+      if (
+        request.method === "GET" &&
+        ["overview", "profile", "watchlist", "market"].includes(action)
+      ) {
+        const query = new URLSearchParams();
+        if (action === "overview" || action === "market") {
+          const coin = url.searchParams.get("coin") ?? "all";
+          if (coin.length > 40)
+            throw new SymbolError("Некорректный актив", 400);
+          query.set("coin", coin);
+          if (action === "market") {
+            const interval = url.searchParams.get("interval") ?? "day";
+            if (!["minute", "hour", "day"].includes(interval))
+              throw new SymbolError("Некорректный интервал", 400);
+            query.set("interval", interval);
+          }
+        }
+        if (action === "profile") {
+          const address = url.searchParams.get("address") ?? "";
+          if (!/^0x[0-9a-fA-F]{40}$/.test(address))
+            throw new SymbolError("Некорректный адрес Hyperliquid", 400);
+          query.set("address", address.toLowerCase());
+        }
+        if (url.searchParams.get("refresh") === "1") query.set("refresh", "1");
+        return Response.json(
+          await coinglassRequest(`/whales/${action}?${query}`, config),
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      if (request.method === "POST" && action === "watch") {
+        const origin = request.headers.get("origin");
+        if (
+          origin &&
+          new URL(origin).host !== (request.headers.get("host") ?? url.host)
+        )
+          throw new SymbolError("Недопустимый источник запроса", 403);
+        if (
+          !request.headers.get("content-type")?.startsWith("application/json")
+        )
+          throw new SymbolError("Ожидается application/json", 415);
+        const text = await request.text();
+        if (text.length > 8192)
+          throw new SymbolError("Запрос слишком большой", 413);
+        let payload;
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          throw new SymbolError("Некорректный JSON", 400);
+        }
+        if (
+          !payload ||
+          !/^0x[0-9a-fA-F]{40}$/.test(payload.address ?? "") ||
+          !["add", "remove", "rename"].includes(payload.action)
+        )
+          throw new SymbolError("Некорректный адрес или действие", 400);
+        return Response.json(
+          await coinglassRequest("/whales/watch", config, payload),
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      return Response.json(
+        { error: "Method or route not allowed" },
+        { status: 405 },
+      );
+    } catch (error) {
+      return Response.json(
+        {
+          error: error instanceof Error ? error.message : "Ошибка Hyperliquid",
+        },
+        { status: error instanceof SymbolError ? error.status : 502 },
+      );
+    }
+  }
   const heatmap = url.pathname.startsWith("/api/coinglass/heatmap-");
   const fearGreed = url.pathname.startsWith("/api/coinglass/fear-greed-");
   const rsiHeatmap = url.pathname.startsWith("/api/coinglass/rsi-heatmap-");
   if (heatmap) url.pathname = url.pathname.replace("heatmap-", "");
   if (fearGreed) url.pathname = url.pathname.replace("fear-greed-", "");
   if (rsiHeatmap) url.pathname = url.pathname.replace("rsi-heatmap-", "");
-  const prefix = heatmap ? "/heatmap" : fearGreed ? "/fear-greed" : rsiHeatmap ? "/rsi-heatmap" : "";
+  const prefix = heatmap
+    ? "/heatmap"
+    : fearGreed
+      ? "/fear-greed"
+      : rsiHeatmap
+        ? "/rsi-heatmap"
+        : "";
   try {
     if (
       ["/api/coinglass/status", "/api/coinglass/snapshot"].includes(
@@ -73,7 +155,13 @@ export async function handleCoinglass(
       request.method === "GET"
     ) {
       const symbol = url.searchParams.get("symbol");
-      const asset = fearGreed ? "CMC" : rsiHeatmap ? "TOP50" : symbol ? await coinglassAsset(symbol, config) : undefined;
+      const asset = fearGreed
+        ? "CMC"
+        : rsiHeatmap
+          ? "TOP50"
+          : symbol
+            ? await coinglassAsset(symbol, config)
+            : undefined;
       const snapshotId = url.searchParams.get("snapshotId");
       if (snapshotId && !/^[a-f0-9]{32}$/.test(snapshotId))
         throw new SymbolError("Некорректный снимок", 400);
@@ -113,17 +201,30 @@ export async function handleCoinglass(
       }
       if (!body || typeof body.symbol !== "string")
         throw new SymbolError("Не указан symbol", 400);
-      const asset = fearGreed ? "CMC" : rsiHeatmap ? "TOP50" : await coinglassAsset(body.symbol, config);
-      const normalized = fearGreed || rsiHeatmap ? {} : calculationParams(coinglassParams(body.params));
+      const asset = fearGreed
+        ? "CMC"
+        : rsiHeatmap
+          ? "TOP50"
+          : await coinglassAsset(body.symbol, config);
+      const normalized =
+        fearGreed || rsiHeatmap
+          ? {}
+          : calculationParams(coinglassParams(body.params));
       const heatmapRange = body.params?.range ?? "365d";
       if (heatmap && !isHeatmapRange(heatmapRange))
         throw new SymbolError("Некорректный период карты", 400);
       if (
-        fearGreed && body.params !== undefined &&
-        (!body.params || typeof body.params !== "object" || Object.keys(body.params).length)
+        fearGreed &&
+        body.params !== undefined &&
+        (!body.params ||
+          typeof body.params !== "object" ||
+          Object.keys(body.params).length)
       )
         throw new SymbolError("Некорректные настройки", 400);
-      if (rsiHeatmap && (!body.params || !["4h", "24h", "1w"].includes(body.params.period)))
+      if (
+        rsiHeatmap &&
+        (!body.params || !["4h", "24h", "1w"].includes(body.params.period))
+      )
         throw new SymbolError("Некорректный период RSI", 400);
       if (
         !fearGreed &&
@@ -153,7 +254,11 @@ export async function handleCoinglass(
           config,
           {
             asset,
-            params: heatmap ? { range: heatmapRange } : rsiHeatmap ? { period: body.params.period } : normalized,
+            params: heatmap
+              ? { range: heatmapRange }
+              : rsiHeatmap
+                ? { period: body.params.period }
+                : normalized,
             ...(isPreview ? { snapshotId: body.snapshotId } : {}),
           },
         ),

@@ -8,6 +8,8 @@ import {
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
+  AreaSeries,
+  createSeriesMarkers,
   ColorType,
   CrosshairMode,
   LineStyle,
@@ -27,11 +29,13 @@ import type { OrderBlockOverlay } from "../hooks/use-order-blocks";
 import { OrderBlocksRenderer } from "../indicators/order-blocks-renderer";
 import { PriceOverlaysRenderer } from "../indicators/price-overlays-renderer";
 import type { PriceOverlay } from "../hooks/use-overlays";
-import { CoinGlassHeatmapRenderer, type CoinGlassHeatmapLayer } from "../indicators/coinglass-heatmap-renderer";
-import { CoinGlassLevelsRenderer } from "../indicators/coinglass-levels-renderer";
+import type { PineResult } from "../domain/pine-scripts";
 import {
-  coinglassVolumeColorIndex,
-} from "../domain/coinglass";
+  CoinGlassHeatmapRenderer,
+  type CoinGlassHeatmapLayer,
+} from "../indicators/coinglass-heatmap-renderer";
+import { CoinGlassLevelsRenderer } from "../indicators/coinglass-levels-renderer";
+import { coinglassVolumeColorIndex } from "../domain/coinglass";
 import type { StochRsiPane } from "../hooks/use-stoch-rsi";
 import {
   StochRsiRenderer,
@@ -78,6 +82,7 @@ export function MarketChart({
   heatmapLevels = [],
   heatmapLayer,
   mtmPanes = [],
+  pineResults = [],
 }: {
   bars: Candle[];
   symbol: string;
@@ -96,6 +101,7 @@ export function MarketChart({
     id: string;
     points: { time: number; value: number; average: number }[];
   }[];
+  pineResults?: PineResult[];
 }) {
   const [drawingApi, setDrawingApi] = useState<DrawingChart>();
   const [copyStatus, setCopyStatus] = useState("");
@@ -494,6 +500,64 @@ export function MarketChart({
     if (mtmPanes.length) c.panes()[0]?.setStretchFactor(2.5);
   }, [mtmPanes, vmcPanes.length, stochRsiPanes.length]);
   useEffect(() => {
+    const c = chart.current,
+      s = series.current;
+    if (!c || !s) return;
+    const added: ISeriesApi<"Line" | "Histogram" | "Area">[] = [];
+    for (const result of pineResults) {
+      const paneIndex = result.overlay ? 0 : c.panes().length;
+      for (const plot of result.plots) {
+        const options = {
+          color: plot.color,
+          title: plot.title,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        };
+        const p =
+          plot.style === "histogram"
+            ? c.addSeries(HistogramSeries, options, paneIndex)
+            : plot.style === "area"
+              ? c.addSeries(
+                  AreaSeries,
+                  {
+                    ...options,
+                    lineColor: plot.color,
+                    topColor: plot.color,
+                    bottomColor: "transparent",
+                    lineWidth: plot.width,
+                  },
+                  paneIndex,
+                )
+              : c.addSeries(
+                  LineSeries,
+                  { ...options, lineWidth: plot.width },
+                  paneIndex,
+                );
+        p.setData(
+          plot.points.map((point) => ({
+            ...point,
+            time: point.time as UTCTimestamp,
+          })),
+        );
+        if (!result.overlay) p.getPane().setStretchFactor(1);
+        added.push(p);
+      }
+    }
+    const markers = createSeriesMarkers(
+      s,
+      pineResults
+        .flatMap((r) => r.markers)
+        .sort((a, b) => a.time - b.time)
+        .map((m) => ({ ...m, time: m.time as UTCTimestamp })),
+    );
+    return () => {
+      if (chart.current === c) {
+        markers.detach();
+        added.forEach((p) => c.removeSeries(p));
+      }
+    };
+  }, [pineResults, vmcPanes.length, stochRsiPanes.length, mtmPanes.length]);
+  useEffect(() => {
     const s = series.current;
     if (!s) return;
     const lines = coinglass.flatMap((overlay) => {
@@ -507,7 +571,10 @@ export function MarketChart({
         (max, volume) => Math.max(max, volume),
         0,
       );
-      const minIntensity = volumes.reduce((min, value) => Math.min(min, value), Infinity);
+      const minIntensity = volumes.reduce(
+        (min, value) => Math.min(min, value),
+        Infinity,
+      );
       return levels.map((level, index) => {
         const colorIndex = coinglassVolumeColorIndex(
           level.intensity,
@@ -518,8 +585,12 @@ export function MarketChart({
           price: level.price,
           color: overlay.params.volumeColors[colorIndex],
           lineVisible: false,
-          axisLabelVisible: overlay.params.showLevels && overlay.params.showLabels,
-          title: overlay.params.showLevels && overlay.params.showLabels ? `CG #${index + 1}` : "",
+          axisLabelVisible:
+            overlay.params.showLevels && overlay.params.showLabels,
+          title:
+            overlay.params.showLevels && overlay.params.showLabels
+              ? `CG #${index + 1}`
+              : "",
         });
       });
     });

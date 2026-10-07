@@ -1,5 +1,6 @@
 """Local CoinGlass job API with one lazy, persistent browser worker."""
 import hmac
+import hashlib
 import json
 import os
 import queue
@@ -18,6 +19,7 @@ from browser_runtime import AUTH_REVISION
 from selection import preview
 from persistent_worker import PersistentWorker
 from frontend_api import RANGE_DAYS
+from whales import WhaleTracker
 
 
 def now():
@@ -138,6 +140,7 @@ class Manager:
             else 'Запуск фонового браузера'))
         label = (f"Heatmap Model 3 · {job['params'].get('range', '365d')}" if self.kind == 'heatmap'
                  else 'Fear & Greed Index' if self.kind == 'fear-greed'
+                 else 'Киты Hyperliquid · CoinGlass' if self.kind == 'whale-market'
                  else f"RSI Heatmap · {job['params']['period']}" if self.kind == 'rsi-heatmap'
                  else f"карты за {job['params']['rangeDays']} дн.")
         self.event('INFO', f"{job['asset']}: запуск парсинга {label}")
@@ -156,9 +159,9 @@ class Manager:
                     self.event('INFO', job['asset'] + ': ' + message)
             if result and not failure:
                 if snapshot is not None: self.save_snapshot(job, snapshot)
-                message = 'Данные обновлены' if self.kind in ('fear-greed', 'rsi-heatmap') else 'Уровни обновлены'
+                message = 'Данные обновлены' if self.kind in ('fear-greed', 'rsi-heatmap', 'whale-market') else 'Уровни обновлены'
                 self.update(job, state='done', progress=100, message=message, result=result)
-                detail = ('сбор данных завершён' if self.kind in ('fear-greed', 'rsi-heatmap')
+                detail = ('сбор данных завершён' if self.kind in ('fear-greed', 'rsi-heatmap', 'whale-market')
                           else f"готово, значимых уровней: {len(result['levels'])}")
                 self.event('INFO', f"{job['asset']}: {detail}")
             else:
@@ -218,7 +221,37 @@ class RsiHeatmapManager(Manager):
         return {'period': settings.get('period', '4h')}
 
 
+class WhaleMarketManager(Manager):
+    """Uses the existing serial browser queue; keeps the last successful market snapshot."""
+    def __init__(self, directory, owner):
+        super().__init__(directory, timeout=180, start_worker=False, owner=owner)
+        self.kind = 'whale-market'
+
+    def normalize_params(self, settings):
+        coin, interval = settings.get('coin', 'all'), settings.get('interval', 'day')
+        if not isinstance(coin, str) or not re.fullmatch(r'[A-Za-z0-9_:.+-]{1,40}', coin) or interval not in ('minute', 'hour', 'day'):
+            raise ValueError('Некорректная монета или интервал')
+        return dict(coin=coin, interval=interval)
+
+    def current(self, coin, interval, force=False):
+        settings = self.normalize_params(dict(coin=coin, interval=interval))
+        asset = 'H' + hashlib.sha256((coin + ':' + interval).encode()).hexdigest()[:16].upper()
+        with self.lock:
+            job = self.jobs.get(asset, {})
+            updated = datetime.fromisoformat(job['updatedAt']).timestamp() if job.get('updatedAt') else 0
+            if job.get('state') not in ('queued', 'running') and (force or time.time() - updated > 60):
+                job, _ = self.submit(asset, settings)
+            snapshot = None
+            if job.get('result'):
+                try: snapshot = self.snapshot(asset, job['result']['snapshotId'])
+                except (OSError, ValueError, KeyError): pass
+            return dict(snapshot=snapshot, loading=job.get('state') in ('queued', 'running'),
+                        error=job.get('message') if job.get('state') == 'error' else None)
+
+
 class Handler(BaseHTTPRequestHandler):
+    whale_market_manager=None
+    whale_tracker=None
     manager=None
     heatmap_manager=None
     fear_greed_manager=None
@@ -238,6 +271,17 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authorized(): return
         self.manager = type(self).manager
         url=urlsplit(self.path)
+        if url.path.startswith('/whales/'):
+            query=parse_qs(url.query)
+            try:
+                if url.path == '/whales/market': body=self.whale_market_manager.current(query.get('coin', ['all'])[0], query.get('interval', ['day'])[0], query.get('refresh', [''])[0]=='1')
+                elif url.path == '/whales/overview': body=self.whale_tracker.overview(query.get('refresh', [''])[0]=='1', query.get('coin', ['all'])[0])
+                elif url.path == '/whales/profile': body=self.whale_tracker.profile(query.get('address', [''])[0], query.get('refresh', [''])[0]=='1')
+                elif url.path == '/whales/watchlist': body=self.whale_tracker.watchlist()
+                else: self.respond(404, {'error':'Not found'}); return
+                self.respond(200, body)
+            except ValueError as e: self.respond(400, {'error':str(e)})
+            return
         if url.path.startswith('/heatmap/'):
             self.manager = self.heatmap_manager
             url = url._replace(path=url.path.removeprefix('/heatmap'))
@@ -264,6 +308,15 @@ class Handler(BaseHTTPRequestHandler):
             else: self.respond(404,{'error':'Not found'})
     def do_POST(self):
         if not self.authorized(): return
+        if self.path == '/whales/watch':
+            try:
+                size=int(self.headers.get('Content-Length', '0'))
+                if not 0 < size <= 8192: raise ValueError('Неверный размер запроса')
+                body=json.loads(self.rfile.read(size))
+                if not isinstance(body, dict): raise ValueError('Некорректный запрос')
+                self.respond(200, self.whale_tracker.change(body))
+            except (ValueError, TypeError) as e: self.respond(400, {'error':str(e)})
+            return
         self.manager = type(self).manager
         if self.path == '/heatmap/jobs':
             self.manager = self.heatmap_manager
@@ -298,13 +351,16 @@ if __name__=='__main__':
     Handler.heatmap_manager=HeatmapManager(Path(os.environ.get('COINGLASS_DATA_DIR','./coinglass-data')) / 'heatmap', owner=Handler.manager)
     Handler.fear_greed_manager=FearGreedManager(Path(os.environ.get('COINGLASS_DATA_DIR','./coinglass-data')) / 'fear-greed', owner=Handler.manager)
     Handler.rsi_heatmap_manager=RsiHeatmapManager(Path(os.environ.get('COINGLASS_DATA_DIR','./coinglass-data')) / 'rsi-heatmap', owner=Handler.manager)
+    Handler.whale_tracker=WhaleTracker(Path(os.environ.get('COINGLASS_DATA_DIR','./coinglass-data')) / 'whales')
+    Handler.whale_market_manager=WhaleMarketManager(Path(os.environ.get('COINGLASS_DATA_DIR','./coinglass-data')) / 'whale-market', owner=Handler.manager)
     Handler.token=os.environ.get('COINGLASS_TOKEN','')
     server=ThreadingHTTPServer((os.environ.get('COINGLASS_HOST','127.0.0.1'),int(os.environ.get('COINGLASS_PORT','8090'))),Handler)
     def stop(*_):
+        Handler.whale_tracker.close()
         Handler.heatmap_manager.close()
         Handler.fear_greed_manager.close()
         Handler.rsi_heatmap_manager.close()
         Handler.manager.close(); threading.Thread(target=server.shutdown,daemon=True).start()
     signal.signal(signal.SIGTERM,stop); signal.signal(signal.SIGINT,stop)
     try: server.serve_forever()
-    finally: server.server_close(); Handler.manager.close(); Handler.heatmap_manager.close(); Handler.fear_greed_manager.close(); Handler.rsi_heatmap_manager.close()
+    finally: server.server_close(); Handler.whale_tracker.close(); Handler.manager.close(); Handler.heatmap_manager.close(); Handler.fear_greed_manager.close(); Handler.rsi_heatmap_manager.close()

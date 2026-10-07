@@ -1,6 +1,7 @@
 export const siteThemes = [
   ["light", "Светлая"],
   ["midnight", "Полночь"],
+  ["black", "Абсолютно чёрная"],
   ["dark", "Графит"],
   ["slate", "Сланец"],
   ["olive", "Олива"],

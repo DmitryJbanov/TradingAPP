@@ -158,6 +158,39 @@ export class CoinGlassLevelsRenderer implements ISeriesPrimitive<Time> {
           const aboveTotal = above.reduce((sum, level) => sum + level.intensity, 0);
           const belowTotal = below.reduce((sum, level) => sum + level.intensity, 0);
           const maxCumulative = Math.max(aboveTotal, belowTotal, 1);
+          const cumulative = [0];
+          levels.forEach((level, index) => {
+            cumulative[index + 1] = cumulative[index] + level.intensity;
+          });
+          const bound = (price: number, inclusive: boolean) => {
+            let lo = 0;
+            let hi = levels.length;
+            while (lo < hi) {
+              const mid = (lo + hi) >>> 1;
+              if (inclusive ? levels[mid].price <= price : levels[mid].price < price)
+                lo = mid + 1;
+              else hi = mid;
+            }
+            return lo;
+          };
+          const deltaAtDistance = (distance: number) => {
+            const upper = currentPrice * (1 + distance);
+            const lower = currentPrice * Math.max(0, 1 - distance);
+            const upperSum = cumulative[bound(upper, true)] - cumulative[bound(currentPrice, true)];
+            const lowerSum = cumulative[bound(currentPrice, false)] - cumulative[bound(lower, false)];
+            return upperSum - lowerSum;
+          };
+          const deltaColors = levels.map((level) => {
+            const delta = currentPrice > 0
+              ? deltaAtDistance(Math.abs(level.price / currentPrice - 1))
+              : 0;
+            return delta > 0 ? "#26a69a" : delta < 0 ? "#ef5350" : this.palette.text;
+          });
+          const distance = this.cursorPrice !== null && currentPrice > 0
+            ? Math.abs(this.cursorPrice / currentPrice - 1)
+            : null;
+          const delta = distance === null ? 0 : deltaAtDistance(distance);
+          const deltaColor = delta > 0 ? "#26a69a" : delta < 0 ? "#ef5350" : this.palette.text;
           if (overlayIndex > 0) {
             context.beginPath();
             context.moveTo(laneLeft + 0.5, 0);
@@ -209,7 +242,7 @@ export class CoinGlassLevelsRenderer implements ISeriesPrimitive<Time> {
                 maxIntensity,
               );
               const barWidth = Math.max(1, histogramWidth * (cumulative / maxCumulative));
-              context.fillStyle = overlay.params.volumeColors[colorIndex];
+              context.fillStyle = deltaColors[index];
               context.globalAlpha = overlay.params.volumeOpacities[colorIndex] / 100;
               context.fillRect(
                 direction === "up" ? center : center - barWidth,
@@ -235,26 +268,8 @@ export class CoinGlassLevelsRenderer implements ISeriesPrimitive<Time> {
           }
 
           if (this.cursorPrice !== null && currentPrice > 0 && levels.length) {
-            const distance = Math.abs(this.cursorPrice / currentPrice - 1);
-            const upperBound = currentPrice * (1 + distance);
-            const lowerBound = currentPrice * Math.max(0, 1 - distance);
-            const upperCumulative = levels.reduce(
-              (sum, level) =>
-                level.price > currentPrice && level.price <= upperBound
-                  ? sum + level.intensity
-                  : sum,
-              0,
-            );
-            const lowerCumulative = levels.reduce(
-              (sum, level) =>
-                level.price < currentPrice && level.price >= lowerBound
-                  ? sum + level.intensity
-                  : sum,
-              0,
-            );
-            const delta = upperCumulative - lowerCumulative;
             const distanceText = `${this.cursorPrice >= currentPrice ? "+" : "−"}${(
-              distance * 100
+              distance! * 100
             ).toFixed(2)}%`;
             const deltaText = `ΔΣ ${delta >= 0 ? "+" : "−"}$${new Intl.NumberFormat(
               "en-US",
@@ -280,6 +295,7 @@ export class CoinGlassLevelsRenderer implements ISeriesPrimitive<Time> {
               context.textBaseline = "top";
               context.textAlign = "right";
               context.fillText(distanceText, boxLeft + boxWidth - 5, boxTop + 4, boxWidth - 10);
+              context.fillStyle = deltaColor;
               context.fillText(deltaText, boxLeft + boxWidth - 5, boxTop + 17, boxWidth - 10);
               context.textAlign = "left";
             }

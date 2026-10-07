@@ -11,6 +11,7 @@
 
 ## Индикаторы и график
 
+- [Pine Editor, мои индикаторы и стратегии](PINE_SCRIPT.md)
 - [VMC Cipher B](INDICATOR_VMC.md)
 - [DRZ и SMC](INDICATORS_DRZ_SMC.md)
 - [Sonarlab Order Blocks](INDICATOR_ORDER_BLOCKS.md)
@@ -19,6 +20,7 @@
 
 ## CoinGlass
 
+- [Киты Hyperliquid: обзор, профили и отслеживание](WHALES.md)
 - [Фоновый сервис и диагностика](COINGLASS.md)
 - [Heatmap Model 3 и историческое отображение](COINGLASS_HEATMAP.md)
 - [Визуальные настройки, палитра и кумулятивный объём](COINGLASS_VISUAL_SETTINGS.md)

@@ -47,6 +47,10 @@ for (const name of ["drz", "smc"]) {
 
 await mkdir("release/licenses", { recursive: true });
 await copyFile(
+  "references/pinets-LICENSE.txt",
+  "release/licenses/pinets-LICENSE.txt",
+);
+await copyFile(
   "node_modules/lightweight-charts/LICENSE",
   "release/licenses/lightweight-charts-LICENSE.txt",
 );

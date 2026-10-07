@@ -4,6 +4,10 @@
 
 Одинаковый API доступен в hosted и standalone сборке. Формат JSON, методы GET, `Cache-Control: no-store`. Кеш приложения живёт на сервере независимо от HTTP-заголовка. Все даты ISO 8601 UTC; время свечей UNIX seconds.
 
+## Киты Hyperliquid
+
+API отслеживания китов: `GET /api/coinglass/whales-market?coin=all&interval=day` (общие данные CoinGlass), `GET /api/coinglass/whales-overview` (отдельный top 50 leaderboard), `GET /api/coinglass/whales-profile?address=0x…`, `GET /api/coinglass/whales-watchlist`, `POST /api/coinglass/whales-watch`. Форматы, сохранение списка и ограничения источника описаны в [Китах Hyperliquid](WHALES.md#api-и-исходники).
+
 ## `GET /api/markets`
 
 Необязательный параметр `refresh=1` обходит TTL кеша.
@@ -130,13 +134,13 @@ curl -fsS http://localhost:3000/api/logs
 
 Специализированные маршруты используют тот же backend:
 
-| Функция | Статус | Снимок | Запуск |
-| --- | --- | --- | --- |
-| Heatmap Model 3 | `/api/coinglass/heatmap-status?symbol=BTCUSDT` | `/api/coinglass/heatmap-snapshot?symbol=BTCUSDT[&snapshotId=…]` | `POST /api/coinglass/heatmap-run` |
-| Fear & Greed | `/api/coinglass/fear-greed-status` | `/api/coinglass/fear-greed-snapshot` | `POST /api/coinglass/fear-greed-run` |
-| RSI Heatmap top 50 | `/api/coinglass/rsi-heatmap-status` | `/api/coinglass/rsi-heatmap-snapshot` | `POST /api/coinglass/rsi-heatmap-run` |
+| Функция            | Статус                                         | Снимок                                                          | Запуск                                |
+| ------------------ | ---------------------------------------------- | --------------------------------------------------------------- | ------------------------------------- |
+| Heatmap Model 3    | `/api/coinglass/heatmap-status?symbol=BTCUSDT` | `/api/coinglass/heatmap-snapshot?symbol=BTCUSDT[&snapshotId=…]` | `POST /api/coinglass/heatmap-run`     |
+| Fear & Greed       | `/api/coinglass/fear-greed-status`             | `/api/coinglass/fear-greed-snapshot`                            | `POST /api/coinglass/fear-greed-run`  |
+| RSI Heatmap top 50 | `/api/coinglass/rsi-heatmap-status`            | `/api/coinglass/rsi-heatmap-snapshot`                           | `POST /api/coinglass/rsi-heatmap-run` |
 
-Fear & Greed запускается JSON `{ "symbol": "CMC" }`. RSI Heatmap принимает `{ "symbol": "TOP50", "params": { "period": "4h" } }`; допустимые `period`: `4h`, `24h`, `1w`. Heatmap Model 3 принимает symbol пары и период карты в `params.range`. Ответы снимков содержат формат, зависящий от подсистемы. Endpoint CoinGlass требует настроенный фоновый Python-сервис; иначе backend возвращает ошибку конфигурации/связи.
+Fear & Greed запускается JSON `{ "symbol": "CMC" }`. Снимок включает историю и поле `current`, получаемое из latest endpoint CoinMarketCap; обновление источника происходит примерно раз в 15 минут. RSI Heatmap принимает `{ "symbol": "TOP50", "params": { "period": "4h" } }`; допустимые `period`: `4h`, `24h`, `1w`. Heatmap Model 3 принимает symbol пары и период карты в `params.range`. Ответы снимков содержат формат, зависящий от подсистемы. Endpoint CoinGlass требует настроенный фоновый Python-сервис; иначе backend возвращает ошибку конфигурации/связи.
 
 ## Дополнение VMC
 

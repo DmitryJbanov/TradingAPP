@@ -27,6 +27,7 @@ const server = createServer(async (req, res) => {
           "/api/coinglass/heatmap-run",
           "/api/coinglass/fear-greed-run",
           "/api/coinglass/rsi-heatmap-run",
+          "/api/coinglass/whales-watch",
         ].includes(url.pathname)
       ) {
         const chunks: Buffer[] = [];
@@ -81,8 +82,9 @@ const server = createServer(async (req, res) => {
         url.pathname === "/" ||
         /^\/backlog\/?$/.test(url.pathname) ||
         /^\/pair\/[^/]+\/?$/.test(url.pathname) ||
-        /^\/fear-greed\/?$/.test(url.pathname)
-        || /^\/rsi-heatmap\/?$/.test(url.pathname)
+        /^\/fear-greed\/?$/.test(url.pathname) ||
+        /^\/rsi-heatmap\/?$/.test(url.pathname) ||
+        /^\/whales(?:\/watchlist|\/0x[0-9a-fA-F]{40})?\/?$/.test(url.pathname)
       )
         file = resolve(root, "index.html");
       else {

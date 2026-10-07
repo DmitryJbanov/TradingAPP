@@ -11,6 +11,7 @@ import type { SmcParams } from "../indicators/smc-settings";
 import { computeFvg } from "../indicators/fvg";
 import type { FvgParams } from "../indicators/fvg-settings";
 import type { Candle, Timeframe } from "./market";
+import type { PineScript } from "./pine-scripts";
 export interface MtmParams {
   maPeriod?: number;
 }
@@ -36,6 +37,7 @@ export interface IndicatorInstance {
     | Partial<MtmParams>;
   style?: Partial<VmcStyle>;
   timeframes?: Timeframe[];
+  pine?: PineScript;
 }
 export interface Drawing {
   id: string;
@@ -60,10 +62,17 @@ export interface IndicatorDefinition {
   name: string;
   description: string;
   implemented: boolean;
-  dataSource?: "remote";
+  dataSource?: "remote" | "script";
   compute?: (bars: Candle[], params: Record<string, unknown>) => unknown;
 }
 export const indicatorRegistry: IndicatorDefinition[] = [
+  {
+    id: "pine-script",
+    name: "Pine Script",
+    description: "Индикаторы и стратегии из редактора Pine Script.",
+    implemented: true,
+    dataSource: "script",
+  },
   {
     id: "mtm",
     name: "MTM · Momentum",

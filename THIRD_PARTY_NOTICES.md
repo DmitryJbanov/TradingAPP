@@ -8,7 +8,8 @@
 
 - TradingView Lightweight Charts 5.0.9 — Apache-2.0. Copyright TradingView, Inc. Ссылка TradingView и встроенная атрибуция сохранены. Библиотека и её license/NOTICE доступны в npm-пакете и https://github.com/tradingview/lightweight-charts.
 - React / React DOM — MIT.
+- PineTS 0.11.0 — © LuxAlgo, AGPL-3.0-only. Независимый runtime Pine Script: https://github.com/LuxAlgo/PineTS. Текст лицензии: `references/pinets-LICENSE.txt`, в сборке `release/licenses/pinets-LICENSE.txt`. Исходники runtime и инструкции сборки доступны в репозитории автора; требования AGPL распространяются на использование и распространение соответствующих производных работ.
 - Vite / Vinext / Lucide / Radix UI / Tailwind CSS — условия соответствующих пакетов; точные версии зафиксированы в package-lock.json.
 - Каталог Shadcn используется как доступные UI primitives.
 - Binance и Twelve Data — поставщики данных, не авторы этого приложения. Их доступность, условия использования и права на данные определяются отдельно.
-- Pine Script в references/ предоставлен пользователем. Nadaraya–Watson остаётся исходником для дальнейшей работы; VMC Cipher B перенесён в TypeScript. Комментарии исходника VuManChu сохраняют благодарности dynausmaux, falconCoin, LazyBear, RicardoSantos, LucemAnb, andreholanda73 и TradingView. Pine runtime не включён.
+- Pine Script в references/ предоставлен пользователем. Nadaraya–Watson остаётся исходником для дальнейшей работы; VMC Cipher B перенесён в TypeScript. Комментарии исходника VuManChu сохраняют благодарности dynausmaux, falconCoin, LazyBear, RicardoSantos, LucemAnb, andreholanda73 и TradingView. Для пользовательских скриптов включён runtime PineTS.

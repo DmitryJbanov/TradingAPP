@@ -10,11 +10,13 @@
 | Свечной график и overlays | `src/components/chart.tsx`, `src/components/drawing-tools.tsx`, `src/components/drawings-renderer.ts` |
 | Fixed Range Volume Profile | drawing tools и renderer в `src/components/`; типы разметки в `src/domain/workspace.ts` |
 | Индикаторы | `src/indicators/`, `src/hooks/use-*.ts`, `src/components/*settings-dialog.tsx` |
+| Pine Script, редактор, библиотека и стратегии | `src/domain/pine-scripts.ts`, `src/indicators/pine-runtime.ts`, `src/indicators/pine.worker.ts`, `src/hooks/use-pine-scripts.ts`, `src/components/pine-*.tsx`, `docs/PINE_SCRIPT.md` |
 | MTM и Stoch RSI | `src/indicators/`, `src/hooks/use-mtm.ts`, `src/hooks/use-stoch-rsi.ts` |
 | DRZ, SMC, VMC, Sonarlab | `src/indicators/`, `src/hooks/`, `docs/INDICATORS_DRZ_SMC.md`, `docs/INDICATOR_VMC.md`, `docs/INDICATOR_ORDER_BLOCKS.md` |
 | CoinGlass: уровни ликвидаций и Model 3 | `src/components/coinglass*.tsx`, `src/domain/coinglass.ts`, `src/domain/heatmap.ts`, `src/server/coinglass-service.ts` |
 | CoinGlass: сборщик и workers | `services/coinglass/`, `coinglass_heatmap/` |
 | Fear & Greed, RSI Heatmap | `src/components/fear-greed-page.tsx`, `src/components/rsi-heatmap-page.tsx`, `services/coinglass/` |
+| Киты Hyperliquid, визуализация Long/Short, список отслеживания и профили | `src/components/whales-page.tsx`, `src/components/whale-analytics.tsx`, `src/domain/whales.ts`, `services/coinglass/whales.py`, `services/coinglass/whale_market_worker.py`, `docs/WHALES.md` |
 | Котировки, история свечей, кеш | `src/server/market-service.ts`, `src/domain/market.ts` |
 | Hosted API-адаптер | `app/api/*/route.ts` |
 | Автономный Node server/build | `standalone/server.ts`, `standalone/build.mjs`, `standalone/main.tsx` |
@@ -26,6 +28,7 @@
 - `/pair/[symbol]` — рабочая область инструмента.
 - `/fear-greed` — индекс Fear & Greed.
 - `/rsi-heatmap` — карта RSI top 50 с периодами 4 часа, 24 часа и неделя.
+- `/whales`, `/whales/watchlist`, `/whales/[address]` — обзор, отслеживаемые киты и профили Hyperliquid.
 - `/backlog` — внутренний список задач/беклог.
 
 Общие тема и расположение навигации задаются общими компонентами, а не отдельными темами страниц.

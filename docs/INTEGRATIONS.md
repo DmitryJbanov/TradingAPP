@@ -2,6 +2,10 @@
 
 HYPE использует Binance Futures (`fapi.binance.com/fapi/v1`), а не общий спотовый запрос. Пагинация и метаданные: [INDICATORS_DRZ_SMC.md](INDICATORS_DRZ_SMC.md).
 
+## Hyperliquid · киты
+
+Общий обзор китов использует публичный клиент CoinGlass через `services/coinglass/whale_market_worker.py`: крупные позиции, распределение Long/Short и готовый исторический ряд. Профили и отслеживание адресов используют Hyperliquid Info API через `services/coinglass/whales.py`; leaderboard показан отдельной таблицей. Подробности охвата и хранения — [Киты Hyperliquid](WHALES.md).
+
 ## Binance Market Data
 
 Основа: публичный HTTPS market-data host `https://data-api.binance.vision`. Только чтение котировок; торговые endpoints не используются, Binance API key не нужен.

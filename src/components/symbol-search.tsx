@@ -23,7 +23,6 @@ export function SymbolSearch({
   favorites: string[];
   star: (symbol: string) => void;
 }) {
-  const [market, setMarket] = useState("all");
   const [results, setResults] = useState<Results>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,7 +35,7 @@ export function SymbolSearch({
     const timer = setTimeout(async () => {
       try {
         const response = await fetch(
-          `/api/symbols?q=${encodeURIComponent(query)}&market=${market}`,
+          `/api/symbols?q=${encodeURIComponent(query)}&market=futures`,
           { signal: controller.signal },
         );
         const body = (await response.json()) as Results & { error?: string };
@@ -54,27 +53,19 @@ export function SymbolSearch({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, market]);
+  }, [query]);
   return (
-    <div className="symbol-search">
+    <div className="symbol-search chart-symbol-search">
       <div className="symbol-search-controls">
         <label>
-          Найти инструмент
+          Найти фьючерс
           <input
             type="search"
             value={query}
             maxLength={40}
             onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Например, BTC/USDC"
+            placeholder="Поиск фьючерса…"
           />
-        </label>
-        <label>
-          Рынок
-          <select value={market} onChange={(e) => setMarket(e.target.value)}>
-            <option value="all">Все рынки Binance</option>
-            <option value="spot">Spot</option>
-            <option value="futures">USDⓈ-M Perpetual</option>
-          </select>
         </label>
       </div>
       <div role="status" aria-live="polite">
@@ -111,33 +102,6 @@ export function SymbolSearch({
           ))}
         </ul>
       )}
-      <details className="symbol-search-favorites">
-        <summary>Избранные пары ({favorites.length})</summary>
-        <ul className="symbol-search-results">
-          {favorites.map((symbol) => (
-            <li key={symbol}>
-              <a href={`/pair/${encodeURIComponent(symbol)}`}>
-                {symbol.replace(/^(FUTURES|SPOT):/, "")}
-                <small>
-                  {symbol.startsWith("FUTURES:") || symbol === "HYPEUSDT"
-                    ? "USDⓈ-M Perpetual"
-                    : "Spot / другие рынки"}
-                </small>
-              </a>
-              <button
-                type="button"
-                aria-label={`Удалить ${symbol} из избранного`}
-                onClick={() => star(symbol)}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-        {!favorites.length && (
-          <p>Добавьте пару кнопкой ☆ в результатах поиска.</p>
-        )}
-      </details>
     </div>
   );
 }

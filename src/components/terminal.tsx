@@ -97,6 +97,22 @@ import { useMtm } from "../hooks/use-mtm";
 import { stochRsiDefaults } from "../indicators/stoch-rsi";
 import { StochRsiSettingsDialog } from "./stoch-rsi-settings-dialog";
 import { SiteHeader } from "./site-header";
+import { PineEditor } from "./pine-editor";
+import { PineCatalog } from "./pine-catalog";
+import { PineStrategyReport } from "./pine-strategy-report";
+import { usePineScripts } from "../hooks/use-pine-scripts";
+import {
+  isPineScript,
+  pineTemplates,
+  PINE_LIBRARY_KEY,
+  PINE_DRAFT_KEY,
+  type PineScript,
+} from "../domain/pine-scripts";
+const initialPineDraft: PineScript = {
+  ...pineTemplates[0],
+  id: "draft",
+  name: "Мой индикатор",
+};
 const hasIndicatorSettings = (id: string) =>
   [
     "stoch-rsi",
@@ -414,7 +430,10 @@ export default function Terminal({ symbol }: { symbol?: string }) {
   ].filter(Boolean).length;
   return (
     <div className="terminal-shell">
-      <SiteHeader active={symbol ? "chart" : "markets"} onOpenSettings={() => setSettings(true)} />
+      <SiteHeader
+        active={symbol ? "chart" : "markets"}
+        onOpenSettings={() => setSettings(true)}
+      />
       {symbol ? (
         <PairWorkspace
           symbol={symbol}
@@ -869,7 +888,9 @@ export default function Terminal({ symbol }: { symbol?: string }) {
               value={theme}
               onChange={setTheme}
               label="Тема сайта"
-              items={siteThemes.map(([id, name]) => [id, name] as [string, string])}
+              items={siteThemes.map(
+                ([id, name]) => [id, name] as [string, string],
+              )}
             />
           </div>
           <label className="settings-row">
@@ -939,6 +960,29 @@ function PairWorkspace({
     [reset, setReset] = useState(0),
     [indicatorSearch, setIndicatorSearch] = useState("");
   const [indicatorRefresh, setIndicatorRefresh] = useState(0);
+  const [catalogTab, setCatalogTab] = useState("indicators");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [storedScripts, setScripts] = useStored<PineScript[]>(
+    PINE_LIBRARY_KEY,
+    [],
+  );
+  const scripts = useMemo(
+    () =>
+      Array.isArray(storedScripts) ? storedScripts.filter(isPineScript) : [],
+    [storedScripts],
+  );
+  const [storedDraft, setDraft] = useStored<PineScript>(
+    PINE_DRAFT_KEY,
+    initialPineDraft,
+  );
+  const draft =
+    storedDraft &&
+    typeof storedDraft.id === "string" &&
+    typeof storedDraft.name === "string" &&
+    typeof storedDraft.source === "string" &&
+    (storedDraft.kind === "indicator" || storedDraft.kind === "strategy")
+      ? storedDraft
+      : initialPineDraft;
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [indicators, setIndicators] = useSharedIndicators(symbol);
   const [storedCount, setCount] = useStored(
@@ -1020,6 +1064,7 @@ function PairWorkspace({
     indicatorRefresh,
   );
   const coinglass = useCoinglass(symbol, indicators, tf);
+  const pine = usePineScripts(symbol, tf, candleData, indicators);
   const editingIndicator = indicators.find((i) => i.id === settingsId);
   function openIndicatorSettings(id: string) {
     setManager(false);
@@ -1039,16 +1084,67 @@ function PairWorkspace({
       threshold: heatmap.settings.threshold,
       scheme: heatmap.settings.scheme,
     };
-  }, [heatmap.visible, heatmap.data, heatmap.model, heatmap.settings.threshold, heatmap.settings.scheme]);
+  }, [
+    heatmap.visible,
+    heatmap.data,
+    heatmap.model,
+    heatmap.settings.threshold,
+    heatmap.settings.scheme,
+  ]);
   const bars = candleData?.data ?? [],
     last = bars.at(-1);
-  const list = rows.filter(
-    (x) =>
-      (!onlyFavorites || favorites.includes(x.symbol)) &&
-      (x.symbol + " " + x.name).toLowerCase().includes(query.toLowerCase()),
-  );
+  const coins = rows.filter((x) => x.category === "crypto");
+  const list = (onlyFavorites
+    ? favorites.map((saved) => {
+        const clean = saved.replace(/^(FUTURES|SPOT):/, "");
+        const quote = ["USDT", "USDC", "FDUSD", "BUSD", "BTC", "ETH"].find((suffix) => clean.endsWith(suffix)) ?? "";
+        const item = coins.find((x) => x.symbol === clean);
+        return item ? { ...item, symbol: saved } : {
+          symbol: saved, base: clean.slice(0, clean.length - quote.length) || clean,
+          quote, name: clean, category: "crypto" as const, sector: "Perpetual",
+          seed: 0, price: Number.NaN, change: Number.NaN, volume: 0, high: 0,
+          low: 0, source: "demo" as const, provider: "", asOf: "",
+        };
+      })
+    : coins).filter((x) => (x.symbol + " " + x.name).toLowerCase().includes(query.toLowerCase()));
   function changeIndicators(next: IndicatorInstance[]) {
     setIndicators(next);
+  }
+  function openPineEditor(script?: PineScript) {
+    if (script) setDraft(script);
+    setEditorOpen(true);
+    setManager(false);
+  }
+  function savePine(script: PineScript) {
+    const next = { ...script, name: script.name.trim() };
+    if (!isPineScript(next)) return;
+    setScripts([...scripts.filter((s) => s.id !== next.id), next]);
+    setIndicators((previous) =>
+      previous.map((i) => (i.pine?.id === next.id ? { ...i, pine: next } : i)),
+    );
+  }
+  function addPine(script: PineScript) {
+    if (!isPineScript(script)) return;
+    setIndicators((previous) => {
+      const existing = previous.find((i) => i.pine?.id === script.id);
+      return existing
+        ? previous.map((i) =>
+            i.id === existing.id ? { ...i, pine: script, enabled: true } : i,
+          )
+        : [
+            ...previous,
+            {
+              id: crypto.randomUUID(),
+              definitionId: "pine-script",
+              enabled: true,
+              period: 20,
+              color: "#99a5ff",
+              paneId: "main",
+              pine: script,
+            },
+          ];
+    });
+    setManager(false);
   }
   if (!item)
     return (
@@ -1088,19 +1184,27 @@ function PairWorkspace({
         <section className="chart-workspace panel">
           <div className="pair-heading">
             <Coin base={item.base} />
-            <div>
-              <h1>
-                {item.base}
-                <small> / {item.quote}</small>
-              </h1>
+            <div className="pair-instrument">
+              <div className="pair-instrument-title">
+                <h1>
+                  {item.base}
+                  <small> / {item.quote}</small>
+                </h1>
+                <div className="pair-price">
+                  <strong className="mono">
+                    {last ? priceFormat(last.close) : "—"}
+                  </strong>
+                  {q && <Change value={q.change} />}
+                </div>
+              </div>
               <p>{item.name}</p>
             </div>
-            <div className="pair-price">
-              <strong className="mono">
-                {last ? priceFormat(last.close) : "—"}
-              </strong>
-              {q && <Change value={q.change} />}
-            </div>
+            <SymbolSearch
+              favorites={favorites}
+              star={star}
+              query={query}
+              onQueryChange={setQuery}
+            />
             <span className={"source-badge " + (candleData?.source ?? "demo")}>
               {candleData?.source === "live"
                 ? candleData.provider
@@ -1148,6 +1252,13 @@ function PairWorkspace({
               {indicators.length > 0 && (
                 <span className="count-badge">{indicators.length}</span>
               )}
+            </button>
+            <button
+              className="button toolbar-button"
+              onClick={() => setEditorOpen((v) => !v)}
+              aria-pressed={editorOpen}
+            >
+              <TerminalSquare size={16} /> Pine Editor
             </button>
             <div className="toolbar-end">
               <button
@@ -1207,21 +1318,27 @@ function PairWorkspace({
                     type="button"
                     className="indicator-chip-main"
                     onClick={() =>
-                      hasIndicatorSettings(i.definitionId)
-                        ? openIndicatorSettings(i.id)
-                        : setManager(true)
+                      i.pine
+                        ? openPineEditor(i.pine)
+                        : hasIndicatorSettings(i.definitionId)
+                          ? openIndicatorSettings(i.id)
+                          : setManager(true)
                     }
                     style={{ opacity: i.enabled ? 1 : 0.5 }}
                   >
                     <IndicatorIcon name={i.icon} color={i.color} />
-                    {indicatorRegistry.find((x) => x.id === i.definitionId)?.name}
+                    {i.pine?.name ??
+                      indicatorRegistry.find((x) => x.id === i.definitionId)
+                        ?.name}
                   </button>
                   <button
                     type="button"
                     className={`indicator-visibility${i.enabled ? " is-visible" : ""}`}
-                    aria-label={`${i.enabled ? "Скрыть" : "Показать"} индикатор ${indicatorRegistry.find((x) => x.id === i.definitionId)?.name ?? ""}`}
+                    aria-label={`${i.enabled ? "Скрыть" : "Показать"} ${i.pine?.name ?? indicatorRegistry.find((x) => x.id === i.definitionId)?.name ?? ""}`}
                     aria-pressed={i.enabled}
-                    title={i.enabled ? "Скрыть индикатор" : "Показать индикатор"}
+                    title={
+                      i.enabled ? "Скрыть индикатор" : "Показать индикатор"
+                    }
                     onClick={() =>
                       changeIndicators(
                         indicators.map((x) =>
@@ -1253,6 +1370,7 @@ function PairWorkspace({
               coinglass={coinglass.overlays}
               heatmapLevels={heatmap.levels}
               heatmapLayer={heatmapLayer}
+              pineResults={pine.results}
             />
             {!bars.length && (
               <div className="chart-loading">
@@ -1262,6 +1380,39 @@ function PairWorkspace({
               </div>
             )}
           </div>
+          {pine.loading && (
+            <p className="pine-status muted" role="status">
+              Расчёт Pine Script…
+            </p>
+          )}
+          {pine.errors.map((error) => (
+            <p className="notice error" role="alert" key={error}>
+              {error}
+            </p>
+          ))}
+          {pine.results.flatMap((r) =>
+            r.warnings.map((w) => (
+              <p className="notice" key={`${r.id}:${w}`}>
+                {r.name}: {w}
+              </p>
+            )),
+          )}
+          {editorOpen && (
+            <PineEditor
+              draft={draft}
+              scripts={scripts}
+              onChange={setDraft}
+              onSave={savePine}
+              onRun={(s) => {
+                savePine(s);
+                addPine(s);
+              }}
+              onClose={() => setEditorOpen(false)}
+              loading={pine.loading}
+              errors={pine.errors}
+            />
+          )}
+          <PineStrategyReport results={pine.results} />
           <CoinglassPanel
             onChange={(next) =>
               changeIndicators(
@@ -1306,22 +1457,18 @@ function PairWorkspace({
           )}
         </section>
         <aside className="watchlist panel">
-          <div className="section-heading">
-            <h2>Список инструментов</h2>
+          <div className="section-heading watchlist-heading">
+            <h2>{onlyFavorites ? "Избранные пары" : "Инструменты"}</h2>
             <button
-              className={"star-button " + (onlyFavorites ? "is-starred" : "")}
-              aria-label="Только избранные"
+              className={"watchlist-filter " + (onlyFavorites ? "selected" : "")}
+              aria-label={onlyFavorites ? "Показать все инструменты" : "Показать избранное"}
+              title={onlyFavorites ? "Все инструменты" : "Избранное"}
+              aria-pressed={onlyFavorites}
               onClick={() => setOnlyFavorites(!onlyFavorites)}
             >
-              <Star size={15} fill={onlyFavorites ? "currentColor" : "none"} />
+              {onlyFavorites ? "Все" : <Star size={13} />}
             </button>
           </div>
-          <SymbolSearch
-            favorites={favorites}
-            star={star}
-            query={query}
-            onQueryChange={setQuery}
-          />
           <div className="watchlist-labels">
             <span>Инструмент</span>
             <span>Цена / 24ч</span>
@@ -1329,21 +1476,18 @@ function PairWorkspace({
           <div className="watchlist-items">
             {list.map((x) => (
               <a
-                href={"/pair/" + x.symbol}
+                href={"/pair/" + encodeURIComponent(x.symbol)}
                 className={
                   "watch-item " + (x.symbol === symbol ? "active" : "")
                 }
                 key={x.symbol}
               >
                 <div>
-                  <b>{x.base}</b>
-                  <small>
-                    {x.quote} · {x.source === "demo" ? "DEMO" : x.provider}
-                  </small>
+                  <b>{x.base} / {x.quote}</b>
                 </div>
                 <div className="mono">
-                  <b>{priceFormat(x.price)}</b>
-                  <Change value={x.change} />
+                  <b>{Number.isFinite(x.price) ? priceFormat(x.price) : "—"}</b>{" "}
+                  {Number.isFinite(x.change) ? <Change value={x.change} /> : <span className="muted">—</span>}
                 </div>
               </a>
             ))}
@@ -1358,87 +1502,127 @@ function PairWorkspace({
       <Dialog open={manager} onOpenChange={setManager}>
         <DialogContent className="indicator-dialog">
           <DialogHeader>
-            <DialogTitle>Индикаторы</DialogTitle>
+            <DialogTitle>Индикаторы и стратегии</DialogTitle>
             <DialogDescription>
-              Общий набор для всех торговых пар: VMC, DRZ, SMC и Sonarlab Order
-              Blocks. Настройки сохраняются при переключении пары.
+              Встроенные инструменты и мои Pine Script. Набор сохраняется при
+              переключении пары.
             </DialogDescription>
           </DialogHeader>
+          <Tabs value={catalogTab} onValueChange={setCatalogTab}>
+            <TabsList>
+              <TabsTrigger value="indicators">Индикаторы</TabsTrigger>
+              <TabsTrigger value="strategies">Стратегии</TabsTrigger>
+              <TabsTrigger value="custom-indicators">
+                Мои индикаторы
+              </TabsTrigger>
+              <TabsTrigger value="custom-strategies">Мои стратегии</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <button className="button" onClick={() => openPineEditor()}>
+            <TerminalSquare size={16} /> Открыть Pine Editor
+          </button>
           <label className="search-field">
             <Search size={16} />
             <input
-              placeholder="Найти индикатор…"
+              placeholder="Найти индикатор или стратегию…"
               aria-label="Поиск индикаторов"
               value={indicatorSearch}
               onChange={(e) => setIndicatorSearch(e.target.value)}
             />
           </label>
           <div className="indicator-catalog">
-            {indicatorRegistry
-              .filter((x) =>
-                x.name.toLowerCase().includes(indicatorSearch.toLowerCase()),
-              )
-              .map((d) => (
-                <div className="indicator-definition" key={d.id}>
-                  <Layers3 size={20} />
-                  <div>
-                    <b>{d.name}</b>
-                    <p>{d.description}</p>
-                  </div>
-                  <button
-                    className="icon-button"
-                    disabled={
-                      ["coinglass", "coinglass-heatmap"].includes(d.id) &&
-                      indicators.some((i) => i.definitionId === d.id)
-                    }
-                    aria-label={"Добавить " + d.name}
-                    onClick={() =>
-                      changeIndicators([
-                        ...indicators,
-                        {
-                          id: crypto.randomUUID(),
-                          definitionId: d.id,
-                          enabled: true,
-                          period: d.id === "vmc" ? 9 : d.id === "mtm" ? 60 : 20,
-                          color:
-                            d.id === "stoch-rsi"
-                              ? "#2962FF"
-                              : d.id === "sonarlab-ob"
-                                ? orderBlockDefaults.col_bullish
-                                : "#99a5ff",
-                          paneId: ["vmc", "stoch-rsi", "mtm"].includes(d.id)
-                            ? "oscillator"
-                            : "main",
-                          ...(d.id === "mtm"
-                            ? { params: { maPeriod: 60 } }
-                            : d.id === "stoch-rsi"
-                              ? { params: { ...stochRsiDefaults } }
-                              : d.id === "vmc"
-                                ? {
-                                    params: { ...vmcDefaults },
-                                    style: { ...vmcStyleDefaults },
-                                  }
+            {catalogTab === "indicators" &&
+              indicatorRegistry
+                .filter(
+                  (x) =>
+                    x.id !== "pine-script" &&
+                    x.name
+                      .toLowerCase()
+                      .includes(indicatorSearch.toLowerCase()),
+                )
+                .map((d) => (
+                  <div className="indicator-definition" key={d.id}>
+                    <Layers3 size={20} />
+                    <div>
+                      <b>{d.name}</b>
+                      <p>{d.description}</p>
+                    </div>
+                    <button
+                      className="icon-button"
+                      disabled={
+                        ["coinglass", "coinglass-heatmap"].includes(d.id) &&
+                        indicators.some((i) => i.definitionId === d.id)
+                      }
+                      aria-label={"Добавить " + d.name}
+                      onClick={() =>
+                        changeIndicators([
+                          ...indicators,
+                          {
+                            id: crypto.randomUUID(),
+                            definitionId: d.id,
+                            enabled: true,
+                            period:
+                              d.id === "vmc" ? 9 : d.id === "mtm" ? 60 : 20,
+                            color:
+                              d.id === "stoch-rsi"
+                                ? "#2962FF"
                                 : d.id === "sonarlab-ob"
-                                  ? { params: { ...orderBlockDefaults } }
-                                  : d.id === "drz"
-                                    ? { params: { ...drzDefaults } }
-                                  : d.id === "fvg-luxalgo"
-                                    ? { params: { ...fvgDefaults } }
-                                    : d.id === "smc"
+                                  ? orderBlockDefaults.col_bullish
+                                  : "#99a5ff",
+                            paneId: ["vmc", "stoch-rsi", "mtm"].includes(d.id)
+                              ? "oscillator"
+                              : "main",
+                            ...(d.id === "mtm"
+                              ? { params: { maPeriod: 60 } }
+                              : d.id === "stoch-rsi"
+                                ? { params: { ...stochRsiDefaults } }
+                                : d.id === "vmc"
+                                  ? {
+                                      params: { ...vmcDefaults },
+                                      style: { ...vmcStyleDefaults },
+                                    }
+                                  : d.id === "sonarlab-ob"
+                                    ? { params: { ...orderBlockDefaults } }
+                                    : d.id === "drz"
+                                      ? { params: { ...drzDefaults } }
+                                      : d.id === "fvg-luxalgo"
+                                        ? { params: { ...fvgDefaults } }
+                                        : d.id === "smc"
                                           ? { params: { ...smcDefaults } }
-                                      : d.id === "coinglass"
-                                        ? { params: { ...coinglassDefaults } }
-                                        : d.id === "coinglass-heatmap"
-                                          ? { params: { ...heatmapDefaults } }
-                                          : {}),
-                        },
-                      ])
-                    }
-                  >
-                    <Plus size={19} />
-                  </button>
-                </div>
-              ))}
+                                          : d.id === "coinglass"
+                                            ? {
+                                                params: {
+                                                  ...coinglassDefaults,
+                                                },
+                                              }
+                                            : d.id === "coinglass-heatmap"
+                                              ? {
+                                                  params: {
+                                                    ...heatmapDefaults,
+                                                  },
+                                                }
+                                              : {}),
+                          },
+                        ])
+                      }
+                    >
+                      <Plus size={19} />
+                    </button>
+                  </div>
+                ))}
+            <PineCatalog
+              tab={catalogTab}
+              query={indicatorSearch}
+              scripts={scripts}
+              onAdd={addPine}
+              onEdit={openPineEditor}
+              onDelete={(id) => {
+                setScripts(scripts.filter((s) => s.id !== id));
+                setIndicators((previous) =>
+                  previous.filter((i) => i.pine?.id !== id),
+                );
+              }}
+            />
           </div>
           <h3>В рабочей области · {indicators.length}</h3>
           <div className="indicator-instances">
@@ -1458,10 +1642,9 @@ function PairWorkspace({
                     }
                   />
                   <b>
-                    {
+                    {i.pine?.name ??
                       indicatorRegistry.find((x) => x.id === i.definitionId)
-                        ?.name
-                    }
+                        ?.name}
                   </b>
                   <button
                     className="icon-button"
@@ -1504,7 +1687,20 @@ function PairWorkspace({
                     }
                   />
                 </label>
-                {hasIndicatorSettings(i.definitionId) ? (
+                {i.pine ? (
+                  <div className="instance-options">
+                    <button
+                      className="button"
+                      onClick={() => openPineEditor(i.pine)}
+                    >
+                      <TerminalSquare size={16} /> Открыть код
+                    </button>
+                    <span className="muted">
+                      Pine Script ·{" "}
+                      {i.pine.kind === "strategy" ? "стратегия" : "индикатор"}
+                    </span>
+                  </div>
+                ) : hasIndicatorSettings(i.definitionId) ? (
                   <div className="instance-options">
                     <button
                       className="button"
@@ -1620,7 +1816,9 @@ function PairWorkspace({
         </DialogContent>
       </Dialog>
       {editingIndicator &&
-        ["drz", "smc", "fvg-luxalgo"].includes(editingIndicator.definitionId) && (
+        ["drz", "smc", "fvg-luxalgo"].includes(
+          editingIndicator.definitionId,
+        ) && (
           <OverlaySettingsDialog
             key={editingIndicator.id}
             instance={editingIndicator}
