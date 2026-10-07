@@ -12,6 +12,7 @@ import { useHeatmap } from "../hooks/use-heatmap";
 import { HeatmapPanel, HeatmapSettings } from "./heatmap";
 import { IndicatorIcon, indicatorIcons } from "./indicator-icon";
 import { SymbolSearch } from "./symbol-search";
+import { CoinIcon } from "./coin-icon";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
@@ -100,6 +101,7 @@ import { SiteHeader } from "./site-header";
 import { PineEditor } from "./pine-editor";
 import { PineCatalog } from "./pine-catalog";
 import { PineStrategyReport } from "./pine-strategy-report";
+import { PineSettings } from "./pine-settings";
 import { usePineScripts } from "../hooks/use-pine-scripts";
 import {
   isPineScript,
@@ -107,11 +109,36 @@ import {
   PINE_LIBRARY_KEY,
   PINE_DRAFT_KEY,
   type PineScript,
+  type PineInstanceSettings,
 } from "../domain/pine-scripts";
 const initialPineDraft: PineScript = {
   ...pineTemplates[0],
   id: "draft",
   name: "Мой индикатор",
+};
+const favoriteColors = [
+  { name: "Красная", value: "#ef5968" },
+  { name: "Оранжевая", value: "#f08b55" },
+  { name: "Жёлтая", value: "#e3c35d" },
+  { name: "Зелёная", value: "#43c98b" },
+  { name: "Бирюзовая", value: "#45c5c4" },
+  { name: "Голубая", value: "#5794f7" },
+  { name: "Синяя", value: "#777bfa" },
+  { name: "Фиолетовая", value: "#bd74e8" },
+];
+type FearGreedPoint = {
+  timestamp: string;
+  value: number;
+  classification: string;
+};
+type FearGreedStatus = {
+  job?: { state?: string; result?: { snapshotId?: string } };
+};
+type FearGreedSnapshot = {
+  snapshot: {
+    current?: FearGreedPoint;
+    points: FearGreedPoint[];
+  };
 };
 const hasIndicatorSettings = (id: string) =>
   [
@@ -140,41 +167,6 @@ function Badge({ q }: { q: Quote }) {
     </span>
   );
 }
-function Coin({ base }: { base: string }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [base]);
-  const colors: Record<string, string> = {
-    BTC: "#efac53",
-    ETH: "#929df7",
-    SOL: "#84d5c7",
-    BNB: "#e3bd45",
-    XRP: "#d2d9e4",
-    DOGE: "#bba96d",
-  };
-  return (
-    <span
-      className="coin-icon"
-      style={{
-        color: colors[base] ?? "#9badd4",
-        background: (colors[base] ?? "#9badd4") + "16",
-      }}
-    >
-      {!failed && itemCrypto(base) ? (
-        <img
-          src={`https://assets.coincap.io/assets/icons/${base.toLowerCase()}@2x.png`}
-          alt=""
-          onError={() => setFailed(true)}
-        />
-      ) : base === "BTC" ? (
-        "₿"
-      ) : (
-        base.slice(0, 2)
-      )}
-    </span>
-  );
-}
-const itemCrypto = (base: string) =>
-  catalog.some((item) => item.base === base && item.category === "crypto");
 function Range({ q }: { q: Quote }) {
   const percent =
     q.high > q.low
@@ -317,6 +309,42 @@ function Backend() {
 
 export default function Terminal({ symbol }: { symbol?: string }) {
   const markets = useResource<MarketResponse>("/api/markets", 30000);
+  const fearGreedStatus = useResource<FearGreedStatus>(
+    "/api/coinglass/fear-greed-status",
+    5000,
+    !symbol,
+  );
+  const fearGreedId = fearGreedStatus.data?.job?.result?.snapshotId;
+  const fearGreedSnapshot = useResource<FearGreedSnapshot>(
+    `/api/coinglass/fear-greed-snapshot?snapshotId=${fearGreedId ?? ""}`,
+    30000,
+    !symbol && Boolean(fearGreedId),
+  );
+  const fearGreedStartAttempted = useRef(false);
+  useEffect(() => {
+    if (
+      symbol ||
+      fearGreedStatus.loading ||
+      fearGreedStatus.error ||
+      fearGreedStatus.data?.job ||
+      fearGreedStartAttempted.current
+    )
+      return;
+    fearGreedStartAttempted.current = true;
+    void fetch("/api/coinglass/fear-greed-run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol: "CMC" }),
+    })
+      .then(() => fearGreedStatus.refresh(true))
+      .catch(() => fearGreedStatus.refresh(true));
+  }, [
+    symbol,
+    fearGreedStatus.loading,
+    fearGreedStatus.error,
+    fearGreedStatus.data,
+    fearGreedStatus.refresh,
+  ]);
   const rows = markets.data?.data ?? [];
   const [theme, setTheme] = useStored("vector.theme.v1", "dark"),
     [accent, setAccent] = useStored("vector.accent.v1", "#99a5ff"),
@@ -413,6 +441,9 @@ export default function Terminal({ symbol }: { symbol?: string }) {
   );
   const crypto = rows.filter((q) => q.category === "crypto");
   const top = crypto.slice(0, 4);
+  const fearGreed =
+    fearGreedSnapshot.data?.snapshot.current ??
+    fearGreedSnapshot.data?.snapshot.points.at(-1);
   const sectorOptions = [
     ...new Set(
       catalog
@@ -456,11 +487,42 @@ export default function Terminal({ symbol }: { symbol?: string }) {
               <span className="update-time">
                 <Clock3 size={14} />
                 {markets.data
-                  ? new Date(markets.data.asOf).toLocaleTimeString("ru-RU", {
+                  ? `UTC ${new Date(markets.data.asOf).toLocaleTimeString("ru-RU", {
                       timeZone: "UTC",
-                    }) + " UTC"
+                    })} · Москва ${new Date(markets.data.asOf).toLocaleTimeString("ru-RU", {
+                      timeZone: "Europe/Moscow",
+                    })}`
                   : "Подключение…"}
               </span>
+              <a className="dashboard-fear-greed" href="/fear-greed">
+                <Activity size={14} />
+                <span>Fear &amp; Greed</span>
+                <b
+                  className={fearGreed ? "" : "muted"}
+                  style={
+                    fearGreed
+                      ? {
+                          color:
+                            fearGreed.value <= 20
+                              ? "#ef5968"
+                              : fearGreed.value <= 40
+                                ? "#f08b55"
+                                : fearGreed.value <= 60
+                                  ? "#e3c35d"
+                                  : fearGreed.value <= 80
+                                    ? "#8fc77b"
+                                    : "#43c98b",
+                        }
+                      : undefined
+                  }
+                >
+                  {fearGreed
+                    ? `${fearGreed.value} · ${fearGreed.classification}`
+                    : fearGreedStatus.error || fearGreedSnapshot.error
+                      ? "Недоступен"
+                      : "Загрузка…"}
+                </b>
+              </a>
               <button
                 className="button"
                 disabled={markets.loading}
@@ -490,7 +552,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                 key={q.symbol}
               >
                 <div className="featured-head">
-                  <Coin base={q.base} />
+                  <CoinIcon base={q.base} />
                   <span>
                     <strong>
                       {q.base}
@@ -731,7 +793,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                         </TableCell>
                         <TableCell>
                           <a className="instrument" href={"/pair/" + q.symbol}>
-                            <Coin base={q.base} />
+                            <CoinIcon base={q.base} />
                             <span>
                               <strong>
                                 {q.base}
@@ -873,7 +935,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
               </div>
             </aside>
           </div>
-          <footer className="footer">0.2.0</footer>
+          <footer className="footer">0.5 ALFA</footer>
         </main>
       )}
       <Dialog open={settings} onOpenChange={setSettings}>
@@ -953,9 +1015,20 @@ function PairWorkspace({
   palette: ChartPalette;
   openSettings: () => void;
 }) {
+  const [favoriteColorMap, setFavoriteColorMap] = useStored<
+    Record<string, string>
+  >("vector.favorite-colors.v1", {});
+  function setFavoriteColor(symbol: string, color: string) {
+    setFavoriteColorMap((previous) => {
+      const next = { ...previous };
+      if (color) next[symbol] = color;
+      else delete next[symbol];
+      return next;
+    });
+  }
   const [tf, setTf] = useState<Timeframe>("4h"),
     [query, setQuery] = useState(""),
-    [onlyFavorites, setOnlyFavorites] = useState(false),
+    [onlyFavorites, setOnlyFavorites] = useState(true),
     [manager, setManager] = useState(false),
     [reset, setReset] = useState(0),
     [indicatorSearch, setIndicatorSearch] = useState("");
@@ -984,6 +1057,7 @@ function PairWorkspace({
       ? storedDraft
       : initialPineDraft;
   const [settingsId, setSettingsId] = useState<string | null>(null);
+  const [pineSettingsId, setPineSettingsId] = useState<string | null>(null);
   const [indicators, setIndicators] = useSharedIndicators(symbol);
   const [storedCount, setCount] = useStored(
     "vector.candles.v1",
@@ -1013,6 +1087,12 @@ function PairWorkspace({
   const accumulated = useRef<typeof candleState>(undefined);
   const candleData =
     candleState?.base === resource.data ? candleState?.response : resource.data;
+  const historyWarning = candleData?.warning?.match(
+    /[^.]*: \d+ из \d+ свечей\./,
+  )?.[0];
+  const otherWarning = historyWarning
+    ? candleData?.warning?.replace(historyWarning, "").trim()
+    : candleData?.warning;
   const lastBackfill = useRef("");
   useEffect(() => {
     const history =
@@ -1094,19 +1174,54 @@ function PairWorkspace({
   const bars = candleData?.data ?? [],
     last = bars.at(-1);
   const coins = rows.filter((x) => x.category === "crypto");
-  const list = (onlyFavorites
-    ? favorites.map((saved) => {
-        const clean = saved.replace(/^(FUTURES|SPOT):/, "");
-        const quote = ["USDT", "USDC", "FDUSD", "BUSD", "BTC", "ETH"].find((suffix) => clean.endsWith(suffix)) ?? "";
-        const item = coins.find((x) => x.symbol === clean);
-        return item ? { ...item, symbol: saved } : {
-          symbol: saved, base: clean.slice(0, clean.length - quote.length) || clean,
-          quote, name: clean, category: "crypto" as const, sector: "Perpetual",
-          seed: 0, price: Number.NaN, change: Number.NaN, volume: 0, high: 0,
-          low: 0, source: "demo" as const, provider: "", asOf: "",
-        };
-      })
-    : coins).filter((x) => (x.symbol + " " + x.name).toLowerCase().includes(query.toLowerCase()));
+  const missingFavorites = favorites.filter((saved) => {
+    const clean = saved.replace(/^(FUTURES|SPOT):/, "");
+    return !coins.some((item) => item.symbol === clean);
+  });
+  const favoriteQuotes = useResource<MarketResponse>(
+    "/api/markets/favorites?symbols=" +
+      encodeURIComponent(missingFavorites.join(",")),
+    15000,
+    onlyFavorites && missingFavorites.length > 0,
+  );
+  const list = (
+    onlyFavorites
+      ? favorites.map((saved) => {
+          const clean = saved.replace(/^(FUTURES|SPOT):/, "");
+          const quote =
+            ["USDT", "USDC", "FDUSD", "BUSD", "BTC", "ETH"].find((suffix) =>
+              clean.endsWith(suffix),
+            ) ?? "";
+          const item = coins.find((x) => x.symbol === clean);
+          const fetched = favoriteQuotes.data?.data.find(
+            (x) => x.symbol === clean,
+          );
+          return item
+            ? { ...item, symbol: saved }
+            : fetched
+              ? { ...fetched, symbol: saved }
+            : {
+                symbol: saved,
+                base: clean.slice(0, clean.length - quote.length) || clean,
+                quote,
+                name: clean,
+                category: "crypto" as const,
+                sector: "Perpetual",
+                seed: 0,
+                price: Number.NaN,
+                change: Number.NaN,
+                volume: 0,
+                high: 0,
+                low: 0,
+                source: "demo" as const,
+                provider: "",
+                asOf: "",
+              };
+        })
+      : coins
+  ).filter((x) =>
+    (x.symbol + " " + x.name).toLowerCase().includes(query.toLowerCase()),
+  );
   function changeIndicators(next: IndicatorInstance[]) {
     setIndicators(next);
   }
@@ -1183,7 +1298,7 @@ function PairWorkspace({
       <div className="pair-layout">
         <section className="chart-workspace panel">
           <div className="pair-heading">
-            <Coin base={item.base} />
+            <CoinIcon base={item.base} />
             <div className="pair-instrument">
               <div className="pair-instrument-title">
                 <h1>
@@ -1304,11 +1419,11 @@ function PairWorkspace({
           {candleData?.source === "demo" && (
             <div className="demo-banner">
               <span className="source-badge demo">DEMO</span>
-              {candleData.warning}. Данные не являются рыночными.
+              {otherWarning && `${otherWarning}. `}Данные не являются рыночными.
             </div>
           )}
-          {candleData?.source !== "demo" && candleData?.warning && (
-            <div className="notice">{candleData.warning}</div>
+          {candleData?.source !== "demo" && otherWarning && (
+            <div className="notice">{otherWarning}</div>
           )}
           {indicators.length > 0 && (
             <div className="indicator-strip">
@@ -1319,7 +1434,7 @@ function PairWorkspace({
                     className="indicator-chip-main"
                     onClick={() =>
                       i.pine
-                        ? openPineEditor(i.pine)
+                        ? setPineSettingsId(i.id)
                         : hasIndicatorSettings(i.definitionId)
                           ? openIndicatorSettings(i.id)
                           : setManager(true)
@@ -1372,6 +1487,11 @@ function PairWorkspace({
               heatmapLayer={heatmapLayer}
               pineResults={pine.results}
             />
+            {historyWarning && (
+              <div className="chart-history-note" role="status">
+                {historyWarning}
+              </div>
+            )}
             {!bars.length && (
               <div className="chart-loading">
                 {resource.error || latest.error
@@ -1413,28 +1533,38 @@ function PairWorkspace({
             />
           )}
           <PineStrategyReport results={pine.results} />
-          <CoinglassPanel
-            onChange={(next) =>
-              changeIndicators(
-                indicators.map((i) => (i.id === next.id ? next : i)),
-              )
-            }
-            state={coinglass}
-            openSettings={openIndicatorSettings}
-          />
-          <HeatmapPanel
-            state={heatmap}
-            onChange={(params) =>
-              changeIndicators(
-                indicators.map((i) =>
-                  i.id === heatmap.instance?.id ? { ...i, params } : i,
-                ),
-              )
-            }
-            openSettings={() =>
-              heatmap.instance && openIndicatorSettings(heatmap.instance.id)
-            }
-          />
+          {(coinglass.instances.length > 0 || heatmap.instance) && (
+            <details className="chart-extra-panels">
+              <summary>
+                <Layers3 size={14} /> CoinGlass · карты и данные
+              </summary>
+              <div className="chart-extra-grid">
+                <CoinglassPanel
+                  onChange={(next) =>
+                    changeIndicators(
+                      indicators.map((i) => (i.id === next.id ? next : i)),
+                    )
+                  }
+                  state={coinglass}
+                  openSettings={openIndicatorSettings}
+                />
+                <HeatmapPanel
+                  state={heatmap}
+                  onChange={(params) =>
+                    changeIndicators(
+                      indicators.map((i) =>
+                        i.id === heatmap.instance?.id ? { ...i, params } : i,
+                      ),
+                    )
+                  }
+                  openSettings={() =>
+                    heatmap.instance &&
+                    openIndicatorSettings(heatmap.instance.id)
+                  }
+                />
+              </div>
+            </details>
+          )}
           {vmc.loading && (
             <div className="notice" role="status">
               Загрузка таймфреймов индикатора…
@@ -1460,8 +1590,14 @@ function PairWorkspace({
           <div className="section-heading watchlist-heading">
             <h2>{onlyFavorites ? "Избранные пары" : "Инструменты"}</h2>
             <button
-              className={"watchlist-filter " + (onlyFavorites ? "selected" : "")}
-              aria-label={onlyFavorites ? "Показать все инструменты" : "Показать избранное"}
+              className={
+                "watchlist-filter " + (onlyFavorites ? "selected" : "")
+              }
+              aria-label={
+                onlyFavorites
+                  ? "Показать все инструменты"
+                  : "Показать избранное"
+              }
               title={onlyFavorites ? "Все инструменты" : "Избранное"}
               aria-pressed={onlyFavorites}
               onClick={() => setOnlyFavorites(!onlyFavorites)}
@@ -1469,27 +1605,102 @@ function PairWorkspace({
               {onlyFavorites ? "Все" : <Star size={13} />}
             </button>
           </div>
+          <label className="search-field">
+            <Search size={14} />
+            <input
+              aria-label="Поиск в списке инструментов"
+              placeholder="Поиск инструмента…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
           <div className="watchlist-labels">
             <span>Инструмент</span>
             <span>Цена / 24ч</span>
           </div>
           <div className="watchlist-items">
             {list.map((x) => (
-              <a
-                href={"/pair/" + encodeURIComponent(x.symbol)}
-                className={
-                  "watch-item " + (x.symbol === symbol ? "active" : "")
-                }
+              <div
+                className={`watch-item ${x.symbol === symbol ? "active" : ""}`}
                 key={x.symbol}
+                style={{
+                  borderLeftColor: favoriteColorMap[x.symbol] || undefined,
+                }}
               >
-                <div>
-                  <b>{x.base} / {x.quote}</b>
-                </div>
-                <div className="mono">
-                  <b>{Number.isFinite(x.price) ? priceFormat(x.price) : "—"}</b>{" "}
-                  {Number.isFinite(x.change) ? <Change value={x.change} /> : <span className="muted">—</span>}
-                </div>
-              </a>
+                <a
+                  className="watch-item-link"
+                  href={"/pair/" + encodeURIComponent(x.symbol)}
+                >
+                  <div className="watch-item-instrument">
+                    <CoinIcon base={x.base} />
+                    <b>
+                      {x.base} / {x.quote}
+                    </b>
+                  </div>
+                  <div className="mono watch-item-quote">
+                    <b>
+                      {Number.isFinite(x.price) ? priceFormat(x.price) : "—"}
+                    </b>{" "}
+                    {Number.isFinite(x.change) ? (
+                      <Change value={x.change} />
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </div>
+                </a>
+                {onlyFavorites && (
+                  <details className="favorite-color-picker">
+                    <summary
+                      title="Цветная метка"
+                      aria-label={`Цветная метка ${x.base}`}
+                    >
+                      <span
+                        style={{
+                          background:
+                            favoriteColorMap[x.symbol] || "transparent",
+                          borderColor:
+                            favoriteColorMap[x.symbol] ||
+                            "var(--muted-foreground)",
+                        }}
+                      />
+                    </summary>
+                    <div
+                      className="favorite-color-options"
+                      role="group"
+                      aria-label={`Цветная метка ${x.base}`}
+                    >
+                      {favoriteColors.map(({ name, value }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          title={name}
+                          aria-label={name}
+                          aria-pressed={favoriteColorMap[x.symbol] === value}
+                          style={{ background: value }}
+                          onClick={(event) => {
+                            setFavoriteColor(x.symbol, value);
+                            event.currentTarget
+                              .closest("details")
+                              ?.removeAttribute("open");
+                          }}
+                        />
+                      ))}
+                      <button
+                        type="button"
+                        className="favorite-color-clear"
+                        title="Убрать метку"
+                        aria-label="Убрать метку"
+                        onClick={(event) => {
+                          setFavoriteColor(x.symbol, "");
+                          event.currentTarget
+                            .closest("details")
+                            ?.removeAttribute("open");
+                        }}
+                      />
+                    </div>
+                  </details>
+                )}
+              </div>
             ))}
             {!list.length && (
               <p className="empty-state">Инструменты не найдены</p>
@@ -1498,7 +1709,12 @@ function PairWorkspace({
           <div className="panel-foot">{list.length} инструментов</div>
         </aside>
       </div>
-      <Sessions />
+      <details className="chart-sessions panel">
+        <summary>
+          <Clock3 size={14} /> Торговые сессии
+        </summary>
+        <Sessions />
+      </details>
       <Dialog open={manager} onOpenChange={setManager}>
         <DialogContent className="indicator-dialog">
           <DialogHeader>
@@ -1671,7 +1887,7 @@ function PairWorkspace({
                     <Trash2 size={15} />
                   </button>
                 </div>
-                <label className="instance-options">
+                <div className="instance-options">
                   Иконка
                   <IndicatorIcon name={i.icon ?? "layers"} color={i.color} />
                   <Choice
@@ -1686,7 +1902,22 @@ function PairWorkspace({
                       )
                     }
                   />
-                </label>
+                  <span>Цвет</span>
+                  <input
+                    type="color"
+                    aria-label={`Цвет значка ${i.pine?.name ?? "индикатора"}`}
+                    value={i.color}
+                    onChange={(event) =>
+                      changeIndicators(
+                        indicators.map((x) =>
+                          x.id === i.id
+                            ? { ...x, color: event.target.value }
+                            : x,
+                        ),
+                      )
+                    }
+                  />
+                </div>
                 {i.pine ? (
                   <div className="instance-options">
                     <button
@@ -1699,6 +1930,23 @@ function PairWorkspace({
                       Pine Script ·{" "}
                       {i.pine.kind === "strategy" ? "стратегия" : "индикатор"}
                     </span>
+                    {pine.results.find((result) => result.id === i.id) && (
+                      <PineSettings
+                        result={
+                          pine.results.find((result) => result.id === i.id)!
+                        }
+                        settings={
+                          (i.params as PineInstanceSettings | undefined) ?? {}
+                        }
+                        onChange={(params) =>
+                          changeIndicators(
+                            indicators.map((x) =>
+                              x.id === i.id ? { ...x, params } : x,
+                            ),
+                          )
+                        }
+                      />
+                    )}
                   </div>
                 ) : hasIndicatorSettings(i.definitionId) ? (
                   <div className="instance-options">
@@ -1815,6 +2063,80 @@ function PairWorkspace({
           </div>
         </DialogContent>
       </Dialog>
+      {(() => {
+        const instance = indicators.find((item) => item.id === pineSettingsId);
+        const result = pine.results.find((item) => item.id === pineSettingsId);
+        if (!instance?.pine) return null;
+        return (
+          <Dialog
+            open
+            onOpenChange={(open) => !open && setPineSettingsId(null)}
+          >
+            <DialogContent className="indicator-dialog pine-settings-dialog">
+              <DialogHeader>
+                <DialogTitle>Настройки · {instance.pine.name}</DialogTitle>
+                <DialogDescription>
+                  Параметры скрипта и оформление элементов на графике.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="instance-options">
+                <span>Иконка</span>
+                <IndicatorIcon name={instance.icon} color={instance.color} />
+                <Choice
+                  label="Иконка индикатора"
+                  value={instance.icon ?? "layers"}
+                  items={indicatorIcons.map(([key, label]) => [key, label])}
+                  onChange={(icon) =>
+                    changeIndicators(
+                      indicators.map((item) =>
+                        item.id === instance.id ? { ...item, icon } : item,
+                      ),
+                    )
+                  }
+                />
+                <span>Цвет значка</span>
+                <input
+                  type="color"
+                  aria-label={`Цвет значка ${instance.pine.name}`}
+                  value={instance.color}
+                  onChange={(event) =>
+                    changeIndicators(
+                      indicators.map((item) =>
+                        item.id === instance.id
+                          ? { ...item, color: event.target.value }
+                          : item,
+                      ),
+                    )
+                  }
+                />
+              </div>
+              {result ? (
+                <PineSettings
+                  result={result}
+                  settings={
+                    (instance.params as PineInstanceSettings | undefined) ?? {}
+                  }
+                  defaultOpen
+                  onChange={(params) =>
+                    changeIndicators(
+                      indicators.map((item) =>
+                        item.id === instance.id ? { ...item, params } : item,
+                      ),
+                    )
+                  }
+                />
+              ) : (
+                <p className="muted">
+                  {pine.errors.find((message) =>
+                    message.startsWith(`${instance.pine!.name}:`),
+                  ) ??
+                    "Параметры скрипта станут доступны после его расчёта на текущем таймфрейме."}
+                </p>
+              )}
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
       {editingIndicator &&
         ["drz", "smc", "fvg-luxalgo"].includes(
           editingIndicator.definitionId,

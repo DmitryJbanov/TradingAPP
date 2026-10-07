@@ -1,4 +1,4 @@
-> Архивная запись. Актуальный старт — `docker compose up -d --build`; compose поднимает приложение и CoinGlass worker. Нижеописанные v3.x патч-версии и команды применения относятся к истории разработки и не являются способом обновить DiVMoney 0.2.0. Для эксплуатации см. [OPERATIONS.md](OPERATIONS.md), для актуальных функций — [COINGLASS_HEATMAP.md](COINGLASS_HEATMAP.md) и [COINGLASS_VISUAL_SETTINGS.md](COINGLASS_VISUAL_SETTINGS.md).
+> Архивная запись. Актуальный старт — `docker compose up -d --build`; compose поднимает приложение и CoinGlass worker. Нижеописанные v3.x патч-версии и команды применения относятся к истории разработки и не являются способом обновить DiVMoney 0.5 ALFA. Для эксплуатации см. [OPERATIONS.md](OPERATIONS.md), для актуальных функций — [COINGLASS_HEATMAP.md](COINGLASS_HEATMAP.md) и [COINGLASS_VISUAL_SETTINGS.md](COINGLASS_VISUAL_SETTINGS.md).
 
 # CoinGlass: фоновый парсинг и индикатор
 

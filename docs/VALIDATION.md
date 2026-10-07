@@ -2,6 +2,10 @@
 
 # Проверки поставки
 
+## DiVMoney 0.5 ALFA — 8 октября 2026
+
+TypeScript-проверка `npm run typecheck` прошла после изменений главной страницы, Pine-настроек, избранных котировок и сортировки рейтинга китов. Docker Compose пересобрал Node/React-контейнер, контейнер `terminal` прошёл healthcheck; главная ответила HTTP 200. Fear & Greed status и snapshot endpoints вернули текущий CMC-показатель (61, Greed на момент проверки). Автоматические core-тесты в этой проверке не запускались.
+
 ## История, HYPE, DRZ и SMC — 10 сентября 2026
 
 Новый набор включает 35 core-тестов: сохранённые VMC/Sonarlab плюс count, пагинация, HYPE routing, delta/EMA, FVG, BOS/CHoCH/mitigation, подтверждение HTF, календарный февраль и независимые оси primitive. Проверки запускаются командами из [инструкции](APPLY_HISTORY_DRZ_SMC_PATCH.md). Smoke дополнен HYPE и 300/4000 свечами. `release`, `dist`, `.test-build` исключены из проверки исходников TypeScript.

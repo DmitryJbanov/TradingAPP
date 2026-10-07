@@ -30,7 +30,7 @@ def stamp():
 
 def fetch_json(payload=None, url='https://api.hyperliquid.xyz/info'):
     data = json.dumps(payload).encode() if payload is not None else None
-    request = Request(url, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'DiVMoney/0.2.0'})
+    request = Request(url, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'DiVMoney/0.5.0-alpha'})
     with urlopen(request, timeout=12) as response:
         return json.load(response)
 

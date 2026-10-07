@@ -1,6 +1,6 @@
 # HTTP API
 
-Документ обновлён для DiVMoney 0.2.0. API выдаёт JSON и используется обоими runtime. Маршруты, связанные с CoinGlass, приведены ниже; детали форматов снимков см. в документах [CoinGlass](COINGLASS.md) и [Model 3](COINGLASS_HEATMAP.md).
+Документ обновлён для DiVMoney 0.5 ALFA. API выдаёт JSON и используется обоими runtime. Маршруты, связанные с CoinGlass, приведены ниже; детали форматов снимков см. в документах [CoinGlass](COINGLASS.md) и [Model 3](COINGLASS_HEATMAP.md).
 
 Одинаковый API доступен в hosted и standalone сборке. Формат JSON, методы GET, `Cache-Control: no-store`. Кеш приложения живёт на сервере независимо от HTTP-заголовка. Все даты ISO 8601 UTC; время свечей UNIX seconds.
 
@@ -40,9 +40,13 @@ API отслеживания китов: `GET /api/coinglass/whales-market?coin=
 
 Пример схематический, числа не являются рыночным снимком. seed — базовое значение генератора demo, не финансовая метрика. Source сейчас `live` или `demo`; тип `stale` зарезервирован. При потере своего backend UI показывает ошибку и сохраняет последнюю выборку с предупреждением об устаревании.
 
-Категории: crypto/stocks/indices/forex. Поиск, сортировка и фильтрация выполняются клиентом по полному каталогу. Отдельных серверных search/pagination endpoints нет.
+Категории: crypto/stocks/indices/forex. Сортировка и фильтрация основного каталога выполняются клиентом. Для поиска биржевых инструментов вне него используется `GET /api/symbols`; цены неизвестных избранных фьючерсов загружаются через `/api/markets/favorites`.
 
 Volume: Binance quoteVolume в USDT; Twelve Data volume × close — оценка денежного объёма, не точный оборот. Для forex/index без volume возвращается 0, UI показывает прочерк.
+
+## `GET /api/markets/favorites?symbols=FUTURES:ABCUSDT,...`
+
+Возвращает `MarketResponse` для избранных фьючерсных пар, которых нет в основном каталоге. `symbols` — список через запятую, максимум 100 позиций; можно передать префикс `FUTURES:` или `SPOT:`, а проверка котировки выполняется на Binance Futures. Ответ содержит цену, изменение за 24 часа, оборот, high/low и время тикера. Индивидуальные наборы кешируются 10 секунд; общий тикер Binance Futures также кешируется на 10 секунд.
 
 ## `GET /api/candles?symbol=BTCUSDT&interval=1h`
 
@@ -120,7 +124,7 @@ curl -fsS 'http://localhost:3000/api/markets?refresh=1'
 curl -fsS http://localhost:3000/api/logs
 ```
 
-## Дополнительные маршруты 0.2.0
+## Дополнительные маршруты 0.5 ALFA
 
 ### Поиск и страницы
 

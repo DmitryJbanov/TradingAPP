@@ -30,6 +30,7 @@ import { OrderBlocksRenderer } from "../indicators/order-blocks-renderer";
 import { PriceOverlaysRenderer } from "../indicators/price-overlays-renderer";
 import type { PriceOverlay } from "../hooks/use-overlays";
 import type { PineResult } from "../domain/pine-scripts";
+import { PineDrawingsRenderer } from "../indicators/pine-drawings-renderer";
 import {
   CoinGlassHeatmapRenderer,
   type CoinGlassHeatmapLayer,
@@ -134,6 +135,7 @@ export function MarketChart({
   const priceOverlaysRenderer = useRef<PriceOverlaysRenderer | null>(null);
   const heatmapRenderer = useRef<CoinGlassHeatmapRenderer | null>(null);
   const coinglassLevelsRenderer = useRef<CoinGlassLevelsRenderer | null>(null);
+  const pineDrawingsRenderer = useRef<PineDrawingsRenderer | null>(null);
   const fitted = useRef("");
   const [cursor, setCursor] = useState<{
     x: number;
@@ -233,6 +235,9 @@ export function MarketChart({
     const cgLevelsRenderer = new CoinGlassLevelsRenderer();
     s.attachPrimitive(cgLevelsRenderer);
     coinglassLevelsRenderer.current = cgLevelsRenderer;
+    const pineRenderer = new PineDrawingsRenderer();
+    s.attachPrimitive(pineRenderer);
+    pineDrawingsRenderer.current = pineRenderer;
     c.subscribeCrosshairMove((p) => {
       if (!p.point || !p.time || p.point.x < 0 || p.point.y < 0) {
         setCursor(null);
@@ -507,6 +512,8 @@ export function MarketChart({
     for (const result of pineResults) {
       const paneIndex = result.overlay ? 0 : c.panes().length;
       for (const plot of result.plots) {
+        if (plot.visible === false) continue;
+        if (!plot.points.some((point) => point.value !== undefined)) continue;
         const options = {
           color: plot.color,
           title: plot.title,
@@ -547,6 +554,7 @@ export function MarketChart({
       s,
       pineResults
         .flatMap((r) => r.markers)
+        .filter((marker) => marker.visible !== false)
         .sort((a, b) => a.time - b.time)
         .map((m) => ({ ...m, time: m.time as UTCTimestamp })),
     );
@@ -557,6 +565,28 @@ export function MarketChart({
       }
     };
   }, [pineResults, vmcPanes.length, stochRsiPanes.length, mtmPanes.length]);
+  useEffect(() => {
+    pineDrawingsRenderer.current?.configure(
+      pineResults.reduce(
+        (all, result) => ({
+          boxes: [
+            ...all.boxes,
+            ...result.drawings.boxes.filter((item) => item.visible !== false),
+          ],
+          lines: [
+            ...all.lines,
+            ...result.drawings.lines.filter((item) => item.visible !== false),
+          ],
+          labels: [
+            ...all.labels,
+            ...result.drawings.labels.filter((item) => item.visible !== false),
+          ],
+        }),
+        { boxes: [], lines: [], labels: [] } as PineResult["drawings"],
+      ),
+      bars,
+    );
+  }, [bars, pineResults, timeframe]);
   useEffect(() => {
     const s = series.current;
     if (!s) return;
@@ -652,14 +682,6 @@ export function MarketChart({
         className="chart-container"
         style={{
           background: palette.background,
-          ...(vmcPanes.length + stochRsiPanes.length + mtmPanes.length
-            ? {
-                height:
-                  560 +
-                  (vmcPanes.length + stochRsiPanes.length + mtmPanes.length) *
-                    230,
-              }
-            : {}),
         }}
       >
         <div className="chart-ohlc" style={{ color: palette.text }}>

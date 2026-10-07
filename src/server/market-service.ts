@@ -409,6 +409,51 @@ export async function candles(
     },
   );
 }
+async function favoriteMarketQuotes(symbols: string[], config: Config) {
+  if (config.DATA_MODE === "demo") return { data: [], asOf: new Date().toISOString() };
+  const requested = [...new Set(symbols)]
+    .slice(0, 100)
+    .map((symbol) => symbol.replace(/^(FUTURES|SPOT):/, ""))
+    .filter((symbol) => /^[A-Z0-9]{2,30}$/.test(symbol));
+  if (!requested.length) return { data: [], asOf: new Date().toISOString() };
+  const instruments = await Promise.all(
+    requested.map(async (symbol) => {
+      try {
+        return await resolveInstrument(`FUTURES:${symbol}`);
+      } catch {
+        return undefined;
+      }
+    }),
+  );
+  const valid = instruments.filter((item) => item?.category === "crypto");
+  if (!valid.length) return { data: [], asOf: new Date().toISOString() };
+  const payload = await cached(
+    "binance-futures:ticker-24hr",
+    10000,
+    false,
+    () => json("https://fapi.binance.com/fapi/v1/ticker/24hr"),
+  );
+  if (!Array.isArray(payload)) throw Error("Invalid Binance Futures response");
+  const bySymbol = new Map(payload.map((item: any) => [item.symbol, item]));
+  const data = valid.flatMap((item) => {
+    const ticker: any = bySymbol.get(item!.symbol.replace(/^FUTURES:/, ""));
+    if (!ticker || !Number.isFinite(+ticker.lastPrice) || +ticker.lastPrice <= 0)
+      return [];
+    return [{
+      ...item,
+      symbol: item!.symbol.replace(/^FUTURES:/, ""),
+      price: +ticker.lastPrice,
+      change: +ticker.priceChangePercent,
+      volume: +ticker.quoteVolume,
+      high: +ticker.highPrice,
+      low: +ticker.lowPrice,
+      source: "live" as const,
+      provider: "Binance Futures",
+      asOf: new Date(+ticker.closeTime).toISOString(),
+    }];
+  });
+  return { data, asOf: new Date().toISOString() };
+}
 /** Shared Fetch API handler used by both Cloudflare and standalone Node. */
 export async function handleApi(
   request: Request,
@@ -436,6 +481,21 @@ export async function handleApi(
       case "/api/markets":
         result = await markets(config, force);
         break;
+      case "/api/markets/favorites": {
+        const symbols = u.searchParams.get("symbols")?.split(",") ?? [];
+        if (symbols.length > 100)
+          return Response.json(
+            { error: "Максимум 100 избранных пар" },
+            { status: 400 },
+          );
+        result = await cached(
+          `favorite-quotes:${symbols.join(",")}`,
+          10000,
+          force,
+          () => favoriteMarketQuotes(symbols, config),
+        );
+        break;
+      }
       case "/api/candles": {
         const symbol = u.searchParams.get("symbol") ?? "BTCUSDT";
         const tf = u.searchParams.get("interval") ?? "1h";

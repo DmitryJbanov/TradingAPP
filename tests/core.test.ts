@@ -1,4 +1,5 @@
 import "./coinglass.test";
+import "./pine.test";
 import "./heatmap.test";
 import "./interface.test";
 import "./stoch-rsi.test";

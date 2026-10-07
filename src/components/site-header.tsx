@@ -46,7 +46,7 @@ export function SiteHeader({
           <span className="brand-mark">
             <ChartNoAxesCombined size={22} />
           </span>
-          DiVMoney<span className="brand-tag">TERMINAL</span>
+          DiVMoney<span className="brand-tag">0.5 ALFA</span>
         </a>
         <nav>
           <a className={active === "markets" ? "active" : ""} href="/">
@@ -71,7 +71,21 @@ export function SiteHeader({
             <Waves size={16} /> RSI Heatmap
           </a>
           <a className={active === "whales" ? "active" : ""} href="/whales">
-            <Activity size={16} /> Киты
+            <svg
+              aria-hidden="true"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 13.3c1.7-4.1 5.1-6.2 9.8-6.2 3.1 0 5.7 1 7.3 2.8l2.4-1.1v5l-2.3-.5c-1.3 3.6-4.5 5.7-8.9 5.7H7.1L4 20.5v-4C2.6 15.4 2 13.9 2 12.5l1 0.8Z" />
+              <path d="M12.5 7c.3-1.1-.2-2-1.4-2.7M11.2 4.4 13 3.5M8.5 14.3c1.4 1 2.9 1.2 4.5.3" />
+              <circle cx="17" cy="10.7" r=".7" fill="currentColor" stroke="none" />
+            </svg>{" "}Киты
           </a>
           <a className={active === "backlog" ? "active" : ""} href="/backlog">
             Беклог

@@ -1,13 +1,29 @@
 import { runPine } from "./pine-runtime";
-// Scripts execute on supplied candles. External data requests require a host adapter.
+// Pine requests are served from candles supplied by the host.
 self.fetch = async () => {
   throw Error("Сетевые запросы из Pine Script не поддерживаются.");
 };
 self.onmessage = async (event) => {
   try {
-    const { script, bars, symbol, timeframe } = event.data;
+    const {
+      script,
+      bars,
+      symbol,
+      timeframe,
+      higherTimeframeBars,
+      mintick,
+      settings,
+    } = event.data;
     self.postMessage({
-      result: await runPine(script, bars, symbol, timeframe),
+      result: await runPine(
+        script,
+        bars,
+        symbol,
+        timeframe,
+        higherTimeframeBars,
+        mintick,
+        settings,
+      ),
     });
   } catch (error) {
     self.postMessage({

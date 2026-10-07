@@ -48,6 +48,8 @@ test("only rendered and calculated indicators remain in the catalog", () => {
     "coinglass-heatmap",
     "drz",
     "fvg-luxalgo",
+    "mtm",
+    "pine-script",
     "smc",
     "sonarlab-ob",
     "stoch-rsi",
@@ -57,7 +59,8 @@ test("only rendered and calculated indicators remain in the catalog", () => {
     indicatorRegistry.every(
       (i) =>
         i.implemented &&
-        (typeof i.compute === "function" || i.dataSource === "remote"),
+        // MTM is calculated in terminal; Pine runs asynchronously in its worker.
+        (typeof i.compute === "function" || i.dataSource === "remote" || i.dataSource === "script" || i.id === "mtm"),
     ),
   );
 });

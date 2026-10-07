@@ -226,7 +226,8 @@ export function PineEditor({
         </p>
       ))}
       <p className="pine-editor-note">
-        Pine Script v5/v6 ·{" "}
+        Pine Script v5/v6 · параметры input.* и отображение элементов
+        настраиваются в карточке добавленного скрипта. ·{" "}
         <a
           href="https://github.com/LuxAlgo/PineTS"
           target="_blank"
@@ -234,8 +235,9 @@ export function PineEditor({
         >
           PineTS 0.11.0 · AGPL-3.0
         </a>
-        . Расчёт по загруженным свечам. request.* и часть графических объектов
-        пока не подключены. Черновик и мои скрипты сохраняются в этом браузере.
+        . request.security() использует дневные свечи текущего инструмента для
+        D/W/M. Рисуются линии, боксы и подписи; таблицы и polylines пока не
+        отображаются. Черновик и мои скрипты сохраняются в этом браузере.
       </p>
     </section>
   );

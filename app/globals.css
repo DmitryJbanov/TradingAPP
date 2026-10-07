@@ -557,6 +557,27 @@ h1 {
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
+.dashboard-fear-greed {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.dashboard-fear-greed:hover {
+  border-color: var(--input);
+  background: var(--accent);
+}
+.dashboard-fear-greed b {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
 .button {
   border: 1px solid var(--border);
   background: var(--card);
@@ -1291,8 +1312,8 @@ h1 {
   font-weight: 600;
 }
 .pair-page {
-  padding: 20px 28px;
-  max-width: 1900px;
+  padding: 8px 12px;
+  max-width: none;
   margin: auto;
 }
 .pair-breadcrumb {
@@ -1314,7 +1335,7 @@ h1 {
 }
 .pair-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 270px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin-bottom: 18px;
 }
@@ -1556,15 +1577,90 @@ h1 {
   font-size: 12px;
   border-left: 2px solid transparent;
 }
+.watch-item-link {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: inherit;
+}
+.watch-item-instrument {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.watch-item-instrument .coin-icon {
+  width: 21px;
+  height: 21px;
+  font-size: 9px;
+}
+.watch-item-quote {
+  text-align: right;
+  white-space: nowrap;
+}
+.favorite-color-picker {
+  position: relative;
+  margin-left: 5px;
+}
+.favorite-color-picker summary {
+  width: 19px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  list-style: none;
+  cursor: pointer;
+}
+.favorite-color-picker summary::-webkit-details-marker {
+  display: none;
+}
+.favorite-color-picker summary span {
+  width: 10px;
+  height: 10px;
+  border: 1px solid;
+  border-radius: 50%;
+}
+.favorite-color-options {
+  position: absolute;
+  z-index: 15;
+  top: calc(100% + 4px);
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 22px);
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--popover);
+  box-shadow: 0 8px 20px #0005;
+}
+.favorite-color-options button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid #ffffff55;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.favorite-color-options .favorite-color-clear {
+  background: linear-gradient(
+    135deg,
+    transparent 44%,
+    #ef5968 46%,
+    #ef5968 54%,
+    transparent 56%
+  );
+  border-color: var(--muted-foreground);
+}
 .watch-item:hover {
   background: var(--accent);
 }
 .watch-item.active {
   background: #99a5ff0c;
   border-left-color: var(--brand);
-}
-.watch-item > div:last-child {
-  text-align: right;
 }
 .watch-item b {
   display: inline-block;
@@ -1817,7 +1913,7 @@ h1 {
     gap: 14px !important;
   }
   .pair-layout {
-    grid-template-columns: minmax(0, 1fr) 240px;
+    grid-template-columns: minmax(0, 1fr);
   }
   .pair-price {
     margin-left: 3px;
@@ -1921,7 +2017,9 @@ h1 {
   }
   .heading-actions {
     width: 100%;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 10px;
   }
   .page-heading p {
     font-size: 13px;
@@ -2349,8 +2447,16 @@ h1 {
   box-shadow: 0 12px 30px #0008;
 }
 .chart-symbol-search .symbol-search-results a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 4px;
   white-space: nowrap;
+}
+.chart-symbol-search .symbol-search-results .coin-icon {
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
 }
 .chart-symbol-search .symbol-search-results small {
   display: inline;
@@ -3408,6 +3514,66 @@ h1 {
   color: var(--muted-foreground);
   line-height: 1.6;
 }
+.pine-instance-settings {
+  flex-basis: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+.pine-instance-settings summary {
+  cursor: pointer;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pine-instance-settings section {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+.pine-instance-settings h4 {
+  margin: 5px 0 0;
+  font-size: 12px;
+}
+.pine-setting-input,
+.pine-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+}
+.pine-setting-input {
+  justify-content: space-between;
+}
+.pine-setting-input > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pine-setting-input input:not([type="checkbox"]),
+.pine-setting-input select,
+.pine-setting-row select,
+.pine-setting-row input[type="number"] {
+  width: 110px;
+  min-width: 70px;
+}
+.pine-setting-row > label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+}
+.pine-setting-row input[type="color"],
+.pine-setting-input input[type="color"] {
+  width: 34px;
+  height: 26px;
+  padding: 2px;
+}
+.pine-setting-row input[type="checkbox"],
+.pine-setting-input input[type="checkbox"] {
+  accent-color: var(--muted-foreground);
+}
 .pine-code {
   display: flex;
   height: 330px;
@@ -4011,5 +4177,169 @@ h1 {
   }
   .whale-section-heading {
     flex-wrap: wrap;
+  }
+}
+
+/* Keep the chart spacious alongside the permanent instruments list. */
+.pair-page .pair-layout {
+  grid-template-columns: minmax(0, 1fr) 350px;
+  align-items: start;
+  gap: 12px;
+}
+.pair-page .watchlist {
+  position: sticky;
+  top: 12px;
+  height: calc(100dvh - 110px);
+  max-height: none;
+  min-height: 0;
+  min-width: 0;
+}
+.pair-page .watchlist-items {
+  min-height: 0;
+}
+.pair-page .watchlist > .search-field {
+  margin-bottom: 8px;
+}
+.chart-history-note {
+  position: absolute;
+  left: 12px;
+  bottom: 30px;
+  z-index: 2;
+  max-width: calc(100% - 110px);
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 10px;
+  line-height: 1.3;
+  pointer-events: none;
+}
+.pair-page .pair-breadcrumb {
+  margin-bottom: 6px;
+  gap: 8px;
+}
+.pair-page .chart-workspace {
+  min-width: 0;
+}
+.pair-page .pair-heading {
+  padding: 8px 12px;
+  gap: 10px;
+}
+.pair-page .pair-heading h1 {
+  font-size: 20px;
+}
+.pair-page .pair-heading > .coin-icon {
+  width: 26px;
+  height: 26px;
+}
+.pair-page .pair-heading p {
+  margin-top: 2px;
+}
+.pair-page .chart-toolbar {
+  padding: 6px 10px;
+  gap: 6px;
+}
+.pair-page .indicator-strip {
+  padding: 5px 10px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+.pair-page .indicator-chip {
+  flex-shrink: 0;
+}
+.pair-page .drawing-toolbar {
+  padding: 5px 10px;
+}
+.pair-page .chart-container {
+  height: max(360px, calc(100dvh - 300px));
+}
+.chart-extra-panels,
+.chart-sessions {
+  border-top: 1px solid var(--border);
+}
+.chart-extra-panels > summary,
+.chart-sessions > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.chart-extra-panels > summary::after,
+.chart-sessions > summary::after {
+  content: "+";
+  margin-left: auto;
+}
+.chart-extra-panels[open] > summary::after,
+.chart-sessions[open] > summary::after {
+  content: "−";
+}
+.chart-extra-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  align-items: start;
+  gap: 12px;
+  padding: 0 10px 10px;
+}
+.chart-extra-grid > section {
+  min-width: 0;
+  margin: 0;
+}
+@media (max-width: 960px) {
+  .pair-page .pair-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pair-page .watchlist {
+    position: static;
+    height: 320px;
+  }
+  .pair-page .chart-container {
+    height: max(360px, calc(100dvh - 290px));
+  }
+}
+@media (max-width: 760px) {
+  .pair-page .chart-symbol-search {
+    display: none;
+  }
+  .pair-page {
+    padding: 6px;
+  }
+  .pair-page .pair-heading {
+    flex-wrap: wrap;
+    padding: 7px 10px;
+  }
+  .pair-page .pair-instrument-title {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .pair-page .pair-instrument-title .pair-price {
+    flex-direction: row;
+    align-items: baseline;
+  }
+  .pair-page .chart-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .pair-page .chart-toolbar > * {
+    flex-shrink: 0;
+  }
+  .pair-page .drawing-actions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .pair-page .drawing-actions > * {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .pair-page .toolbar-end {
+    width: auto;
+    border: 0;
+    padding: 0;
+  }
+  .pair-page .chart-container {
+    height: max(320px, calc(100dvh - 300px));
   }
 }

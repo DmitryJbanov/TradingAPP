@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { CoinIcon } from "./coin-icon";
 
 interface Result {
   symbol: string;
@@ -85,10 +86,13 @@ export function SymbolSearch({
           {results.data.map((row) => (
             <li key={row.symbol}>
               <a href={`/pair/${encodeURIComponent(row.symbol)}`}>
-                {row.base} / {row.quote}
-                <small>
-                  {row.market === "spot" ? "Spot" : "USDⓈ-M Perpetual"}
-                </small>
+                <CoinIcon base={row.base} />
+                <span>
+                  {row.base} / {row.quote}
+                  <small>
+                    {row.market === "spot" ? "Spot" : "USDⓈ-M Perpetual"}
+                  </small>
+                </span>
               </a>
               <button
                 type="button"

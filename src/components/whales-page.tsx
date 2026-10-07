@@ -519,6 +519,17 @@ export function WhalesPage({
   const [tab, setTab] = useState("positions"),
     [period, setPeriod] = useState("perpMonth");
   const [watchlistView, setWatchlistView] = useState<"activity" | "positions">("activity");
+  const [accountSort, setAccountSort] = useState<{
+    key:
+      | "rank"
+      | "address"
+      | "label"
+      | "accountValue"
+      | "pnl"
+      | "pnl24h"
+      | "positions";
+    direction: "asc" | "desc";
+  }>({ key: "accountValue", direction: "desc" });
   const [pending, setPending] = useState(false),
     [error, setError] = useState(""),
     [copied, setCopied] = useState(false);
@@ -566,6 +577,36 @@ export function WhalesPage({
     names.set(account.address, aliases.get(account.address) || account.label || "");
   for (const whale of watchlist.data?.data ?? [])
     if (whale.label) names.set(whale.address, whale.label);
+  const rankedAccounts = [...accounts]
+    .filter((account) =>
+      `${account.address} ${aliases.get(account.address) || account.label}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
+    )
+    .sort((a, b) => {
+      const value = (account: (typeof accounts)[number]) => {
+        switch (accountSort.key) {
+          case "rank":
+            return accounts.indexOf(account);
+          case "label":
+            return aliases.get(account.address) || account.label || "";
+          case "positions":
+            return account.positions.length;
+          default:
+            return account[accountSort.key];
+        }
+      };
+      return (
+        compareValue(value(a), value(b)) *
+        (accountSort.direction === "asc" ? 1 : -1)
+      );
+    });
+  const toggleAccountSort = (key: typeof accountSort.key) =>
+    setAccountSort((current) => ({
+      key,
+      direction:
+        current.key === key && current.direction === "desc" ? "asc" : "desc",
+    }));
   const allPositions = market.data?.snapshot?.positions ?? [];
   const displayed = allPositions
     .filter(
@@ -1076,24 +1117,53 @@ export function WhalesPage({
                 <table className="whale-table">
                   <thead>
                     <tr>
-                      <th>#</th>
-                      <th>Кошелёк</th>
-                      <th>Имя</th>
-                      <th>Капитал</th>
-                      <th>PnL за всё время</th>
-                      <th>PnL 24ч</th>
-                      <th>Позиции</th>
+                      <SortHeader
+                        label="#"
+                        active={accountSort.key === "rank"}
+                        direction={accountSort.direction}
+                        onClick={() => toggleAccountSort("rank")}
+                      />
+                      <SortHeader
+                        label="Кошелёк"
+                        active={accountSort.key === "address"}
+                        direction={accountSort.direction}
+                        onClick={() => toggleAccountSort("address")}
+                      />
+                      <SortHeader
+                        label="Имя"
+                        active={accountSort.key === "label"}
+                        direction={accountSort.direction}
+                        onClick={() => toggleAccountSort("label")}
+                      />
+                      <SortHeader
+                        label="Капитал"
+                        active={accountSort.key === "accountValue"}
+                        direction={accountSort.direction}
+                        onClick={() => toggleAccountSort("accountValue")}
+                      />
+                      <SortHeader
+                        label="PnL за всё время"
+                        active={accountSort.key === "pnl"}
+                        direction={accountSort.direction}
+                        onClick={() => toggleAccountSort("pnl")}
+                      />
+                      <SortHeader
+                        label="PnL 24ч"
+                        active={accountSort.key === "pnl24h"}
+                        direction={accountSort.direction}
+                        onClick={() => toggleAccountSort("pnl24h")}
+                      />
+                      <SortHeader
+                        label="Позиции"
+                        active={accountSort.key === "positions"}
+                        direction={accountSort.direction}
+                        onClick={() => toggleAccountSort("positions")}
+                      />
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {accounts
-                      .filter((a) =>
-                        `${a.address} ${aliases.get(a.address) || a.label}`
-                          .toLowerCase()
-                          .includes(query.toLowerCase()),
-                      )
-                      .map((a) => (
+                    {rankedAccounts.map((a) => (
                         <tr key={a.address}>
                           <td>{accounts.indexOf(a) + 1}</td>
                           <td>{wallet(a.address)}</td>
@@ -1121,7 +1191,7 @@ export function WhalesPage({
                             </button>
                           </td>
                         </tr>
-                      ))}
+                    ))}
                   </tbody>
                 </table>
                 {!accounts.length && (

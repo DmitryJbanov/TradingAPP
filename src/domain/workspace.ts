@@ -12,6 +12,7 @@ import { computeFvg } from "../indicators/fvg";
 import type { FvgParams } from "../indicators/fvg-settings";
 import type { Candle, Timeframe } from "./market";
 import type { PineScript } from "./pine-scripts";
+import type { PineInstanceSettings } from "./pine-scripts";
 export interface MtmParams {
   maPeriod?: number;
 }
@@ -34,7 +35,8 @@ export interface IndicatorInstance {
     | Partial<FvgParams>
     | Partial<CoinglassParams>
     | Partial<HeatmapParams>
-    | Partial<MtmParams>;
+    | Partial<MtmParams>
+    | PineInstanceSettings;
   style?: Partial<VmcStyle>;
   timeframes?: Timeframe[];
   pine?: PineScript;

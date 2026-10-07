@@ -30,7 +30,7 @@ export function DrawingTools({
   timeframe: Timeframe;
 }) {
   const [tool, setTool] = useState<DrawingTool | "navigate">("navigate");
-  const [color, setColor] = useState("#99a5ff");
+  const [color, setColor] = useState("#ffffff");
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [ready, setReady] = useState(false);
   const [storageError, setStorageError] = useState("");
@@ -214,9 +214,6 @@ export function DrawingTools({
           Отменить добавление
         </button>
       </div>
-      {tool !== "navigate" && (
-        <p>Перетащите инструмент по графику · Esc — отмена.</p>
-      )}
       {storageError && <p role="status">{storageError}</p>}
       {drawings.length >= 200 && (
         <p role="status">Достигнут лимит 200 объектов. Удалите ненужные.</p>

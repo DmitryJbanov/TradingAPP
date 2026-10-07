@@ -5,6 +5,30 @@ export interface PineScript {
   kind: PineKind;
   source: string;
 }
+export interface PineInputMeta {
+  id: string;
+  name: string;
+  title?: string;
+  type: string;
+  defval: unknown;
+  tooltip?: string;
+  group?: string;
+  options?: unknown[];
+  minval?: number;
+  maxval?: number;
+  step?: number;
+  active?: boolean;
+}
+export interface PineElementStyle {
+  visible?: boolean;
+  color?: string;
+  width?: 1 | 2 | 3 | 4;
+  style?: "line" | "histogram" | "area";
+}
+export interface PineInstanceSettings {
+  inputs?: Record<string, unknown>;
+  display?: Record<string, PineElementStyle>;
+}
 export const PINE_LIBRARY_KEY = "vector.pine.library.v1";
 export const PINE_DRAFT_KEY = "vector.pine.draft.v1";
 export const pineTemplates: PineScript[] = [
@@ -70,6 +94,7 @@ export interface PinePoint {
 export interface PinePlot {
   title: string;
   style: "line" | "histogram" | "area";
+  visible?: boolean;
   color: string;
   width: 1 | 2 | 3 | 4;
   points: PinePoint[];
@@ -80,6 +105,12 @@ export interface PineMarker {
   shape: "arrowUp" | "arrowDown" | "circle";
   color: string;
   text: string;
+  visible?: boolean;
+}
+export interface PineDrawing {
+  boxes: Record<string, unknown>[];
+  lines: Record<string, unknown>[];
+  labels: Record<string, unknown>[];
 }
 export interface PineTrade {
   entry: number;
@@ -96,7 +127,9 @@ export interface PineResult {
   overlay: boolean;
   plots: PinePlot[];
   markers: PineMarker[];
+  drawings: PineDrawing;
   warnings: string[];
+  inputMeta: PineInputMeta[];
   strategy?: {
     initialCapital: number;
     equity: number;
