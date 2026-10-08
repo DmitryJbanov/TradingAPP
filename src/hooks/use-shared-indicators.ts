@@ -1,5 +1,7 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useStored } from "./use-resource";
+import { useProfiles } from "../components/profile-provider";
 import type { IndicatorInstance } from "../domain/workspace";
 import {
   initialSharedIndicators,
@@ -18,28 +20,18 @@ function read(key: string): unknown {
 
 export function useSharedIndicators(symbol: string) {
   const firstSymbol = useRef(symbol);
-  const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
-  const [ready, setReady] = useState(false);
+  const profiles = useProfiles();
+  const [indicators, setStored] = useStored<IndicatorInstance[]>(SHARED_INDICATORS_KEY, []);
+  const setIndicators: typeof setStored = (next) => setStored((previous) => {
+    const value = typeof next === "function" ? next(previous) : next;
+    return supportedIndicators(value);
+  });
   useEffect(() => {
-    setIndicators(
-      initialSharedIndicators(
-        read(SHARED_INDICATORS_KEY),
-        read(LEGACY_INDICATORS_KEY),
-        firstSymbol.current,
-      ),
-    );
-    setReady(true);
-  }, []);
-  useEffect(() => {
-    if (!ready) return;
-    try {
-      localStorage.setItem(
-        SHARED_INDICATORS_KEY,
-        JSON.stringify(supportedIndicators(indicators)),
-      );
-    } catch {
-      /* Retain the selection in memory if browser storage is unavailable. */
+    if (profiles) return;
+    if (!indicators.length) {
+      const migrated = initialSharedIndicators(read(SHARED_INDICATORS_KEY), read(LEGACY_INDICATORS_KEY), firstSymbol.current);
+      if (migrated.length) setStored(migrated);
     }
-  }, [indicators, ready]);
+  }, []);
   return [indicators, setIndicators] as const;
 }

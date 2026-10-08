@@ -5,11 +5,13 @@ import Terminal from "../src/components/terminal";
 import { FearGreedPage } from "../src/components/fear-greed-page";
 import { RsiHeatmapPage } from "../src/components/rsi-heatmap-page";
 import { WhalesPage } from "../src/components/whales-page";
+import { StandaloneProfilesProvider } from "../src/components/profile-provider";
 import "../app/globals.css";
 const match = location.pathname.match(/^\/pair\/([^/]+)\/?$/);
 const whale = location.pathname.match(/^\/whales\/([^/]+)\/?$/);
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
+    <StandaloneProfilesProvider>
     {location.pathname.startsWith("/whales") ? (
       <WhalesPage
         watchlistOnly={whale?.[1] === "watchlist"}
@@ -28,5 +30,6 @@ createRoot(document.getElementById("root")!).render(
     ) : (
       <Terminal symbol={match ? decodeURIComponent(match[1]) : undefined} />
     )}
+    </StandaloneProfilesProvider>
   </React.StrictMode>,
 );

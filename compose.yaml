@@ -4,12 +4,18 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
+      NODE_ENV: production
+      DATABASE_PATH: /data/divmoney.sqlite
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
       DATA_MODE: ${DATA_MODE:-auto}
       TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
       COINGLASS_SERVICE_URL: http://coinglass:8090
       COINGLASS_TOKEN: ${COINGLASS_TOKEN:-}
     depends_on:
       - coinglass
+    volumes:
+      - divmoney-data:/data
     restart: unless-stopped
     read_only: true
     tmpfs:
@@ -53,4 +59,5 @@ services:
         max-size: "10m"
         max-file: "3"
 volumes:
+  divmoney-data:
   coinglass-data:

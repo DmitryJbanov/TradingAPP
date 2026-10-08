@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useProfiles } from "../components/profile-provider";
 /** Abort and generation guard prevent a slow previous symbol from replacing the active one. */
 export function useResource<T>(url: string, period = 30000, enabled = true) {
   const [data, setData] = useState<T>();
@@ -72,20 +73,39 @@ export function useResource<T>(url: string, period = 30000, enabled = true) {
   };
 }
 export function useStored<T>(key: string, initial: T) {
+  const profiles = useProfiles();
   const [value, setValue] = useState(initial);
+  const current = useRef(value);
   const [ready, setReady] = useState(false);
   useEffect(() => {
+    if (profiles) {
+      const next = profiles.getValue(key, initial);
+      current.current = next;
+      setValue(next);
+      setReady(true);
+      return;
+    }
     try {
       const raw = localStorage.getItem(key);
-      if (raw) setValue(JSON.parse(raw));
+      if (raw) {
+        const stored = JSON.parse(raw) as T;
+        current.current = stored;
+        setValue(stored);
+      }
     } catch {}
     setReady(true);
-  }, [key]);
+  }, [key, profiles?.active, profiles?.settings]);
   useEffect(() => {
-    if (ready)
+    if (ready && !profiles)
       try {
         localStorage.setItem(key, JSON.stringify(value));
       } catch {}
-  }, [key, value, ready]);
-  return [value, setValue] as const;
+  }, [key, value, ready, profiles]);
+  const update = useCallback<Dispatch<SetStateAction<T>>>((next) => {
+    const resolved = typeof next === "function" ? (next as (old: T) => T)(current.current) : next;
+    current.current = resolved;
+    setValue(resolved);
+    profiles?.setValue(key, resolved);
+  }, [key, profiles]);
+  return [value, update] as const;
 }

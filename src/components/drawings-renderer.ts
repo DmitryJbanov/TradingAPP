@@ -13,6 +13,7 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
   private drawings: Drawing[] = [];
   private bars: Candle[] = [];
   private interval = 3600;
+  private selectedId?: string;
   private view: IPrimitivePaneView = {
     zOrder: () => "top",
     renderer: () => this.renderer,
@@ -39,7 +40,7 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
           const [p, q = p] = points as { x: number; y: number }[];
           c.strokeStyle = d.color;
           c.fillStyle = d.color;
-          c.lineWidth = 2;
+          c.lineWidth = d.width ?? 2;
           c.lineJoin = "round";
           c.lineCap = "round";
           const line = (x: number, y: number, x2: number, y2: number) => {
@@ -48,8 +49,24 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
             c.lineTo(x2, y2);
             c.stroke();
           };
-          if (d.tool === "horizontal") line(0, p.y, size.width, p.y);
+          if (d.tool === "horizontal") {
+            line(0, p.y, size.width, p.y);
+            if (d.showPrice !== false) {
+              c.font = "11px ui-monospace, monospace";
+              c.textAlign = "right";
+              c.fillText(
+                d.points[0].price.toPrecision(8),
+                size.width - 6,
+                p.y - 5,
+              );
+              c.textAlign = "left";
+            }
+          }
           if (d.tool === "vertical") line(p.x, 0, p.x, size.height);
+          if (d.tool === "text") {
+            c.font = `${Math.max(12, 12 + (d.width ?? 2) * 2)}px sans-serif`;
+            c.fillText(d.text ?? "Текст", p.x, p.y);
+          }
           if (d.tool === "brush") {
             c.beginPath();
             points.forEach((v, i) =>
@@ -198,6 +215,17 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
                 y - 4,
               );
             }
+          if (d.id === this.selectedId) {
+            c.fillStyle = "#ffffff";
+            for (const v of points as { x: number; y: number }[]) {
+              c.beginPath();
+              c.arc(v.x, v.y, 4, 0, Math.PI * 2);
+              c.fill();
+              c.strokeStyle = d.color;
+              c.lineWidth = 1;
+              c.stroke();
+            }
+          }
         }
         c.restore();
       });
@@ -213,10 +241,16 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
   paneViews() {
     return [this.view];
   }
-  configure(drawings: Drawing[], bars: Candle[], interval: number) {
+  configure(
+    drawings: Drawing[],
+    bars: Candle[],
+    interval: number,
+    selectedId?: string,
+  ) {
     this.drawings = drawings;
     this.bars = bars;
     this.interval = interval;
+    this.selectedId = selectedId;
     this.attachment?.requestUpdate();
   }
 }

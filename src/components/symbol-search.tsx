@@ -13,6 +13,10 @@ interface Results {
   total: number;
   warning?: string;
 }
+const isFavorite = (favorites: string[], symbol: string) => {
+  const key = (value: string) => value.replace(/^(FUTURES|SPOT):/, "");
+  return favorites.some((saved) => key(saved) === key(symbol));
+};
 export function SymbolSearch({
   favorites,
   star,
@@ -97,10 +101,10 @@ export function SymbolSearch({
               <button
                 type="button"
                 aria-label={`Избранное: ${row.symbol}`}
-                aria-pressed={favorites.includes(row.symbol)}
+                aria-pressed={isFavorite(favorites, row.symbol)}
                 onClick={() => star(row.symbol)}
               >
-                {favorites.includes(row.symbol) ? "★" : "☆"}
+                {isFavorite(favorites, row.symbol) ? "★" : "☆"}
               </button>
             </li>
           ))}

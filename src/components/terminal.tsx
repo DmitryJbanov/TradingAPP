@@ -22,7 +22,6 @@ import {
   ChartNoAxesCombined,
   Check,
   ChevronRight,
-  Clock3,
   ExternalLink,
   Globe2,
   Layers3,
@@ -74,7 +73,6 @@ import { indicatorRegistry, type IndicatorInstance } from "../domain/workspace";
 import { useResource, useStored } from "../hooks/use-resource";
 import { useSharedIndicators } from "../hooks/use-shared-indicators";
 import { Choice } from "./controls";
-import { Sessions } from "./sessions";
 import { MarketChart, defaultPalette, type ChartPalette } from "./chart";
 
 import { useVmc } from "../hooks/use-vmc";
@@ -126,6 +124,9 @@ const favoriteColors = [
   { name: "Синяя", value: "#777bfa" },
   { name: "Фиолетовая", value: "#bd74e8" },
 ];
+const favoriteKey = (symbol: string) => symbol.replace(/^(FUTURES|SPOT):/, "");
+const hasFavorite = (favorites: string[], symbol: string) =>
+  favorites.some((saved) => favoriteKey(saved) === favoriteKey(symbol));
 type FearGreedPoint = {
   timestamp: string;
   value: number;
@@ -345,8 +346,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
     fearGreedStatus.data,
     fearGreedStatus.refresh,
   ]);
-  const rows = markets.data?.data ?? [];
-  const [theme, setTheme] = useStored("vector.theme.v1", "dark"),
+  const [theme, setTheme] = useStored("vector.theme.v1", "black"),
     [accent, setAccent] = useStored("vector.accent.v1", "#99a5ff"),
     [palette, setPalette] = useStored<ChartPalette>(
       "vector.chart.v1",
@@ -357,6 +357,40 @@ export default function Terminal({ symbol }: { symbol?: string }) {
       "ETHUSDT",
       "SOLUSDT",
     ]);
+  const baseRows = markets.data?.data ?? [];
+  const missingFavorites = favorites.filter(
+    (saved) =>
+      !baseRows.some(
+        (quote) => favoriteKey(quote.symbol) === favoriteKey(saved),
+      ),
+  );
+  const favoriteMarkets = useResource<MarketResponse>(
+    "/api/markets/favorites?symbols=" +
+      encodeURIComponent(missingFavorites.join(",")),
+    15000,
+    !symbol && missingFavorites.length > 0,
+  );
+  const extraFavorites = favoriteMarkets.data?.data ?? [];
+  const rows = [
+    ...baseRows,
+    ...extraFavorites.filter(
+      (quote) =>
+        !baseRows.some(
+          (base) => favoriteKey(base.symbol) === favoriteKey(quote.symbol),
+        ),
+    ),
+  ];
+  useEffect(() => {
+    try {
+      if (
+        theme === "dark" &&
+        localStorage.getItem("vector.theme.default-migrated.0.5") !== "1"
+      ) {
+        setTheme("black");
+        localStorage.setItem("vector.theme.default-migrated.0.5", "1");
+      }
+    } catch {}
+  }, [theme, setTheme]);
   useEffect(() => {
     try {
       const saved = JSON.parse(
@@ -365,6 +399,12 @@ export default function Terminal({ symbol }: { symbol?: string }) {
       if (!saved) return;
       setPalette((current) => ({
         ...current,
+        ...(saved.background === "#101318"
+          ? { background: defaultPalette.background }
+          : {}),
+        ...(saved.grid === "#20262f" ? { grid: defaultPalette.grid } : {}),
+        ...(saved.up === "#0ECB81" ? { up: defaultPalette.up } : {}),
+        ...(saved.down === "#F6465D" ? { down: defaultPalette.down } : {}),
         ...(saved.up === "#44d7a8" ? { up: defaultPalette.up } : {}),
         ...(saved.down === "#ef7185" ? { down: defaultPalette.down } : {}),
       }));
@@ -391,7 +431,9 @@ export default function Terminal({ symbol }: { symbol?: string }) {
   }, [theme, accent, setTheme]);
   function star(s: string) {
     setFavorites((prev) =>
-      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
+      hasFavorite(prev, s)
+        ? prev.filter((x) => favoriteKey(x) !== favoriteKey(s))
+        : [...prev, s],
     );
   }
   const filtered = useMemo(
@@ -400,7 +442,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
         .filter(
           (q) =>
             (category === "all" || q.category === category) &&
-            (!favoriteOnly || favorites.includes(q.symbol)) &&
+            (!favoriteOnly || hasFavorite(favorites, q.symbol)) &&
             (!query ||
               (q.symbol + " " + q.name)
                 .toLowerCase()
@@ -484,16 +526,6 @@ export default function Terminal({ symbol }: { symbol?: string }) {
               </h1>
             </div>
             <div className="heading-actions">
-              <span className="update-time">
-                <Clock3 size={14} />
-                {markets.data
-                  ? `UTC ${new Date(markets.data.asOf).toLocaleTimeString("ru-RU", {
-                      timeZone: "UTC",
-                    })} · Москва ${new Date(markets.data.asOf).toLocaleTimeString("ru-RU", {
-                      timeZone: "Europe/Moscow",
-                    })}`
-                  : "Подключение…"}
-              </span>
               <a className="dashboard-fear-greed" href="/fear-greed">
                 <Activity size={14} />
                 <span>Fear &amp; Greed</span>
@@ -599,7 +631,6 @@ export default function Terminal({ symbol }: { symbol?: string }) {
           </div>
           <div className="dashboard-columns">
             <div className="main-column">
-              <Sessions />
               <section className="panel markets-panel">
                 <div className="market-panel-title">
                   <h2>Инструменты</h2>
@@ -772,10 +803,12 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                           <button
                             className={
                               "star-button " +
-                              (favorites.includes(q.symbol) ? "is-starred" : "")
+                              (hasFavorite(favorites, q.symbol)
+                                ? "is-starred"
+                                : "")
                             }
                             aria-label={
-                              (favorites.includes(q.symbol)
+                              (hasFavorite(favorites, q.symbol)
                                 ? "Убрать из избранного "
                                 : "В избранное ") + q.base
                             }
@@ -784,7 +817,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                             <Star
                               size={15}
                               fill={
-                                favorites.includes(q.symbol)
+                                hasFavorite(favorites, q.symbol)
                                   ? "currentColor"
                                   : "none"
                               }
@@ -987,7 +1020,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
           <button
             className="button"
             onClick={() => {
-              setTheme("dark");
+              setTheme("black");
               setAccent("#99a5ff");
               setPalette(defaultPalette);
             }}
@@ -1200,23 +1233,23 @@ function PairWorkspace({
             ? { ...item, symbol: saved }
             : fetched
               ? { ...fetched, symbol: saved }
-            : {
-                symbol: saved,
-                base: clean.slice(0, clean.length - quote.length) || clean,
-                quote,
-                name: clean,
-                category: "crypto" as const,
-                sector: "Perpetual",
-                seed: 0,
-                price: Number.NaN,
-                change: Number.NaN,
-                volume: 0,
-                high: 0,
-                low: 0,
-                source: "demo" as const,
-                provider: "",
-                asOf: "",
-              };
+              : {
+                  symbol: saved,
+                  base: clean.slice(0, clean.length - quote.length) || clean,
+                  quote,
+                  name: clean,
+                  category: "crypto" as const,
+                  sector: "Perpetual",
+                  seed: 0,
+                  price: Number.NaN,
+                  change: Number.NaN,
+                  volume: 0,
+                  high: 0,
+                  low: 0,
+                  source: "demo" as const,
+                  provider: "",
+                  asOf: "",
+                };
         })
       : coins
   ).filter((x) =>
@@ -1330,14 +1363,14 @@ function PairWorkspace({
             <button
               className={
                 "star-button " +
-                (favorites.includes(symbol) ? "is-starred" : "")
+                (hasFavorite(favorites, symbol) ? "is-starred" : "")
               }
               aria-label="Избранное"
               onClick={() => star(symbol)}
             >
               <Star
                 size={18}
-                fill={favorites.includes(symbol) ? "currentColor" : "none"}
+                fill={hasFavorite(favorites, symbol) ? "currentColor" : "none"}
               />
             </button>
           </div>
@@ -1709,12 +1742,6 @@ function PairWorkspace({
           <div className="panel-foot">{list.length} инструментов</div>
         </aside>
       </div>
-      <details className="chart-sessions panel">
-        <summary>
-          <Clock3 size={14} /> Торговые сессии
-        </summary>
-        <Sessions />
-      </details>
       <Dialog open={manager} onOpenChange={setManager}>
         <DialogContent className="indicator-dialog">
           <DialogHeader>

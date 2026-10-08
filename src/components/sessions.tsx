@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Clock3 } from "lucide-react";
+import { Clock3, ChevronDown } from "lucide-react";
 const sessions = [
   {
     name: "Азия",
@@ -52,7 +52,7 @@ export function sessionInfo(
     active: !weekend && local >= start && local < end,
   };
 }
-export function Sessions() {
+export function Sessions({ compact = false }: { compact?: boolean }) {
   const [now, setNow] = useState<Date>();
   useEffect(() => {
     setNow(new Date());
@@ -66,6 +66,73 @@ export function Sessions() {
         24) *
       100
     : 0;
+  const activeCount = now
+    ? sessions.filter((s) => sessionInfo(now, s.tz, s.start, s.end).active)
+        .length
+    : 0;
+  if (compact) {
+    const clock = (timeZone: string) =>
+      now?.toLocaleTimeString("ru-RU", {
+        timeZone,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+      }) ?? "--:--:--";
+    return (
+      <div className="header-market-info">
+        <div className="header-clock" aria-label="Текущее время">
+          <span>
+            <small>UTC</small>
+            {clock("UTC")}
+          </span>
+          <span>
+            <small>МСК</small>
+            {clock("Europe/Moscow")}
+          </span>
+        </div>
+        <details className="header-sessions">
+          <summary aria-label="Торговые сессии">
+            <Clock3 size={15} />
+            <span>
+              Сессии {activeCount}/{sessions.length}
+            </span>
+            <ChevronDown size={13} />
+          </summary>
+          <div className="header-sessions-popover">
+            <strong>Торговые сессии</strong>
+            {sessions.map((session) => {
+              const info = now
+                ? sessionInfo(now, session.tz, session.start, session.end)
+                : { active: false };
+              const localTime =
+                now?.toLocaleTimeString("ru-RU", {
+                  timeZone: session.tz,
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hourCycle: "h23",
+                }) ?? "--:--";
+              return (
+                <div className="header-session-row" key={session.name}>
+                  <i style={{ background: session.color }} />
+                  <span>
+                    <b>{session.name}</b>
+                    <small>
+                      {session.city} · {localTime} · {session.start}:00–
+                      {session.end}:00
+                    </small>
+                  </span>
+                  <em className={info.active ? "positive" : "muted"}>
+                    {info.active ? "Открыта" : "Закрыта"}
+                  </em>
+                </div>
+              );
+            })}
+          </div>
+        </details>
+      </div>
+    );
+  }
   return (
     <section className="session-panel panel">
       <div className="section-heading">

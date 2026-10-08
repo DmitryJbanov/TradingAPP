@@ -3,6 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import { resolve, extname, sep, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleApi } from "../src/server/market-service";
+import { handleProfileApi, requireProfileUser, validProfileOrigin } from "./profiles";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "public");
 const mime: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -12,12 +13,47 @@ const mime: Record<string, string> = {
   ".png": "image/png",
   ".woff2": "font/woff2",
 };
+const authAttempts = new Map<string, { count: number; resetAt: number }>();
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", "http://localhost");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
     if (url.pathname.startsWith("/api/")) {
+      const requestHeaders = new Headers();
+      for (const key of ["content-type", "origin", "host", "cookie"])
+        if (typeof req.headers[key] === "string")
+          requestHeaders.set(key, req.headers[key]);
+      const requestUrl = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+      if (url.pathname.startsWith("/api/auth/") || url.pathname.startsWith("/api/profiles")) {
+        if (["/api/auth/login", "/api/auth/register"].includes(url.pathname)) {
+          const key = req.socket.remoteAddress ?? "unknown";
+          const now = Date.now(); const attempt = authAttempts.get(key);
+          const current = !attempt || now >= attempt.resetAt ? { count: 0, resetAt: now + 60_000 } : attempt;
+          if (current.count >= 12) { res.writeHead(429, { "Retry-After": String(Math.max(1, Math.ceil((current.resetAt - now) / 1000))) }); res.end("Too many authentication attempts"); return; }
+          current.count++; authAttempts.set(key, current);
+          if (authAttempts.size > 5000) for (const [ip, state] of authAttempts) if (now >= state.resetAt) authAttempts.delete(ip);
+        }
+        const incoming = new Request(requestUrl, { method: req.method, headers: requestHeaders });
+        if (["POST", "PATCH", "DELETE"].includes(req.method ?? "") && !["/api/auth/register", "/api/auth/login"].includes(url.pathname) && !validProfileOrigin(incoming)) {
+          res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Недопустимый источник запроса" })); return;
+        }
+        let body: Buffer | undefined;
+        if (["POST", "PATCH", "DELETE"].includes(req.method ?? "")) {
+          const chunks: Buffer[] = []; let size = 0;
+          for await (const chunk of req) { size += chunk.length; if (size > 3_200_000) { res.writeHead(413); res.end("Request too large"); return; } chunks.push(chunk); }
+          body = Buffer.concat(chunks);
+        }
+        const response = await handleProfileApi(new Request(requestUrl, { method: req.method, headers: requestHeaders, body: body?.toString("utf8") }));
+        res.writeHead(response.status, Object.fromEntries(response.headers)); res.end(await response.text()); return;
+      }
+      if (["POST", "PATCH", "DELETE"].includes(req.method ?? "")) {
+        const incoming = new Request(requestUrl, { method: req.method, headers: requestHeaders });
+        if (!validProfileOrigin(incoming)) { res.writeHead(403); res.end("Forbidden"); return; }
+        if (!requireProfileUser(incoming)) { res.writeHead(401); res.end("Authentication required"); return; }
+      }
       let body: Buffer | undefined;
       if (
         req.method === "POST" &&
@@ -43,12 +79,8 @@ const server = createServer(async (req, res) => {
         }
         body = Buffer.concat(chunks);
       }
-      const requestHeaders = new Headers();
-      for (const key of ["content-type", "origin", "host"])
-        if (typeof req.headers[key] === "string")
-          requestHeaders.set(key, req.headers[key]);
       const response = await handleApi(
-        new Request(url, {
+        new Request(requestUrl, {
           method: req.method,
           headers: requestHeaders,
           body: body?.toString("utf-8"),

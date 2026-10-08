@@ -80,6 +80,8 @@
   --border: #202020;
   --input: #303030;
   --ring: #d2d2d2;
+  --up: #00c087;
+  --down: #f23645;
   color-scheme: dark;
 }
 :root[data-theme="light"] {
@@ -416,7 +418,7 @@ h3 {
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: 58px;
+  gap: 24px;
   padding: 0 36px;
   background: var(--card);
 }
@@ -449,7 +451,7 @@ h3 {
 .topbar nav {
   align-self: stretch;
   display: flex;
-  gap: 28px;
+  gap: 18px;
 }
 .topbar nav a {
   display: flex;
@@ -468,6 +470,104 @@ h3 {
   display: flex;
   align-items: center;
   gap: 18px;
+}
+.header-market-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.header-clock {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--foreground);
+  font:
+    11px/1.2 "SFMono-Regular",
+    Consolas,
+    monospace;
+  font-variant-numeric: tabular-nums;
+}
+.header-clock span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.header-clock small {
+  color: var(--muted-foreground);
+  font:
+    9px Arial,
+    sans-serif;
+}
+.header-sessions {
+  position: relative;
+}
+.header-sessions > summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  list-style: none;
+}
+.header-sessions > summary::-webkit-details-marker {
+  display: none;
+}
+.header-sessions[open] > summary {
+  color: var(--foreground);
+  background: var(--accent);
+}
+.header-sessions-popover {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 310px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--popover);
+  box-shadow: 0 12px 30px #0007;
+}
+.header-sessions-popover > strong {
+  display: block;
+  margin: 0 0 7px 2px;
+  font-size: 12px;
+}
+.header-session-row {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 2px;
+  border-top: 1px solid var(--border);
+}
+.header-session-row > i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.header-session-row b,
+.header-session-row small {
+  display: block;
+}
+.header-session-row b {
+  font-size: 11px;
+}
+.header-session-row small {
+  margin-top: 3px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.header-session-row em {
+  font-size: 10px;
+  font-style: normal;
 }
 .topbar nav {
   min-width: 0;
@@ -1474,11 +1574,18 @@ h1 {
 }
 .chart-loading {
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: var(--card);
+  z-index: 3;
+  top: 12px;
+  left: 50%;
+  max-width: calc(100% - 24px);
+  transform: translateX(-50%);
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--card) 90%, transparent);
   color: var(--muted-foreground);
+  box-shadow: 0 2px 10px #0005;
+  pointer-events: none;
 }
 .cursor-percent {
   position: absolute;
@@ -1993,6 +2100,24 @@ h1 {
   }
   .topbar nav {
     gap: 15px;
+  }
+  .header-market-info {
+    gap: 5px;
+  }
+  .header-clock {
+    gap: 5px;
+    font-size: 10px;
+  }
+  .header-clock span {
+    gap: 3px;
+  }
+  .header-clock small {
+    font-size: 8px;
+  }
+  .header-sessions > summary {
+    gap: 3px;
+    padding: 5px;
+    font-size: 10px;
   }
   .topbar nav a {
     font-size: 13px;
@@ -2792,9 +2917,26 @@ h1 {
 }
 .drawing-toolbar li {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
   padding: 4px;
+  border-radius: 5px;
+}
+.drawing-toolbar li:has(.drawing-selected) {
+  background: var(--accent);
+}
+.drawing-toolbar li input[type="number"],
+.drawing-toolbar li input:not([type]),
+.drawing-toolbar li select,
+.drawing-actions select,
+.drawing-actions input:not([type="color"]) {
+  min-width: 76px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  background: var(--background);
+  color: var(--foreground);
 }
 .drawing-input {
   position: absolute;
@@ -2802,6 +2944,9 @@ h1 {
   z-index: 20;
   touch-action: none;
   cursor: crosshair;
+}
+.drawing-input.is-select {
+  cursor: move;
 }
 
 .coinglass-monitor {
@@ -4343,3 +4488,19 @@ h1 {
     height: max(320px, calc(100dvh - 300px));
   }
 }
+/* Shared workspace account/profile controls */
+.profile-menu { position: relative; z-index: 60; }
+.profile-menu > summary { cursor: pointer; list-style: none; border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 12px; color: var(--muted-foreground); max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.profile-menu > summary::-webkit-details-marker { display: none; }
+.profile-menu-panel { position: absolute; right: 0; top: calc(100% + 8px); width: 260px; display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--popover); color: var(--popover-foreground); box-shadow: 0 16px 40px #0008; }
+.profile-menu-panel label,.auth-card label { display: grid; gap: 6px; font-size: 12px; color: var(--muted-foreground); }
+.profile-menu-panel select,.profile-menu-panel input,.auth-card input { min-width: 0; width: 100%; border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--foreground); padding: 9px 10px; }
+.profile-menu-panel form { display: flex; gap: 6px; }
+.profile-menu-panel .button { white-space: nowrap; padding: 7px 10px; }
+.auth-screen { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--background); color: var(--foreground); }
+.auth-card { width: min(100%, 420px); display: grid; gap: 16px; padding: 28px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); box-shadow: 0 18px 55px #0003; }
+.auth-card h1 { margin: 0; font-size: 22px; }
+.auth-card p,.auth-card small { color: var(--muted-foreground); font-size: 13px; line-height: 1.5; margin: 0; }
+.auth-brand { font-size: 20px; }
+.auth-error { padding: 10px; border-radius: 8px; background: #ef444422; color: #fb7185; font-size: 13px; }
+.auth-link { border: 0; padding: 4px; background: transparent; color: var(--muted-foreground); font-size: 12px; cursor: pointer; text-align: left; }

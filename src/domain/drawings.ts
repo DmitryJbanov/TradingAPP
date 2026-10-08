@@ -6,6 +6,7 @@ export const drawingTools = {
   rectangle: "Прямоугольник",
   fibonacci: "Фибоначчи",
   "volume-profile": "Fixed Range Volume Profile",
+  text: "Текст",
 } as const;
 export type DrawingTool = keyof typeof drawingTools;
 export interface DrawingPoint {
@@ -17,6 +18,9 @@ export interface Drawing {
   tool: DrawingTool;
   color: string;
   points: DrawingPoint[];
+  width?: 1 | 2 | 3 | 4;
+  text?: string;
+  showPrice?: boolean;
   profile?: {
     rows: number;
     valueArea: number;
@@ -68,8 +72,13 @@ export function readDrawings(raw: unknown): Drawing[] {
         /^#[0-9a-f]{6}$/i.test(d.color) &&
         Array.isArray(d.points) &&
         d.points.length >=
-          (d.tool === "horizontal" || d.tool === "vertical" ? 1 : 2) &&
+          (d.tool === "horizontal" || d.tool === "vertical" || d.tool === "text"
+            ? 1
+            : 2) &&
         d.points.length <= 2000 &&
+        (d.width === undefined || [1, 2, 3, 4].includes(d.width)) &&
+        (d.text === undefined || typeof d.text === "string") &&
+        (d.showPrice === undefined || typeof d.showPrice === "boolean") &&
         d.points.every(
           (p: DrawingPoint) =>
             p && Number.isFinite(p.time) && Number.isFinite(p.price),
