@@ -1,4 +1,5 @@
 "use client";
+import { IndicatorPresets } from "./indicator-presets";
 import { useState } from "react";
 import {
   Dialog,
@@ -27,12 +28,14 @@ export function OrderBlocksSettingsDialog({
   onClose: () => void;
   onApply: (next: IndicatorInstance) => void;
 }) {
+  const [base, setBase] = useState(instance);
   const [params, setParams] = useState(() =>
     normalizeOrderBlockParams(instance.params),
   );
   const [sensitivity, setSensitivity] = useState(String(params.sens));
   const [frames, setFrames] = useState(instance.timeframes ?? allFrames);
   const [error, setError] = useState("");
+  const [parameterSearch, setParameterSearch] = useState("");
   function apply() {
     const sens = Number(sensitivity);
     if (!Number.isInteger(sens) || sens < 1) {
@@ -41,7 +44,7 @@ export function OrderBlocksSettingsDialog({
     }
     const next = normalizeOrderBlockParams({ ...params, sens });
     onApply({
-      ...instance,
+      ...base,
       params: next,
       color: next.col_bullish,
       timeframes: frames,
@@ -63,7 +66,34 @@ export function OrderBlocksSettingsDialog({
             применения.
           </DialogDescription>
         </DialogHeader>
+        <IndicatorPresets
+          instance={{
+            ...base,
+            params: normalizeOrderBlockParams({
+              ...params,
+              sens: Number(sensitivity),
+            }),
+            timeframes: frames,
+          }}
+          onLoad={(next) => {
+            setBase(next);
+            const loaded = normalizeOrderBlockParams(next.params);
+            setParams(loaded);
+            setSensitivity(String(loaded.sens));
+            setFrames(next.timeframes ?? allFrames);
+            setError("");
+          }}
+        />
         <Tabs defaultValue="inputs">
+          <label className="search-field settings-parameter-search">
+            <span>⌕</span>
+            <input
+              aria-label="Поиск параметров"
+              placeholder="Найти параметр…"
+              value={parameterSearch}
+              onChange={(event) => setParameterSearch(event.target.value)}
+            />
+          </label>
           <TabsList>
             <TabsTrigger value="inputs">Аргументы</TabsTrigger>
             <TabsTrigger value="style">Стиль</TabsTrigger>
@@ -73,14 +103,18 @@ export function OrderBlocksSettingsDialog({
             <TabsContent value="inputs">
               <fieldset className="vmc-group">
                 <legend>Version</legend>
-                <label className="vmc-field">
+                <label
+                  className={`vmc-field${parameterSearch && "Version".toLocaleLowerCase().includes(parameterSearch.trim().toLocaleLowerCase()) ? " parameter-match" : ""}`}
+                >
                   <span>Version</span>
                   <output>{params._v}</output>
                 </label>
               </fieldset>
               <fieldset className="vmc-group">
                 <legend>Order Block</legend>
-                <label className="vmc-field">
+                <label
+                  className={`vmc-field${parameterSearch && "Sensitivity".toLocaleLowerCase().includes(parameterSearch.trim().toLocaleLowerCase()) ? " parameter-match" : ""}`}
+                >
                   <span>Sensitivity</span>
                   <input
                     type="number"
@@ -99,7 +133,9 @@ export function OrderBlocksSettingsDialog({
                   Меньше чувствительность — больше зон. Значение 28
                   соответствует порогу изменения цены 0,28%.
                 </p>
-                <label className="vmc-field">
+                <label
+                  className={`vmc-field${parameterSearch && "OB Mitigation Type".toLocaleLowerCase().includes(parameterSearch.trim().toLocaleLowerCase()) ? " parameter-match" : ""}`}
+                >
                   <span>OB Mitigation Type</span>
                   <Choice
                     label="OB Mitigation Type"
@@ -129,7 +165,10 @@ export function OrderBlocksSettingsDialog({
                     ["sell_alert", "Sell Signal"],
                   ] as const
                 ).map(([key, label]) => (
-                  <label className="vmc-field" key={key}>
+                  <label
+                    className={`vmc-field${parameterSearch && label.toLocaleLowerCase().includes(parameterSearch.trim().toLocaleLowerCase()) ? " parameter-match" : ""}`}
+                    key={key}
+                  >
                     <span>{label}</span>
                     <Switch
                       aria-label={label}
@@ -165,7 +204,9 @@ export function OrderBlocksSettingsDialog({
               ).map(([label, border, background, transparency]) => (
                 <fieldset className="vmc-group" key={border}>
                   <legend>{label}</legend>
-                  <label className="vmc-field">
+                  <label
+                    className={`vmc-field${parameterSearch && `${label} Граница`.toLocaleLowerCase().includes(parameterSearch.trim().toLocaleLowerCase()) ? " parameter-match" : ""}`}
+                  >
                     <span>Граница</span>
                     <input
                       type="color"
@@ -176,7 +217,9 @@ export function OrderBlocksSettingsDialog({
                       }
                     />
                   </label>
-                  <label className="vmc-field">
+                  <label
+                    className={`vmc-field${parameterSearch && `${label} Фон`.toLocaleLowerCase().includes(parameterSearch.trim().toLocaleLowerCase()) ? " parameter-match" : ""}`}
+                  >
                     <span>Фон</span>
                     <input
                       type="color"
@@ -187,7 +230,9 @@ export function OrderBlocksSettingsDialog({
                       }
                     />
                   </label>
-                  <label className="vmc-field">
+                  <label
+                    className={`vmc-field${parameterSearch && `${label} Прозрачность`.toLocaleLowerCase().includes(parameterSearch.trim().toLocaleLowerCase()) ? " parameter-match" : ""}`}
+                  >
                     <span>Прозрачность фона, %</span>
                     <input
                       type="range"

@@ -1,12 +1,16 @@
 # HTTP API
 
-Документ обновлён для DiVMoney 0.5 ALFA. API выдаёт JSON и используется обоими runtime. Маршруты, связанные с CoinGlass, приведены ниже; детали форматов снимков см. в документах [CoinGlass](COINGLASS.md) и [Model 3](COINGLASS_HEATMAP.md).
+Документ обновлён для DiVMoney 0.7 BETA. API выдаёт JSON и используется обоими runtime. Маршруты, связанные с CoinGlass, приведены ниже; детали форматов снимков см. в документах [CoinGlass](COINGLASS.md) и [Model 3](COINGLASS_HEATMAP.md).
 
 Одинаковый API доступен в hosted и standalone сборке. Формат JSON, методы GET, `Cache-Control: no-store`. Кеш приложения живёт на сервере независимо от HTTP-заголовка. Все даты ISO 8601 UTC; время свечей UNIX seconds.
 
 ## Киты Hyperliquid
 
 API отслеживания китов: `GET /api/coinglass/whales-market?coin=all&interval=day` (общие данные CoinGlass), `GET /api/coinglass/whales-overview` (отдельный top 50 leaderboard), `GET /api/coinglass/whales-profile?address=0x…`, `GET /api/coinglass/whales-watchlist`, `POST /api/coinglass/whales-watch`. Форматы, сохранение списка и ограничения источника описаны в [Китах Hyperliquid](WHALES.md#api-и-исходники).
+
+## Выбор биржи
+
+Для рынков, избранного, поиска и свечей доступен параметр `exchange=binance|okx|bybit|mexc`. Явный источник включает бессрочные USDT/USDC-контракты выбранной биржи и исключает подмену данных через DEMO. Подробности, интервалы и единицы объёма: [MARKET_EXCHANGES.md](MARKET_EXCHANGES.md). Без параметра сохранено прежнее поведение API.
 
 ## `GET /api/markets`
 
@@ -124,7 +128,7 @@ curl -fsS 'http://localhost:3000/api/markets?refresh=1'
 curl -fsS http://localhost:3000/api/logs
 ```
 
-## Дополнительные маршруты 0.5 ALFA
+## Дополнительные маршруты 0.7 BETA
 
 ### Поиск и страницы
 

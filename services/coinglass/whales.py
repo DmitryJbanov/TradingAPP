@@ -66,7 +66,8 @@ def fills(rows, user):
         identity = str(row.get('tid', f"{row.get('hash')}:{timestamp}:{row.get('coin')}:{size}"))
         result.append(dict(id=identity, address=user, coin=row.get('coin', ''), side='Buy' if row.get('side') == 'B' else 'Sell',
                            action=row.get('dir', ''), price=px, size=size, value=px * size, time=int(timestamp),
-                           pnl=number(row.get('closedPnl')), fee=number(row.get('fee')), hash=row.get('hash', '')))
+                           pnl=number(row.get('closedPnl')), fee=number(row.get('fee')), hash=row.get('hash', ''),
+                           startPosition=number(row.get('startPosition'))))
     return result
 
 
@@ -75,12 +76,27 @@ def merge_fills(previous, current, limit=5000):
     return sorted(rows.values(), key=lambda row: row['time'], reverse=True)[:limit]
 
 
+def position_entry_time(position, rows):
+    # Stop at the latest opening, full close or reversal; never reuse an older cycle.
+    for row in sorted(rows, key=lambda r: r['time'], reverse=True):
+        if row['coin'] != position['coin']: continue
+        start = number(row.get('startPosition'))
+        if start is None: continue
+        end = start + row['size'] * (1 if row['side'] == 'Buy' else -1)
+        if abs(end) < 1e-9: end = 0
+        if start == 0 or end == 0 or start * end < 0:
+            same_side = end > 0 if position['side'] == 'Long' else end < 0
+            return row['time'] if same_side else None
+    return None
+
+
 class WhaleTracker:
     def __init__(self, directory, start=True):
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
         self.pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='whale')
+        self.overview_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='whale-ranking')
         self.stopped = threading.Event()
         self.pending = set()
         self.profiles = {}
@@ -136,12 +152,16 @@ class WhaleTracker:
             with self.lock: old = self.profiles.get(user, {})
             def optional(kind, fallback, extra=None):
                 if self.stopped.is_set(): return fallback
-                try: return fetch_json({'type': kind, 'user': user, **(extra or {})})
+                try:
+                    value = fetch_json({'type': kind, 'user': user, **(extra or {})})
+                    if not isinstance(value, type(fallback)):
+                        raise ValueError('Некорректный ответ')
+                    return value
                 except Exception:
                     warnings.append(f'{kind}: данные временно недоступны')
                     return fallback
             raw_fills = []
-            cursor = old.get('sourceCursor')
+            cursor = old.get('sourceCursor') if old.get('whaleRevision') == 2 else None
             for _ in range(5):
                 page = optional('userFillsByTime' if cursor else 'userFills', [],
                                 {'aggregateByTime': True, **({'startTime': max(0, cursor - 1)} if cursor else {})})
@@ -155,17 +175,35 @@ class WhaleTracker:
             orders = optional('frontendOpenOrders', old.get('orders', []))
             portfolio = optional('portfolio', list(old.get('history', {}).items()))
             ledger = optional('userNonFundingLedgerUpdates', old.get('ledger', []), {'startTime': int((time.time() - 30 * 86400) * 1000)})
-            history = {k: v for k, v in portfolio if isinstance(v, dict)}
+            spot = optional('spotClearinghouseState', {'balances': old.get('spotBalances', [])})
+            staking_raw = optional('delegatorSummary', old.get('staking') or {})
+            spot_balances = [dict(coin=r['coin'], total=number(r.get('total')), hold=number(r.get('hold')))
+                             for r in spot.get('balances', []) if isinstance(r, dict) and isinstance(r.get('coin'), str)
+                             and (number(r.get('total')) or 0) > 0]
+            staking = {key: number(staking_raw.get(key)) for key in ('delegated', 'undelegated', 'totalPendingWithdrawal')}
+            history = {r[0]: r[1] for r in portfolio if isinstance(r, (list, tuple)) and len(r) == 2
+                       and isinstance(r[0], str) and isinstance(r[1], dict)}
             performance = {}
+            total_performance = {}
             for key, title in [('perpDay', 'day'), ('perpWeek', 'week'), ('perpMonth', 'month'), ('perpAllTime', 'allTime')]:
                 values = history.get(key, {}).get('pnlHistory', [])
                 performance[title] = number(values[-1][1]) if values else None
+                total_values = history.get(title, {}).get('pnlHistory', [])
+                total_performance[title] = number(total_values[-1][1]) if total_values else None
+            account_history = history.get('day', {}).get('accountValueHistory', [])
             summary = state['marginSummary']
-            data = dict(address=user, collectedAt=stamp(), accountValue=number(summary.get('accountValue')),
+            merged = merge_fills(old.get('fills', []), current)
+            active_positions = positions(state, user)
+            for position in active_positions:
+                position['entryTime'] = position_entry_time(position, merged)
+            data = dict(whaleRevision=2, address=user, collectedAt=stamp(), accountValue=number(summary.get('accountValue')),
                         marginUsed=number(summary.get('totalMarginUsed')), positionValue=number(summary.get('totalNtlPos')),
-                        withdrawable=number(state.get('withdrawable')), positions=positions(state, user),
-                        fills=merge_fills(old.get('fills', []), current), orders=[o for o in orders if not str(o.get('coin', '')).startswith('@')],
-                        performance=performance, history=history, ledger=ledger, warnings=warnings,
+                        withdrawable=number(state.get('withdrawable')), positions=active_positions,
+                        fills=merged, orders=[o for o in orders if isinstance(o, dict) and not str(o.get('coin', '')).startswith('@')],
+                        performance=performance, totalPerformance=total_performance,
+                        totalAccountValue=number(account_history[-1][1]) if account_history else None,
+                        spotBalances=spot_balances, staking=staking,
+                        history=history, ledger=ledger, warnings=warnings,
                         sourceCursor=max((int(r.get('time', 0)) for r in raw_fills), default=old.get('sourceCursor', 0)))
             with self.lock:
                 self.profiles[user] = data
@@ -180,12 +218,15 @@ class WhaleTracker:
         finally:
             with self.lock: self.pending.discard(user)
 
-    def profile(self, raw, force=False):
+    def profile(self, raw, force=False, fill_id=None):
         user = address(raw)
         self.request_profile(user, force)
         with self.lock:
             cached = self.profiles.get(user)
             profile = dict(cached, fills=cached.get('fills', [])[:200]) if cached else None
+            if profile and fill_id and not any(r['id'] == fill_id for r in profile['fills']):
+                selected = next((r for r in cached.get('fills', []) if r['id'] == fill_id), None)
+                if selected: profile['fills'].append(selected)
             return dict(profile=profile, loading=user in self.pending, error=self.errors.get(user),
                         tracked=any(w['address'] == user for w in self.watched))
 
@@ -196,7 +237,10 @@ class WhaleTracker:
             for w in users:
                 p = self.profiles.get(w['address'])
                 summary = {k: p[k] for k in ('address', 'collectedAt', 'accountValue', 'positionValue', 'positions', 'performance')} if p else None
-                if summary is not None: summary['fills'] = p.get('fills', [])[:20]
+                if summary is not None:
+                    summary['fills'] = p.get('fills', [])[:20]
+                    summary['totalAccountValue'] = p.get('totalAccountValue')
+                    summary['totalPerformance'] = p.get('totalPerformance')
                 accounts.append(dict(**w, profile=summary, loading=w['address'] in self.pending, error=self.errors.get(w['address'])))
         for w in users: self.request_profile(w['address'])
         return dict(data=accounts, pollSeconds=60, limit=20)
@@ -245,7 +289,8 @@ class WhaleTracker:
                 state = fetch_json({'type': 'clearinghouseState', 'user': user})
                 if not isinstance(state, dict) or 'marginSummary' not in state: raise ValueError('Некорректное состояние счёта')
                 return positions(state, user)
-            futures = {self.pool.submit(load, row['address']): row for row in rows}
+            # Ranking refreshes must not queue 50 accounts ahead of an opened profile.
+            futures = {self.overview_pool.submit(load, row['address']): row for row in rows}
             loaded = 0
             failed = 0
             for future in as_completed(futures):
@@ -270,3 +315,4 @@ class WhaleTracker:
     def close(self):
         self.stopped.set()
         self.pool.shutdown(wait=False, cancel_futures=True)
+        self.overview_pool.shutdown(wait=False, cancel_futures=True)

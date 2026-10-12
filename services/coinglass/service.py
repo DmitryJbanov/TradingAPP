@@ -276,7 +276,10 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 if url.path == '/whales/market': body=self.whale_market_manager.current(query.get('coin', ['all'])[0], query.get('interval', ['day'])[0], query.get('refresh', [''])[0]=='1')
                 elif url.path == '/whales/overview': body=self.whale_tracker.overview(query.get('refresh', [''])[0]=='1', query.get('coin', ['all'])[0])
-                elif url.path == '/whales/profile': body=self.whale_tracker.profile(query.get('address', [''])[0], query.get('refresh', [''])[0]=='1')
+                elif url.path == '/whales/profile':
+                    fill_id=query.get('fill', [''])[0]
+                    if fill_id and not re.fullmatch(r'[A-Za-z0-9:._-]{1,180}',fill_id): raise ValueError('Некорректный ID сделки')
+                    body=self.whale_tracker.profile(query.get('address', [''])[0], query.get('refresh', [''])[0]=='1', fill_id)
                 elif url.path == '/whales/watchlist': body=self.whale_tracker.watchlist()
                 else: self.respond(404, {'error':'Not found'}); return
                 self.respond(200, body)

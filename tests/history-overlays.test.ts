@@ -37,8 +37,8 @@ const bar = (
 ): Candle => ({ time: i * 3600, open, high, low, close, volume });
 test("history count boundaries and consistent demo overlaps", async () => {
   assert.equal(candleCount("4000"), 1000);
-  assert.equal(candleCount(4001), 1000);
-  for (const count of [300, 777, 1000, 4000]) {
+  assert.equal(candleCount(12001), 1000);
+  for (const count of [300, 777, 1000, 4000, 12000]) {
     const r = await handleApi(
       new Request(
         `http://local/api/candles?symbol=HYPEUSDT&count=${count}&demo=1`,
@@ -47,7 +47,7 @@ test("history count boundaries and consistent demo overlaps", async () => {
     assert.equal(r.status, 200);
     assert.equal(((await r.json()) as any).data.length, count);
   }
-  for (const count of ["299", "4001", "NaN", "", "301.5"])
+  for (const count of ["299", "12001", "NaN", "", "301.5"])
     assert.equal(
       (
         await handleApi(

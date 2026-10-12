@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Download, Settings2 } from "lucide-react";
 import type { useHeatmap } from "../hooks/use-heatmap";
 import {
+  heatmapColumnIndex,
   heatmapColor,
   heatmapPriceIndex,
   heatmapRanges,
@@ -27,13 +28,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { IndicatorPresets } from "./indicator-presets";
+import type { IndicatorInstance } from "../domain/workspace";
+import { heatmapParams } from "../domain/heatmap";
 type State = ReturnType<typeof useHeatmap>;
 
 export function HeatmapSettings({
+  instance,
   state,
   onChange,
   onClose,
 }: {
+  instance: IndicatorInstance;
   state: State;
   onChange: (params: HeatmapParams) => void;
   onClose: () => void;
@@ -54,6 +60,54 @@ export function HeatmapSettings({
             заново.
           </DialogDescription>
         </DialogHeader>
+        <IndicatorPresets
+          instance={{ ...instance, params: p }}
+          onLoad={(next) => onChange(heatmapParams(next.params))}
+        />
+        <div className="heatmap-settings-load">
+          <label className="settings-row">
+            Период карты
+            <Select
+              value={p.range}
+              disabled={state.busy}
+              onValueChange={(range) =>
+                onChange({ ...p, range: range as HeatmapParams["range"] })
+              }
+            >
+              <SelectTrigger size="sm" aria-label="Период Heatmap Model 3">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {heatmapRanges.map((range) => (
+                  <SelectItem key={range} value={range}>
+                    {heatmapRangeLabels[range]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <button
+            className="button"
+            disabled={state.busy}
+            onClick={() => void state.run()}
+          >
+            <Download size={14} />{" "}
+            {state.busy ? "Сбор карты…" : "Загрузить карту"}
+          </button>
+        </div>
+        {state.error && (
+          <p className="notice error" role="alert">
+            {state.error}
+          </p>
+        )}
+        {state.job && (
+          <p
+            className="muted"
+            role={state.job.state === "error" ? "alert" : "status"}
+          >
+            {state.job.message}
+          </p>
+        )}
         <label className="settings-row">
           Порог {Math.round(p.threshold * 100)}%
           <input
@@ -195,125 +249,140 @@ export function HeatmapPanel({
   useEffect(() => {
     const ctx = canvas.current?.getContext("2d");
     if (!ctx || !data || !model || !visible) return;
-    const W = 1200,
-      H = 440,
-      L = 95,
-      T = 20,
-      PW = 1080,
-      PH = 370;
-    ctx.fillStyle = "#12141c";
-    ctx.fillRect(0, 0, W, H);
-    const xStart = view.x * model.columns,
-      yStart = view.y * data.y.length;
-    const cw = PW / (model.columns * view.size),
-      ch = PH / (data.y.length * view.size);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(L, T, PW, PH);
-    ctx.clip();
-    for (const [x, y, value] of model.visible) {
-      const screenX = L + (x - xStart) * cw;
-      const screenY = T + (data.y.length - 1 - y - yStart) * ch;
-      if (
-        screenX + cw < L ||
-        screenX > L + PW ||
-        screenY + ch < T ||
-        screenY > T + PH
-      )
-        continue;
-      const strength = model.intensity(value);
-      const color =
-        settings.threshold === 1
-          ? 1
-          : Math.max(
-              0,
-              (strength - settings.threshold) / (1 - settings.threshold),
-            );
-      ctx.fillStyle = heatmapColor(color, settings.scheme);
-      ctx.fillRect(screenX, screenY, Math.max(1, cw), Math.max(1, ch));
-    }
-    if (settings.showCandles) {
+    const frame = requestAnimationFrame(() => {
+      const W = 1200,
+        H = 440,
+        L = 95,
+        T = 20,
+        PW = 1080,
+        PH = 370;
+      ctx.fillStyle = "#12141c";
+      ctx.fillRect(0, 0, W, H);
+      const xStart = view.x * model.columns,
+        yStart = view.y * data.y.length;
+      const cw = PW / (model.columns * view.size),
+        ch = PH / (data.y.length * view.size);
       ctx.save();
       ctx.beginPath();
       ctx.rect(L, T, PW, PH);
       ctx.clip();
-      const priceY = (price: number) =>
-        T +
-        (data.y.length - 0.5 - heatmapPriceIndex(data.y, price) - yStart) * ch;
-      for (const candle of data.candles) {
-        const x = L + (candle.x + 0.5 - xStart) * cw;
-        if (x + cw < L || x - cw > L + PW) continue;
-        const open = priceY(candle.open),
-          close = priceY(candle.close);
-        const width = Math.max(1, Math.min(10, cw * 0.7));
-        const top = Math.min(open, close),
-          height = Math.max(1, Math.abs(open - close));
-        const color = candle.close >= candle.open ? "#34d399" : "#fb7185";
+      const candidates: number[] = [];
+      for (const [x, indices] of heatmapColumnIndex(model.visible)) {
+        const screenX = L + (x - xStart) * cw;
+        if (screenX + cw < L || screenX > L + PW) continue;
+        for (const index of indices) candidates.push(index);
+      }
+      candidates.sort((a, b) => a - b);
+      for (const index of candidates) {
+        const [x, y, value] = model.visible[index];
+        const screenX = L + (x - xStart) * cw;
+        const screenY = T + (data.y.length - 1 - y - yStart) * ch;
+        if (
+          screenX + cw < L ||
+          screenX > L + PW ||
+          screenY + ch < T ||
+          screenY > T + PH
+        )
+          continue;
+        const strength = model.intensity(value);
+        const color =
+          settings.threshold === 1
+            ? 1
+            : Math.max(
+                0,
+                (strength - settings.threshold) / (1 - settings.threshold),
+              );
+        ctx.fillStyle = heatmapColor(color, settings.scheme);
+        ctx.fillRect(screenX, screenY, Math.max(1, cw), Math.max(1, ch));
+      }
+      if (settings.showCandles) {
+        ctx.save();
         ctx.beginPath();
-        ctx.moveTo(x, priceY(candle.high));
-        ctx.lineTo(x, priceY(candle.low));
-        ctx.strokeStyle = "#10131b";
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.fillStyle = color;
-        ctx.fillRect(x - width / 2, top, width, height);
-        ctx.strokeStyle = "#10131b";
-        ctx.strokeRect(x - width / 2, top, width, height);
+        ctx.rect(L, T, PW, PH);
+        ctx.clip();
+        const priceY = (price: number) =>
+          T +
+          (data.y.length - 0.5 - heatmapPriceIndex(data.y, price) - yStart) *
+            ch;
+        for (const candle of data.candles) {
+          const x = L + (candle.x + 0.5 - xStart) * cw;
+          if (x + cw < L || x - cw > L + PW) continue;
+          const open = priceY(candle.open),
+            close = priceY(candle.close);
+          const width = Math.max(1, Math.min(10, cw * 0.7));
+          const top = Math.min(open, close),
+            height = Math.max(1, Math.abs(open - close));
+          const color = candle.close >= candle.open ? "#34d399" : "#fb7185";
+          ctx.beginPath();
+          ctx.moveTo(x, priceY(candle.high));
+          ctx.lineTo(x, priceY(candle.low));
+          ctx.strokeStyle = "#10131b";
+          ctx.lineWidth = 3;
+          ctx.stroke();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.fillStyle = color;
+          ctx.fillRect(x - width / 2, top, width, height);
+          ctx.strokeStyle = "#10131b";
+          ctx.strokeRect(x - width / 2, top, width, height);
+        }
+        ctx.restore();
       }
       ctx.restore();
-    }
-    ctx.restore();
-    const candlesByX = new Map(data.candles.map((c) => [c.x, c]));
-    ctx.fillStyle = "#dce2ee";
-    ctx.font = "13px system-ui";
-    for (let i = 0; i < 6; i++) {
-      const row = Math.max(
-        0,
-        Math.min(
-          data.y.length - 1,
-          data.y.length - 0.5 - yStart - (i / 5) * data.y.length * view.size,
-        ),
-      );
-      const yi = Math.floor(row);
-      const price =
-        data.y[yi] + (row - yi) * ((data.y[yi + 1] ?? data.y[yi]) - data.y[yi]);
+      const candlesByX = new Map(data.candles.map((c) => [c.x, c]));
+      ctx.fillStyle = "#dce2ee";
+      ctx.font = "13px system-ui";
+      for (let i = 0; i < 6; i++) {
+        const row = Math.max(
+          0,
+          Math.min(
+            data.y.length - 1,
+            data.y.length - 0.5 - yStart - (i / 5) * data.y.length * view.size,
+          ),
+        );
+        const yi = Math.floor(row);
+        const price =
+          data.y[yi] +
+          (row - yi) * ((data.y[yi + 1] ?? data.y[yi]) - data.y[yi]);
+        ctx.fillText(
+          price.toLocaleString("en-US", { maximumFractionDigits: 8 }),
+          4,
+          T + (i * PH) / 5 + 5,
+        );
+        const xi = Math.max(
+          0,
+          Math.min(
+            model.columns - 1,
+            Math.floor(xStart + (i / 5) * model.columns * view.size),
+          ),
+        );
+        const candle = candlesByX.get(xi);
+        ctx.textAlign = i === 0 ? "left" : i === 5 ? "right" : "center";
+        ctx.fillText(
+          candle
+            ? new Date(candle.time * 1000).toLocaleString("ru-RU", {
+                day: "2-digit",
+                month: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : String(xi),
+          L + (i * PW) / 5,
+          H - 28,
+        );
+        ctx.textAlign = "left";
+      }
+      ctx.fillText("Цена, USD", 4, 14);
       ctx.fillText(
-        price.toLocaleString("en-US", { maximumFractionDigits: 8 }),
-        4,
-        T + (i * PH) / 5 + 5,
+        data.candles.length
+          ? "Время CoinGlass →"
+          : "Индекс времени CoinGlass →",
+        L,
+        H - 5,
       );
-      const xi = Math.max(
-        0,
-        Math.min(
-          model.columns - 1,
-          Math.floor(xStart + (i / 5) * model.columns * view.size),
-        ),
-      );
-      const candle = candlesByX.get(xi);
-      ctx.textAlign = i === 0 ? "left" : i === 5 ? "right" : "center";
-      ctx.fillText(
-        candle
-          ? new Date(candle.time * 1000).toLocaleString("ru-RU", {
-              day: "2-digit",
-              month: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : String(xi),
-        L + (i * PW) / 5,
-        H - 28,
-      );
-      ctx.textAlign = "left";
-    }
-    ctx.fillText("Цена, USD", 4, 14);
-    ctx.fillText(
-      data.candles.length ? "Время CoinGlass →" : "Индекс времени CoinGlass →",
-      L,
-      H - 5,
-    );
+    });
+    return () => cancelAnimationFrame(frame);
   }, [
     data,
     model,
@@ -330,37 +399,6 @@ export function HeatmapPanel({
         <h2>CoinGlass Heatmap · Model 3</h2>
         <button className="button compact-action" onClick={openSettings}>
           <Settings2 size={14} /> Настройки
-        </button>
-      </div>
-      <div className="heatmap-actions">
-        <label className="compact-filter">
-          <span>Период</span>
-          <Select
-            value={settings.range}
-            disabled={state.busy}
-            onValueChange={(range) =>
-              onChange({ ...settings, range: range as HeatmapParams["range"] })
-            }
-          >
-            <SelectTrigger size="sm" aria-label="Период Heatmap Model 3">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {heatmapRanges.map((range) => (
-                <SelectItem key={range} value={range}>
-                  {heatmapRangeLabels[range]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
-        <button
-          className="button compact-action"
-          disabled={state.busy}
-          onClick={() => void state.run()}
-        >
-          <Download size={14} />
-          {state.busy ? "Сбор карты…" : "Загрузить карту"}
         </button>
       </div>
       {state.error && <p role="alert">{state.error}</p>}

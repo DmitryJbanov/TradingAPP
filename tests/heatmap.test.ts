@@ -23,34 +23,106 @@ test("heatmap draws fractional columns at their historical position on every tim
       for (const spacing of [4, 12]) {
         const start = 1788134400;
         const bars = Array.from({ length: 100 }, (_, i) => ({
-          time: start + i * barStep, open: 100, high: 110, low: 90, close: 100, volume: 1,
+          time: start + i * barStep,
+          open: 100,
+          high: 110,
+          low: 90,
+          close: 100,
+          volume: 1,
         }));
-        const times = [0, 1, 2].map(x => ({ x, time: start + 50 * barStep + x * cellStep }));
+        const times = [0, 1, 2].map((x) => ({
+          x,
+          time: start + 50 * barStep + x * cellStep,
+        }));
         const renderer = new CoinGlassHeatmapRenderer();
         const rectangles: number[][] = [];
         renderer.attached({
-          chart: { timeScale: () => ({
-            // Matches Lightweight Charts 5.0.9: fractional input returns zero.
-            logicalToCoordinate: (x: number) => Number.isInteger(x) ? 20 + x * spacing : 0,
-          }) },
+          chart: {
+            timeScale: () => ({
+              // Matches Lightweight Charts 5.0.9: fractional input returns zero.
+              logicalToCoordinate: (x: number) =>
+                Number.isInteger(x) ? 20 + x * spacing : 0,
+            }),
+          },
           series: { priceToCoordinate: (price: number) => 200 - price },
           requestUpdate() {},
         } as any);
-        renderer.configure({ axis: [90, 100, 110], columns: 3, times,
-          cells: [[0, 1, 1], [1, 1, 1], [2, 1, 1]],
-          intensity: x => x, threshold: 0, scheme: "coinglass",
-        }, bars);
-        renderer.paneViews()[0].renderer()!.draw({ useMediaCoordinateSpace: (draw: any) => draw({
-          mediaSize: { width: 2000, height: 400 },
-          context: { save() {}, restore() {}, beginPath() {}, rect() {}, clip() {},
-            fillRect: (...rect: number[]) => rectangles.push(rect) },
-        }) } as any);
+        renderer.configure(
+          {
+            axis: [90, 100, 110],
+            columns: 3,
+            times,
+            cells: [
+              [0, 1, 10],
+              [1, 1, 20],
+              [2, 1, 30],
+            ],
+            intensity: (x) => x / 30,
+            threshold: 0,
+            scheme: "coinglass",
+          },
+          bars,
+        );
+        assert.equal(renderer.liquidityAt(50, 100), undefined);
+        renderer
+          .paneViews()[0]
+          .renderer()!
+          .draw({
+            useMediaCoordinateSpace: (draw: any) =>
+              draw({
+                mediaSize: { width: 2000, height: 400 },
+                context: {
+                  save() {},
+                  restore() {},
+                  beginPath() {},
+                  rect() {},
+                  clip() {},
+                  fillRect: (...rect: number[]) => rectangles.push(rect),
+                },
+              }),
+          } as any);
         assert.equal(rectangles.length, 3, `bar=${barStep}, cell=${cellStep}`);
         rectangles.forEach((rect, i) => {
-          const expected = 20 + (50 + (i - 0.5) * cellStep / barStep) * spacing;
+          const expected =
+            20 + (50 + ((i - 0.5) * cellStep) / barStep) * spacing;
           assert.ok(Math.abs(rect[0] - expected) < 1e-6);
-          assert.ok(Math.abs(rect[2] - (cellStep / barStep * spacing + 0.5)) < 1e-6);
+          assert.ok(
+            Math.abs(rect[2] - ((cellStep / barStep) * spacing + 0.5)) < 1e-6,
+          );
+          assert.deepEqual(
+            renderer.liquidityAt(
+              expected + ((cellStep / barStep) * spacing) / 2,
+              100,
+            ),
+            { price: 100, value: (i + 1) * 10 },
+          );
         });
+        assert.equal(
+          renderer.liquidityAt(rectangles[0][0], 90),
+          undefined,
+          "empty price row",
+        );
+        assert.equal(
+          renderer.liquidityAt(0, 100),
+          undefined,
+          "before loaded history",
+        );
+        assert.equal(
+          renderer.liquidityAt(1999, 100),
+          undefined,
+          "after loaded history",
+        );
+        assert.equal(
+          renderer.liquidityAt(rectangles[0][0], 400),
+          undefined,
+          "outside main pane",
+        );
+        renderer.configure(undefined, bars);
+        assert.equal(
+          renderer.liquidityAt(rectangles[0][0], 100),
+          undefined,
+          "hidden heatmap",
+        );
       }
     }
   }
@@ -230,5 +302,120 @@ test("heatmap proxy uses isolated endpoints and preserves origin and symbol vali
     );
   } finally {
     globalThis.fetch = original;
+  }
+});
+
+test("heatmap bitmap cache preserves cells and invalidates for viewport, settings and history", () => {
+  const previous = globalThis.OffscreenCanvas;
+  let fills = 0,
+    blits = 0,
+    intensityCalls = 0,
+    offset = 0,
+    spacing = 10,
+    width = 100;
+  const context: any = {
+    save() {},
+    restore() {},
+    beginPath() {},
+    rect() {},
+    clip() {},
+    clearRect() {},
+    setTransform() {},
+    getTransform: () => ({ a: 2, d: 2 }),
+    fillRect() {
+      fills++;
+    },
+    drawImage() {
+      blits++;
+    },
+  };
+  globalThis.OffscreenCanvas = class {
+    constructor(
+      public width: number,
+      public height: number,
+    ) {}
+    getContext() {
+      return context;
+    }
+  } as any;
+  try {
+    const bars = Array.from({ length: 100 }, (_, i) => ({
+      time: 1700000000 + i * 900,
+      open: 100,
+      high: 110,
+      low: 90,
+      close: 100,
+      volume: 1,
+    }));
+    const layer = {
+      axis: [90, 100, 110],
+      columns: 100,
+      times: bars.map((b, x) => ({ x, time: b.time })),
+      cells: bars.map((_, x) => [x, 1, x + 1] as [number, number, number]),
+      intensity: (v: number) => {
+        intensityCalls++;
+        return v / 100;
+      },
+      threshold: 0,
+      scheme: "coinglass" as const,
+    };
+    const renderer = new CoinGlassHeatmapRenderer();
+    renderer.attached({
+      chart: {
+        timeScale: () => ({
+          logicalToCoordinate: (x: number) => x * spacing + offset,
+        }),
+      },
+      series: { priceToCoordinate: (p: number) => 200 - p },
+      requestUpdate() {},
+    } as any);
+    const draw = () =>
+      renderer
+        .paneViews()[0]
+        .renderer()!
+        .draw({
+          useMediaCoordinateSpace: (f: any) =>
+            f({ context, mediaSize: { width, height: 200 } }),
+        } as any);
+    renderer.configure(layer, bars);
+    draw();
+    assert.ok(fills < layer.cells.length, "offscreen columns excluded");
+    const initial = fills,
+      computed = intensityCalls;
+    draw();
+    assert.equal(fills, initial);
+    assert.equal(intensityCalls, computed);
+    assert.equal(blits, 2);
+    renderer.configure(
+      layer,
+      bars.map((b) => ({ ...b, close: 101 })),
+    );
+    draw();
+    assert.equal(fills, initial, "price tick retains geometry cache");
+    assert.deepEqual(renderer.liquidityAt(50, 100), { price: 100, value: 6 });
+    offset = -300;
+    draw();
+    assert.ok(fills > initial);
+    assert.deepEqual(renderer.liquidityAt(50, 100), { price: 100, value: 36 });
+    let count = fills;
+    spacing = 20;
+    draw();
+    assert.ok(fills > count);
+    count = fills;
+    width = 150;
+    draw();
+    assert.ok(fills > count);
+    const calls = intensityCalls;
+    renderer.configure({ ...layer, scheme: "fire" }, bars);
+    draw();
+    assert.ok(intensityCalls > calls, "palette invalidates cached styles");
+    renderer.configure(undefined, bars);
+    count = fills;
+    draw();
+    assert.equal(fills, count);
+    assert.equal(renderer.liquidityAt(50, 100), undefined);
+    renderer.detached();
+  } finally {
+    globalThis.OffscreenCanvas = previous;
   }
 });

@@ -22,10 +22,10 @@ export function HistoryCount({
       <label htmlFor="history-count">Свечей</label>
       <input
         id="history-count"
-        aria-label="Количество свечей, от 300 до 4000"
+        aria-label="Количество свечей, от 300 до 12000"
         type="number"
         min={300}
-        max={4000}
+        max={12000}
         step={1}
         required
         value={draft}

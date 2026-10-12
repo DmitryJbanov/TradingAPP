@@ -22,4 +22,4 @@
 
 ## Проверка
 
-Используйте `npm run typecheck`, `npm test`, `npm run build:standalone` и `npm run test:smoke` по необходимости. Для Python CoinGlass сервиса есть `python -m unittest discover -s services/coinglass -p "test_*.py"`. Node.js 22.13+ обязателен для основного проекта. Не используйте `docs/APPLY_*.md` как шаблон для разработки текущей версии.
+Используйте `npm run typecheck`, `npm test`, `npm run build:standalone` и `npm run test:smoke` по необходимости. Для Python CoinGlass сервиса есть `python -m unittest discover -s services/coinglass -p "test_*.py"`. Node.js 22.13+ обязателен для основного проекта. Изменения вносите в исходники текущего checkout; старые разовые патчи удалены.

@@ -1,7 +1,21 @@
+import type { MarketExchange } from "./exchanges";
 export type Category = "crypto" | "stocks" | "indices" | "forex";
-export type Timeframe = "15m" | "1h" | "4h" | "1d";
-export type CandleInterval = Timeframe | "30m" | "2h" | "8h" | "12h";
+export type Timeframe =
+  | "1m"
+  | "3m"
+  | "5m"
+  | "15m"
+  | "30m"
+  | "1h"
+  | "2h"
+  | "4h"
+  | "1d"
+  | "1w";
+export type CandleInterval = Timeframe | "8h" | "12h";
 export const candleIntervals: Record<CandleInterval, number> = {
+  "1m": 60,
+  "3m": 180,
+  "5m": 300,
   "15m": 900,
   "30m": 1800,
   "1h": 3600,
@@ -10,6 +24,7 @@ export const candleIntervals: Record<CandleInterval, number> = {
   "8h": 28800,
   "12h": 43200,
   "1d": 86400,
+  "1w": 604800,
 };
 export type Source = "live" | "demo" | "stale";
 export interface Instrument {
@@ -45,6 +60,7 @@ export interface MarketResponse {
   warning?: string;
 }
 export interface CandleResponse {
+  exchange?: MarketExchange;
   instrument?: Instrument;
   /** Exchange PRICE_FILTER tickSize; may be absent when metadata is unavailable. */
   tickSize?: number;
@@ -61,10 +77,16 @@ export interface LogEntry {
   message: string;
 }
 export const intervals: Record<Timeframe, number> = {
+  "1m": 60,
+  "3m": 180,
+  "5m": 300,
   "15m": 900,
+  "30m": 1800,
   "1h": 3600,
+  "2h": 7200,
   "4h": 14400,
   "1d": 86400,
+  "1w": 604800,
 };
 export const categoryNames: Record<Category, string> = {
   crypto: "Криптовалюты",

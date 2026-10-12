@@ -4,6 +4,27 @@ import { createPineQueue } from "../src/indicators/pine-queue";
 import { runPine } from "../src/indicators/pine-runtime";
 import type { Candle } from "../src/domain/market";
 
+test("Pine handles prefixed market symbols in main and security data", { timeout: 5000 }, async () => {
+  const start = Date.UTC(2026, 0, 1) / 1000;
+  const bars: Candle[] = Array.from({ length: 5 }, (_, i) => ({
+    time: start + i * 86400, open: 0.1, high: 0.12 + i * 0.01,
+    low: 0.09, close: 0.11 + i * 0.01, volume: 1000,
+  }));
+  const intraday = bars.flatMap(bar => Array.from({ length: 6 }, (_, i) => ({
+    ...bar, time: bar.time + i * 14400,
+  })));
+  for (const symbol of ["FUTURES:STRKUSDT", "SPOT:STRKUSDT", "STRKUSDT"]) {
+    const result = await runPine({ id: "prefix", name: "Prefix", kind: "indicator", source: `//@version=6
+indicator("Prefix", overlay=true)
+plot(close, title="Close")
+plot(request.security(syminfo.tickerid, "D", high[1], lookahead=barmerge.lookahead_on), title="Previous high")
+plot(syminfo.basecurrency == "STRK" ? 1 : 0, title="Base currency")` }, intraday, symbol, "4h", bars);
+    assert.equal(result.plots.find(p => p.title === "Close")!.points.at(-1)!.value, bars.at(-1)!.close);
+    assert.equal(result.plots.find(p => p.title === "Previous high")!.points.at(-1)!.value, bars.at(-2)!.high);
+    assert.equal(result.plots.find(p => p.title === "Base currency")!.points.at(-1)!.value, 1);
+  }
+});
+
 test("Pine finishes a slow calculation and coalesces live ticks", async () => {
   const completed: number[] = [];
   let release!: () => void;
@@ -123,4 +144,31 @@ plot(ta.sma(close, length), "Average")
   assert.equal(result.inputMeta[0].id, "in_0");
   assert.equal(result.inputMeta[0].title, "Length");
   assert.equal(result.plots[0].points.at(-1)?.value, 16);
+});
+
+test("Pine v4 runs nested security and Heikin Ashi with editable legacy inputs", async () => {
+  const hourly: Candle[] = Array.from({ length: 200 }, (_, i) => ({
+    time: 1767225600 + i * 3600, open: 100 + i, high: 104 + i,
+    low: 98 + i, close: 102 + i, volume: 1000,
+  }));
+  const bars = hourly.filter((_, i) => i % 4 === 0);
+  const result = await runPine({ id: "v4-mtf", name: "Legacy MTF", kind: "indicator", source: `//@version=4
+study("Legacy MTF")
+length = input(3, title="Length", type=input.integer, minval=1)
+f_candle(tf) =>
+    o = security(heikinashi(syminfo.tickerid), tf, open, barmerge.gaps_off, barmerge.lookahead_on)
+    c = security(heikinashi(syminfo.tickerid), tf, close, barmerge.gaps_off, barmerge.lookahead_on)
+    [o, c]
+[a, b] = f_candle("60")
+[c, d] = f_candle("720")
+plot(a, title="HA open")
+plot(b, title="HA close")
+plot(d, title="12h close")
+plot(sma(close, length), title="Average")` }, bars, "FUTURES:BTCUSDT", "4h", bars, 0.01,
+    { inputs: { in_0: 2 } }, { "1h": hourly });
+  assert.equal(result.inputMeta[0].type, "int");
+  assert.equal(result.plots.find(p => p.title === "Average")!.points.at(-1)!.value, 296);
+  for (const title of ["HA open", "HA close", "12h close"])
+    assert.ok(result.plots.find(p => p.title === title)!.points.some(p => Number.isFinite(p.value)), title);
+  assert.notEqual(result.plots.find(p => p.title === "HA open")!.points.at(-1)!.value, bars.at(-1)!.open);
 });

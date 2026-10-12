@@ -6,6 +6,7 @@ import { computeOrderBlocks } from "../indicators/order-blocks";
 import type { OrderBlockParams } from "../indicators/order-blocks-settings";
 import { computeDrz } from "../indicators/drz";
 import { computeSmc } from "../indicators/smc";
+import { computeMtm } from "../indicators/mtm";
 import type { DrzParams } from "../indicators/drz-settings";
 import type { SmcParams } from "../indicators/smc-settings";
 import { computeFvg } from "../indicators/fvg";
@@ -79,8 +80,9 @@ export const indicatorRegistry: IndicatorDefinition[] = [
     id: "mtm",
     name: "MTM · Momentum",
     description:
-      "Импульс close − close[N] и его скользящая средняя (N=6, MA=6).",
+      "Импульс close − close[N] и его скользящая средняя (N=60, N1=60).",
     implemented: true,
+    compute: computeMtm,
   },
   {
     id: "stoch-rsi",

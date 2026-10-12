@@ -1,5 +1,6 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Code2, Play, Save, Download, Upload, X, Plus } from "lucide-react";
 import { Choice } from "./controls";
 import { pineTemplates, type PineScript } from "../domain/pine-scripts";
@@ -46,6 +47,64 @@ export function PineEditor({
   loading: boolean;
   errors: string[];
 }) {
+  const [top, setTop] = useState(56);
+  const [drawerWidth, setDrawerWidth] = useState(560);
+  const resizeStart = useRef<{ x: number; width: number } | undefined>(
+    undefined,
+  );
+  function resizeStartAt(e: React.PointerEvent<HTMLDivElement>) {
+    resizeStart.current = { x: e.clientX, width: drawerWidth };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+  function resizeMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!resizeStart.current) return;
+    const max = Math.min(window.innerWidth * 0.85, 960);
+    setDrawerWidth(
+      Math.max(
+        Math.min(320, max),
+        Math.min(
+          max,
+          resizeStart.current.width - (e.clientX - resizeStart.current.x),
+        ),
+      ),
+    );
+  }
+  function resizeEnd() {
+    resizeStart.current = undefined;
+  }
+  useEffect(() => {
+    const header = document.querySelector(".topbar");
+    const update = () =>
+      setTop(Math.max(0, header?.getBoundingClientRect().bottom ?? 0));
+    const observer = new ResizeObserver((entries) => {
+      update();
+      const drawer = entries.find((entry) =>
+        entry.target.classList.contains("pine-drawer"),
+      );
+      const workspace = document.querySelector<HTMLElement>(
+        ".pair-page.has-pine-editor",
+      );
+      if (drawer && workspace)
+        workspace.style.setProperty(
+          "--pine-editor-width",
+          `${drawer.contentRect.width}px`,
+        );
+    });
+    if (header) observer.observe(header);
+    requestAnimationFrame(() => {
+      const drawer = document.querySelector(".pine-drawer");
+      if (drawer) observer.observe(drawer);
+    });
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, { passive: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update);
+    };
+  }, []);
   const code = useRef<HTMLPreElement>(null),
     lines = useRef<HTMLPreElement>(null),
     upload = useRef<HTMLInputElement>(null);
@@ -70,17 +129,63 @@ export function PineEditor({
       id: crypto.randomUUID(),
       name: kind === "indicator" ? "Мой индикатор" : "Моя стратегия",
     });
-  return (
-    <section className="pine-editor panel" aria-label="Редактор Pine Script">
-      <div className="pine-editor-toolbar">
+  return createPortal(
+    <section
+      className="pine-editor pine-drawer panel"
+      style={{ top, width: `min(${drawerWidth}px, 100vw)` }}
+      aria-label="Редактор Pine Script"
+    >
+      <div
+        className="pine-resize-handle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Изменить ширину Pine Editor"
+        tabIndex={0}
+        onPointerDown={resizeStartAt}
+        onPointerMove={resizeMove}
+        onPointerUp={resizeEnd}
+        onPointerCancel={resizeEnd}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            e.preventDefault();
+            setDrawerWidth((width) =>
+              Math.max(
+                320,
+                Math.min(960, width + (e.key === "ArrowLeft" ? 20 : -20)),
+              ),
+            );
+          }
+        }}
+      />
+      <div className="pine-editor-heading">
         <b>
           <Code2 size={16} /> Pine Editor
         </b>
+        <button
+          className="icon-button"
+          aria-label="Закрыть редактор"
+          onClick={onClose}
+        >
+          <X size={16} />
+        </button>
+      </div>
+      <div className="pine-script-controls">
         <input
-          aria-label="Название скрипта"
+          aria-label="Название индикатора или стратегии"
           value={draft.name}
           maxLength={100}
           onChange={(e) => onChange({ ...draft, name: e.target.value })}
+        />
+        <Choice
+          label="Тип скрипта"
+          value={draft.kind}
+          items={[
+            ["indicator", "Индикатор"],
+            ["strategy", "Стратегия"],
+          ]}
+          onChange={(kind) =>
+            onChange({ ...draft, kind: kind as "indicator" | "strategy" })
+          }
         />
         {scripts.length > 0 && (
           <Choice
@@ -89,27 +194,18 @@ export function PineEditor({
               scripts.some((s) => s.id === draft.id) ? draft.id : "__draft__"
             }
             items={[
-              ["__draft__", "Мои скрипты"],
+              ["__draft__", "Скрипты"],
               ...scripts.map((s) => [s.id, s.name] as [string, string]),
             ]}
             onChange={(id) => {
-              const s = scripts.find((s) => s.id === id);
-              if (s) onChange(s);
+              const script = scripts.find((s) => s.id === id);
+              if (script) onChange(script);
             }}
           />
         )}
-        <button className="button" onClick={() => fresh("indicator")}>
-          <Plus size={14} /> Индикатор
-        </button>
-        <button className="button" onClick={() => fresh("strategy")}>
-          <Plus size={14} /> Стратегия
-        </button>
-        <button
-          className="icon-button"
-          aria-label="Закрыть редактор"
-          onClick={onClose}
-        >
-          <X size={16} />
+        <button className="button" onClick={() => fresh(draft.kind)}>
+          <Plus size={13} /> Новый{" "}
+          {draft.kind === "indicator" ? "индикатор" : "скрипт"}
         </button>
       </div>
       <div className="pine-code">
@@ -168,14 +264,14 @@ export function PineEditor({
       </div>
       <div className="pine-editor-toolbar">
         <button className="button" disabled={!valid} onClick={() => save()}>
-          <Save size={14} />{" "}
+          <Save size={13} />{" "}
           {saved === JSON.stringify(draft) ? "Сохранено" : "Сохранить"}
         </button>
         <button className="button" disabled={!valid} onClick={() => save(true)}>
-          <Play size={14} /> Сохранить и добавить на график
+          <Play size={13} /> Сохранить и добавить
         </button>
         <button className="button" onClick={() => upload.current?.click()}>
-          <Upload size={14} /> Импорт .pine
+          <Upload size={13} /> Импорт
         </button>
         <input
           hidden
@@ -225,20 +321,7 @@ export function PineEditor({
           {error}
         </p>
       ))}
-      <p className="pine-editor-note">
-        Pine Script v5/v6 · параметры input.* и отображение элементов
-        настраиваются в карточке добавленного скрипта. ·{" "}
-        <a
-          href="https://github.com/LuxAlgo/PineTS"
-          target="_blank"
-          rel="noreferrer"
-        >
-          PineTS 0.11.0 · AGPL-3.0
-        </a>
-        . request.security() использует дневные свечи текущего инструмента для
-        D/W/M. Рисуются линии, боксы и подписи; таблицы и polylines пока не
-        отображаются. Черновик и мои скрипты сохраняются в этом браузере.
-      </p>
-    </section>
+    </section>,
+    document.body,
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { IndicatorPresets } from "./indicator-presets";
 import { useState } from "react";
 import {
   Dialog,
@@ -33,12 +34,14 @@ export function VmcSettingsDialog({
   onClose: () => void;
   onApply: (next: IndicatorInstance) => void;
 }) {
+  const [base, setBase] = useState(instance);
   const [params, setParams] = useState(() =>
     normalizeVmcParams(instance.params),
   );
   const [style, setStyle] = useState(() => normalizeVmcStyle(instance.style));
   const [frames, setFrames] = useState(instance.timeframes ?? allFrames);
   const [error, setError] = useState("");
+  const [parameterSearch, setParameterSearch] = useState("");
   function field(key: keyof VmcParams, value: unknown) {
     setParams((p) => ({ ...p, [key]: value }));
     setError("");
@@ -56,7 +59,10 @@ export function VmcSettingsDialog({
         {vmcFields
           .filter((f) => f.group === group && (f.kind === "color") === colors)
           .map((f) => (
-            <label className="vmc-field" key={f.key}>
+            <label
+              className={`vmc-field${parameterSearch && f.label.toLocaleLowerCase().includes(parameterSearch.trim().toLocaleLowerCase()) ? " parameter-match" : ""}`}
+              key={f.key}
+            >
               <span>{f.label}</span>
               {f.kind === "boolean" ? (
                 <Switch
@@ -133,7 +139,7 @@ export function VmcSettingsDialog({
       return;
     }
     onApply({
-      ...instance,
+      ...base,
       params: normalizeVmcParams(params),
       style: normalizeVmcStyle(style),
       timeframes: frames,
@@ -155,7 +161,31 @@ export function VmcSettingsDialog({
             применения.
           </DialogDescription>
         </DialogHeader>
+        <IndicatorPresets
+          instance={{
+            ...base,
+            params: normalizeVmcParams(params),
+            style: normalizeVmcStyle(style),
+            timeframes: frames,
+          }}
+          onLoad={(next) => {
+            setBase(next);
+            setParams(normalizeVmcParams(next.params));
+            setStyle(normalizeVmcStyle(next.style));
+            setFrames(next.timeframes ?? allFrames);
+            setError("");
+          }}
+        />
         <Tabs defaultValue="inputs">
+          <label className="search-field settings-parameter-search">
+            <span>⌕</span>
+            <input
+              aria-label="Поиск параметров"
+              placeholder="Найти параметр…"
+              value={parameterSearch}
+              onChange={(event) => setParameterSearch(event.target.value)}
+            />
+          </label>
           <TabsList>
             <TabsTrigger value="inputs">Аргументы</TabsTrigger>
             <TabsTrigger value="style">Стиль</TabsTrigger>

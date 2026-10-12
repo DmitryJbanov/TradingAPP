@@ -142,7 +142,7 @@ export function CoinglassCandles({
         return s.createPriceLine({
           price: l.price,
           color: params.volumeColors[colorIndex],
-          lineVisible: false,
+          lineVisible: params.showLevels,
           axisLabelVisible: params.showLevels && params.showLabels,
           title: params.showLevels && params.showLabels ? `CG #${i + 1}` : "",
         });
@@ -153,6 +153,7 @@ export function CoinglassCandles({
           color: "#94a3b8",
           lineWidth: 1,
           lineStyle: LineStyle.Dotted,
+          lineVisible: true,
           axisLabelVisible: true,
           title: "Удалится",
         }),

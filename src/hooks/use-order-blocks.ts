@@ -1,4 +1,5 @@
 "use client";
+import { cachedCompute, fetchCandles } from "./pair-cache";
 import { useMemo } from "react";
 import type { CandleResponse, Timeframe } from "../domain/market";
 import type { IndicatorInstance } from "../domain/workspace";
@@ -37,7 +38,13 @@ export function useOrderBlocks(
         return {
           id: i.id,
           params,
-          result: computeOrderBlocks(main?.data ?? [], params),
+          result: cachedCompute(
+            main,
+            timeframe,
+            "computeOrderBlocks",
+            params,
+            () => computeOrderBlocks(main?.data ?? [], params),
+          ),
         };
       }),
     [main, signature],

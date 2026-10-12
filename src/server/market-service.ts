@@ -1,3 +1,9 @@
+import { isMarketExchange, marketSymbol } from "../domain/exchanges";
+import {
+  exchangeCandles,
+  exchangeMarkets,
+  exchangeSearch,
+} from "./exchange-service";
 import {
   handleCoinglass,
   coinglassRequest,
@@ -260,7 +266,7 @@ export async function candles(
   count = DEFAULT_CANDLE_COUNT,
 ): Promise<CandleResponse> {
   // The short polling route fetches only the two newest candles. The public
-  // history route still validates its own 300–4000 range below.
+  // history route still validates its own 300–12000 range below.
   if (!validCandleCount(count) && count !== 2)
     throw Error("Invalid candle count");
   const item = await resolveInstrument(symbol, config.DATA_MODE === "demo");
@@ -326,6 +332,9 @@ export async function candles(
                 new URLSearchParams({
                   symbol: providerSymbol,
                   interval: {
+                    "1m": "1min",
+                    "3m": "3min",
+                    "5m": "5min",
                     "15m": "15min",
                     "30m": "30min",
                     "2h": "2h",
@@ -334,6 +343,7 @@ export async function candles(
                     "1h": "1h",
                     "4h": "4h",
                     "1d": "1day",
+                    "1w": "1week",
                   }[tf],
                   outputsize: String(count),
                   timezone: "UTC",
@@ -410,7 +420,8 @@ export async function candles(
   );
 }
 async function favoriteMarketQuotes(symbols: string[], config: Config) {
-  if (config.DATA_MODE === "demo") return { data: [], asOf: new Date().toISOString() };
+  if (config.DATA_MODE === "demo")
+    return { data: [], asOf: new Date().toISOString() };
   const requested = [...new Set(symbols)]
     .slice(0, 100)
     .map((symbol) => symbol.replace(/^(FUTURES|SPOT):/, ""))
@@ -437,20 +448,26 @@ async function favoriteMarketQuotes(symbols: string[], config: Config) {
   const bySymbol = new Map(payload.map((item: any) => [item.symbol, item]));
   const data = valid.flatMap((item) => {
     const ticker: any = bySymbol.get(item!.symbol.replace(/^FUTURES:/, ""));
-    if (!ticker || !Number.isFinite(+ticker.lastPrice) || +ticker.lastPrice <= 0)
+    if (
+      !ticker ||
+      !Number.isFinite(+ticker.lastPrice) ||
+      +ticker.lastPrice <= 0
+    )
       return [];
-    return [{
-      ...item,
-      symbol: item!.symbol.replace(/^FUTURES:/, ""),
-      price: +ticker.lastPrice,
-      change: +ticker.priceChangePercent,
-      volume: +ticker.quoteVolume,
-      high: +ticker.highPrice,
-      low: +ticker.lowPrice,
-      source: "live" as const,
-      provider: "Binance Futures",
-      asOf: new Date(+ticker.closeTime).toISOString(),
-    }];
+    return [
+      {
+        ...item,
+        symbol: item!.symbol.replace(/^FUTURES:/, ""),
+        price: +ticker.lastPrice,
+        change: +ticker.priceChangePercent,
+        volume: +ticker.quoteVolume,
+        high: +ticker.highPrice,
+        low: +ticker.lowPrice,
+        source: "live" as const,
+        provider: "Binance Futures",
+        asOf: new Date(+ticker.closeTime).toISOString(),
+      },
+    ];
   });
   return { data, asOf: new Date().toISOString() };
 }
@@ -469,17 +486,25 @@ export async function handleApi(
     );
   const force = u.searchParams.get("refresh") === "1";
   try {
+    const selected = u.searchParams.get("exchange");
+    if (selected !== null && !isMarketExchange(selected))
+      throw new SymbolError("Неизвестная биржа", 400);
+    const exchange = isMarketExchange(selected) ? selected : undefined;
     let result: unknown;
     switch (u.pathname) {
       case "/api/symbols":
-        result = await searchSymbols(
-          u.searchParams.get("q") ?? "",
-          u.searchParams.get("market") ?? "all",
-          config.DATA_MODE === "demo",
-        );
+        result = exchange
+          ? await exchangeSearch(exchange, u.searchParams.get("q") ?? "")
+          : await searchSymbols(
+              u.searchParams.get("q") ?? "",
+              u.searchParams.get("market") ?? "all",
+              config.DATA_MODE === "demo",
+            );
         break;
       case "/api/markets":
-        result = await markets(config, force);
+        result = exchange
+          ? await exchangeMarkets(exchange, force)
+          : await markets(config, force);
         break;
       case "/api/markets/favorites": {
         const symbols = u.searchParams.get("symbols")?.split(",") ?? [];
@@ -488,6 +513,20 @@ export async function handleApi(
             { error: "Максимум 100 избранных пар" },
             { status: 400 },
           );
+        if (exchange) {
+          if (
+            symbols.some((s) => !/^(?:FUTURES:|SPOT:)?[A-Z0-9]{3,40}$/.test(s))
+          )
+            throw new SymbolError("Недопустимый инструмент", 400);
+          const response = await exchangeMarkets(exchange, force);
+          result = {
+            ...response,
+            data: response.data.filter((x) =>
+              symbols.some((s) => marketSymbol(s) === marketSymbol(x.symbol)),
+            ),
+          };
+          break;
+        }
         result = await cached(
           `favorite-quotes:${symbols.join(",")}`,
           10000,
@@ -504,7 +543,7 @@ export async function handleApi(
           : DEFAULT_CANDLE_COUNT;
         if (!validCandleCount(count))
           return Response.json(
-            { error: "count: целое число от 300 до 4000" },
+            { error: "count: целое число от 300 до 12000" },
             { status: 400 },
           );
         if (!Object.hasOwn(candleIntervals, tf))
@@ -512,15 +551,23 @@ export async function handleApi(
             { error: "Неизвестный symbol или interval" },
             { status: 400 },
           );
-        result = await candles(
-          symbol,
-          tf as CandleInterval,
-          u.searchParams.get("demo") === "1"
-            ? { ...config, DATA_MODE: "demo" }
-            : config,
-          force,
-          count,
-        );
+        result = exchange
+          ? await exchangeCandles(
+              exchange,
+              symbol,
+              tf as CandleInterval,
+              count,
+              force,
+            )
+          : await candles(
+              symbol,
+              tf as CandleInterval,
+              u.searchParams.get("demo") === "1"
+                ? { ...config, DATA_MODE: "demo" }
+                : config,
+              force,
+              count,
+            );
         break;
       }
       case "/api/candles/latest": {
@@ -531,15 +578,23 @@ export async function handleApi(
             { error: "Неизвестный symbol или interval" },
             { status: 400 },
           );
-        result = await candles(
-          symbol,
-          tf as CandleInterval,
-          u.searchParams.get("demo") === "1"
-            ? { ...config, DATA_MODE: "demo" }
-            : config,
-          force,
-          2,
-        );
+        result = exchange
+          ? await exchangeCandles(
+              exchange,
+              symbol,
+              tf as CandleInterval,
+              2,
+              force,
+            )
+          : await candles(
+              symbol,
+              tf as CandleInterval,
+              u.searchParams.get("demo") === "1"
+                ? { ...config, DATA_MODE: "demo" }
+                : config,
+              force,
+              2,
+            );
         break;
       }
       case "/api/health":

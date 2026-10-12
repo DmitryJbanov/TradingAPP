@@ -1,0 +1,98 @@
+.rsi-page .rsi-panel {
+  border: 0;
+  border-radius: 0;
+  background: #0d1218;
+}
+.rsi-page .rsi-toolbar {
+  border: 0;
+  padding: 12px 14px 8px;
+  gap: 16px;
+}
+.rsi-page-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 700;
+}
+.rsi-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rsi-top-count {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.rsi-page .rsi-refresh {
+  padding: 8px;
+  min-height: 34px;
+}
+.rsi-zone-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 14px 0;
+  color: #c2c5ca;
+  font-size: 11px;
+}
+.rsi-zone-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.rsi-zone-legend i {
+  width: 10px;
+  height: 10px;
+}
+.rsi-page .rsi-chart {
+  height: clamp(440px, calc(100dvh - 170px), 1100px);
+}
+.rsi-page .rsi-dot {
+  stroke: none;
+}
+.rsi-page .rsi-dot-high {
+  fill: #cf3044;
+}
+.rsi-page .rsi-dot-strong {
+  fill: #882636;
+}
+.rsi-page .rsi-dot-mid {
+  fill: #858789;
+}
+.rsi-page .rsi-dot-low {
+  fill: #175d54;
+}
+.rsi-page .rsi-dot-oversold {
+  fill: #22ab94;
+}
+.rsi-page .rsi-stem-positive {
+  stroke: #22ab94;
+}
+.rsi-page .rsi-stem-negative {
+  stroke: #cf3044;
+}
+.rsi-page .rsi-point-label {
+  stroke: none;
+  font-size: 11px;
+}
+.rsi-page .rsi-average-label {
+  stroke: none;
+  font-weight: 500;
+}
+@media (max-width: 700px) {
+  .rsi-page .rsi-toolbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .rsi-toolbar-actions {
+    flex-wrap: wrap;
+  }
+  .rsi-zone-legend {
+    gap: 8px;
+  }
+}

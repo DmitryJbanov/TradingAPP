@@ -1,8 +1,8 @@
 """Production adapter for get_coinglass_liquidations.py (Model 3, symbol)."""
 import math
 
-RANGES = ('12h', '24h', '3d', '7d', '30d', '90d', '180d', '365d')
-RANGE_LABELS = ('12 часов', '24 часа', '3 дня', '7 дней', '30 дней', '90 дней', '180 дней', '365 дней')
+RANGES = ('12h', '24h', '3d', '7d', '14d', '30d', '90d', '180d', '365d')
+RANGE_LABELS = ('12 часов', '24 часа', '3 дня', '7 дней', '2 недели', '30 дней', '90 дней', '180 дней', '365 дней')
 
 
 class SubscriptionRequired(RuntimeError):
@@ -82,4 +82,16 @@ def collect(page, asset, *, range_value='365d', reuse_frontend=False):
     data = response.get('data') if isinstance(response, dict) else None
     if not isinstance(data, dict):
         raise ValueError('CoinGlass не вернул карту')
+    if range_value == '14d':
+        prices = data.get('prices')
+        if not isinstance(prices, list) or len(prices) < 2:
+            raise ValueError('CoinGlass не вернул временную ось для прямого периода 14 дней')
+        times = []
+        for row in prices:
+            if not isinstance(row, list) or not row or type(row[0]) not in (int, float) or not math.isfinite(row[0]):
+                raise ValueError('Некорректная временная ось карты за 14 дней')
+            times.append(row[0] / 1000 if row[0] > 100000000000 else row[0])
+        step = abs(times[1] - times[0])
+        if max(times) - min(times) > 14 * 86400 + step:
+            raise ValueError('CoinGlass вернул другой период вместо 14 дней; карта не обрезается')
     return validate_map(dict(symbol=asset, y=data.get('y'), liquidation_levels=data.get('liq'), prices=data.get('prices')), asset, range_value)

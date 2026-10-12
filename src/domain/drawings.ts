@@ -1,6 +1,7 @@
 import type { Candle } from "./market";
 export const drawingTools = {
   brush: "Кисть",
+  ruler: "Линейка",
   horizontal: "Горизонтальная линия",
   vertical: "Вертикальная линия",
   rectangle: "Прямоугольник",
@@ -26,6 +27,21 @@ export interface Drawing {
     valueArea: number;
     showPoc: boolean;
     showValueArea: boolean;
+    autoExtendRight?: boolean;
+    rowLayout?: "rows" | "ticks";
+    ticksPerRow?: number;
+    volume?: "total" | "up-down" | "delta";
+    placement?: "left" | "right";
+    widthPercent?: number;
+    opacity?: number;
+    upColor?: string;
+    downColor?: string;
+    valueAreaUpColor?: string;
+    valueAreaDownColor?: string;
+    pocColor?: string;
+    valueAreaColor?: string;
+    showLabels?: boolean;
+    extendLevels?: boolean;
   };
 }
 export const fibLevels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
@@ -86,12 +102,104 @@ export function readDrawings(raw: unknown): Drawing[] {
         (!d.profile ||
           (Number.isInteger(d.profile.rows) &&
             d.profile.rows >= 10 &&
-            d.profile.rows <= 200 &&
+            d.profile.rows <= 500 &&
             Number.isFinite(d.profile.valueArea) &&
             d.profile.valueArea >= 1 &&
             d.profile.valueArea <= 100 &&
             typeof d.profile.showPoc === "boolean" &&
-            typeof d.profile.showValueArea === "boolean")),
+            typeof d.profile.showValueArea === "boolean" &&
+            (d.profile.autoExtendRight === undefined ||
+              typeof d.profile.autoExtendRight === "boolean") &&
+            validProfileStyle(d.profile))),
     )
     .slice(-200);
+}
+
+function validProfileStyle(p: NonNullable<Drawing["profile"]>) {
+  return (
+    (!p.rowLayout || ["rows", "ticks"].includes(p.rowLayout)) &&
+    (!p.volume || ["total", "up-down", "delta"].includes(p.volume)) &&
+    (!p.placement || ["left", "right"].includes(p.placement)) &&
+    (p.ticksPerRow === undefined ||
+      (Number.isInteger(p.ticksPerRow) &&
+        p.ticksPerRow >= 1 &&
+        p.ticksPerRow <= 1000000)) &&
+    (p.widthPercent === undefined ||
+      (Number.isFinite(p.widthPercent) &&
+        p.widthPercent >= 1 &&
+        p.widthPercent <= 100)) &&
+    (p.opacity === undefined ||
+      (Number.isFinite(p.opacity) && p.opacity >= 0 && p.opacity <= 100)) &&
+    [
+      p.upColor,
+      p.downColor,
+      p.valueAreaUpColor,
+      p.valueAreaDownColor,
+      p.pocColor,
+      p.valueAreaColor,
+    ].every((v) => v === undefined || /^#[0-9a-f]{6}$/i.test(v)) &&
+    [p.showLabels, p.extendLevels].every(
+      (v) => v === undefined || typeof v === "boolean",
+    )
+  );
+}
+export function drawingHandles(d: Drawing): DrawingPoint[] {
+  if (
+    d.tool === "rectangle" ||
+    d.tool === "volume-profile" ||
+    d.tool === "brush"
+  ) {
+    const a =
+      d.tool === "brush"
+        ? {
+            time: Math.min(...d.points.map((p) => p.time)),
+            price: Math.max(...d.points.map((p) => p.price)),
+          }
+        : d.points[0];
+    const b =
+      d.tool === "brush"
+        ? {
+            time: Math.max(...d.points.map((p) => p.time)),
+            price: Math.min(...d.points.map((p) => p.price)),
+          }
+        : d.points[1];
+    if (!b) return [a];
+    return [
+      a,
+      { time: b.time, price: a.price },
+      b,
+      { time: a.time, price: b.price },
+    ];
+  }
+  return d.tool === "fibonacci" ? d.points.slice(0, 2) : [];
+}
+export function resizedDrawingPoints(
+  d: Drawing,
+  corner: number,
+  p: DrawingPoint,
+): DrawingPoint[] {
+  if (d.tool === "fibonacci")
+    return d.points.map((v, i) => (i === corner ? p : v));
+  const handles = drawingHandles(d),
+    a = handles[0],
+    b = handles[2];
+  if (!a || !b) return d.points;
+  const nextA = {
+    time: corner === 0 || corner === 3 ? p.time : a.time,
+    price: corner === 0 || corner === 1 ? p.price : a.price,
+  };
+  const nextB = {
+    time: corner === 1 || corner === 2 ? p.time : b.time,
+    price: corner === 2 || corner === 3 ? p.price : b.price,
+  };
+  if (d.tool !== "brush") return [nextA, nextB];
+  return d.points.map((v) => ({
+    time:
+      nextA.time +
+      ((v.time - a.time) / (b.time - a.time || 1)) * (nextB.time - nextA.time),
+    price:
+      nextA.price +
+      ((v.price - a.price) / (b.price - a.price || 1)) *
+        (nextB.price - nextA.price),
+  }));
 }

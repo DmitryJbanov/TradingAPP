@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, ArrowUpRight, RefreshCw } from "lucide-react";
 import { useResource } from "../hooks/use-resource";
 import { SiteHeader } from "./site-header";
@@ -95,11 +95,12 @@ export function FearGreedPage() {
     !!id,
   );
   const [period, setPeriod] = useState<number>(90);
+  const [hover, setHover] = useState<{ index: number; x: number; y: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const job = status.data?.job;
   async function refreshData() {
-    if (submitting) return;
+    if (submitting || ["queued", "running"].includes(job?.state ?? "")) return;
     setSubmitting(true);
     setError("");
     try {
@@ -118,6 +119,14 @@ export function FearGreedPage() {
       setSubmitting(false);
     }
   }
+  const refreshRef = useRef(refreshData);
+  refreshRef.current = refreshData;
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void refreshRef.current();
+    }, 15 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     if (!status.loading && !job && !status.error) void refreshData();
     // Initial page load starts the first background collection.
@@ -368,6 +377,13 @@ export function FearGreedPage() {
                 viewBox="0 0 900 280"
                 preserveAspectRatio="none"
                 aria-label="История индекса"
+                onMouseMove={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  const x = Math.max(12, Math.min(888, ((event.clientX - rect.left) / rect.width) * 900));
+                  const index = Math.max(0, Math.min(shown.length - 1, Math.round(((x - 12) / 876) * (shown.length - 1))));
+                  setHover({ index, x, y: y(shown[index].value) });
+                }}
+                onMouseLeave={() => setHover(null)}
               >
                 {ticks.map((v) => (
                   <g key={v}>
@@ -422,6 +438,10 @@ export function FearGreedPage() {
                   strokeWidth="2.4"
                   vectorEffect="non-scaling-stroke"
                 />
+                {hover && <g className="fg-crosshair">
+                  <line x1={12 + (hover.index / (shown.length - 1)) * 876} x2={12 + (hover.index / (shown.length - 1)) * 876} y1="12" y2="268" />
+                  <circle cx={12 + (hover.index / (shown.length - 1)) * 876} cy={hover.y} r="4" />
+                </g>}
               </svg>
             ) : (
               <div className="fg-empty">
@@ -430,6 +450,12 @@ export function FearGreedPage() {
                   : "История появится после загрузки данных."}
               </div>
             )}
+          {hover && shown[hover.index] && (
+            <div className="fg-hover-tooltip" style={{ left: `${Math.min(84, Math.max(1, (hover.x / 900) * 100))}%`, top: `${Math.min(70, Math.max(2, (hover.y / 280) * 100))}%` }}>
+              <strong>{shown[hover.index].value} · {shown[hover.index].classification}</strong>
+              <span>{new Date(shown[hover.index].timestamp).toLocaleString("ru-RU", { timeZone: "UTC" })} UTC</span>
+            </div>
+          )}
           </div>
           {monthTicks.length > 0 && (
             <svg

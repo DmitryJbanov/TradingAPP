@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { isIP } from "node:net";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, extname, sep, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,7 +30,11 @@ const server = createServer(async (req, res) => {
       const requestUrl = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
       if (url.pathname.startsWith("/api/auth/") || url.pathname.startsWith("/api/profiles")) {
         if (["/api/auth/login", "/api/auth/register"].includes(url.pathname)) {
-          const key = req.socket.remoteAddress ?? "unknown";
+          // Only enable for an upstream that overwrites this header and cannot be bypassed.
+          const proxyIp = req.headers["x-divmoney-client-ip"];
+          const key = process.env.TRUST_PROXY === "true" && typeof proxyIp === "string" && isIP(proxyIp)
+            ? proxyIp
+            : req.socket.remoteAddress ?? "unknown";
           const now = Date.now(); const attempt = authAttempts.get(key);
           const current = !attempt || now >= attempt.resetAt ? { count: 0, resetAt: now + 60_000 } : attempt;
           if (current.count >= 12) { res.writeHead(429, { "Retry-After": String(Math.max(1, Math.ceil((current.resetAt - now) / 1000))) }); res.end("Too many authentication attempts"); return; }
@@ -113,6 +118,7 @@ const server = createServer(async (req, res) => {
       if (
         url.pathname === "/" ||
         /^\/backlog\/?$/.test(url.pathname) ||
+        /^\/notes\/?$/.test(url.pathname) ||
         /^\/pair\/[^/]+\/?$/.test(url.pathname) ||
         /^\/fear-greed\/?$/.test(url.pathname) ||
         /^\/rsi-heatmap\/?$/.test(url.pathname) ||

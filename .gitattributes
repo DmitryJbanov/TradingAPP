@@ -1,0 +1,6 @@
+# Keep deployment files usable when checked out from Windows or Linux.
+*.sh text eol=lf
+*.caddy text eol=lf
+*.yaml text eol=lf
+Dockerfile text eol=lf
+**/Dockerfile text eol=lf

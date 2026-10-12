@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import type { MarketExchange } from "../domain/exchanges";
 import { CoinIcon } from "./coin-icon";
 
 interface Result {
@@ -18,11 +19,13 @@ const isFavorite = (favorites: string[], symbol: string) => {
   return favorites.some((saved) => key(saved) === key(symbol));
 };
 export function SymbolSearch({
+  exchange,
   favorites,
   star,
   query,
   onQueryChange,
 }: {
+  exchange?: MarketExchange;
   query: string;
   onQueryChange: (query: string) => void;
   favorites: string[];
@@ -40,7 +43,7 @@ export function SymbolSearch({
     const timer = setTimeout(async () => {
       try {
         const response = await fetch(
-          `/api/symbols?q=${encodeURIComponent(query)}&market=futures`,
+          `/api/symbols?q=${encodeURIComponent(query)}&market=futures${exchange ? `&exchange=${exchange}` : ""}`,
           { signal: controller.signal },
         );
         const body = (await response.json()) as Results & { error?: string };
@@ -58,7 +61,7 @@ export function SymbolSearch({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query]);
+  }, [query, exchange]);
   return (
     <div className="symbol-search chart-symbol-search">
       <div className="symbol-search-controls">

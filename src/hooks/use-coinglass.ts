@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCoinglassPreview } from "./use-coinglass-preview";
 import { useResource } from "./use-resource";
 import type { IndicatorInstance } from "../domain/workspace";
@@ -78,8 +78,27 @@ export function useCoinglass(
           (i) =>
             i.enabled && (!i.timeframes || i.timeframes.includes(timeframe)),
         )
-        .map((i) => ({ id: i.id, result, params: coinglassParams(i.params), points }))
+        .map((i) => ({
+          id: i.id,
+          result,
+          params: coinglassParams(i.params),
+          points,
+        }))
     : [];
+  const autoRequested = useRef("");
+  const autoRange = coinglassParams(instances[0]?.params).rangeDays;
+  useEffect(() => {
+    if (!instances[0]?.enabled || !resource.data) return;
+    const key = symbol + ":" + autoRange;
+    if (autoRequested.current === key) return;
+    if (["queued", "running"].includes(resource.data.job?.state ?? "")) {
+      if (resource.data.job?.params?.rangeDays === autoRange)
+        autoRequested.current = key;
+      return;
+    }
+    autoRequested.current = key;
+    void run(instances[0]);
+  }, [symbol, autoRange, instances[0]?.enabled, resource.data]);
   return {
     instances,
     result,

@@ -29,8 +29,8 @@ FETCH_JS = """async params => {
 }"""
 
 
-RANGE_DAYS = (1, 7, 30, 90, 180, 365)
-INTERVALS = {1: 1, 7: 5, 30: 30, 90: '90d', 180: '180d', 365: '365d'}
+RANGE_DAYS = (1, 7, 14, 30, 90, 180, 365)
+INTERVALS = {1: 1, 7: 5, 14: '14d', 30: 30, 90: '90d', 180: '180d', 365: '365d'}
 
 
 class CoinglassApiError(ValueError):
@@ -52,8 +52,11 @@ def fetch_liquidation_map(page, symbol, range_days=90, request_limit=1440):
     if type(request_limit) is not int or not 1 <= request_limit <= 1440:
         raise ValueError('Invalid liquidation request limit')
     page.wait_for_function(READY_JS, timeout=60000)
-    return page.evaluate(FETCH_JS, {'merge': True, 'symbol': symbol,
-                                   'interval': INTERVALS[range_days], 'limit': request_limit})
+    response = page.evaluate(FETCH_JS, {'merge': True, 'symbol': symbol,
+                                       'interval': INTERVALS[range_days], 'limit': request_limit})
+    if range_days == 14 and isinstance(response, dict) and str(response.get('code')) == '40001':
+        raise ValueError('CoinGlass не предоставляет уровни ликвидаций за 14 дней (код 40001). Данные за другой период не подставляются. Выберите поддерживаемый период; прямой период 2 недели доступен для Heatmap Model 3.')
+    return response
 
 
 def numeric(value, name, *, positive=False):

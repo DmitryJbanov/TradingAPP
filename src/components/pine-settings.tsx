@@ -1,5 +1,11 @@
 "use client";
-import type { PineInstanceSettings, PineResult } from "../domain/pine-scripts";
+import { Choice } from "./controls";
+import { useState } from "react";
+import type {
+  PineInstanceSettings,
+  PineResult,
+  PinePlotStyle,
+} from "../domain/pine-scripts";
 
 export function PineSettings({
   result,
@@ -12,6 +18,7 @@ export function PineSettings({
   onChange: (settings: PineInstanceSettings) => void;
   defaultOpen?: boolean;
 }) {
+  const [parameterSearch, setParameterSearch] = useState("");
   const inputs = settings.inputs ?? {};
   const display = settings.display ?? {};
   const setInput = (id: string, value: unknown) =>
@@ -27,7 +34,10 @@ export function PineSettings({
   const row = (key: string, title: string, fallbackColor: string) => {
     const item = display[key] ?? {};
     return (
-      <div className="pine-setting-row" key={key}>
+      <div
+        className={`pine-setting-row${parameterSearch && title.toLocaleLowerCase().includes(parameterSearch.trim().toLocaleLowerCase()) ? " parameter-match" : ""}`}
+        key={key}
+      >
         <label>
           <input
             type="checkbox"
@@ -42,49 +52,58 @@ export function PineSettings({
           aria-label={`Цвет: ${title}`}
           title="Цвет элемента"
           type="color"
-          value={item.color ?? fallbackColor}
+          value={(item.color ?? fallbackColor).slice(0, 7)}
           onChange={(event) => setDisplay(key, { color: event.target.value })}
         />
-        {key.startsWith("plot:") && (
-          <>
-            <select
-              aria-label={`Стиль: ${title}`}
-              value={
-                item.style ??
-                result.plots.find((plot) => plot.title === title)?.style ??
-                "line"
-              }
-              onChange={(event) =>
-                setDisplay(key, {
-                  style: event.target.value as "line" | "area" | "histogram",
-                })
-              }
-            >
-              <option value="line">Линия</option>
-              <option value="histogram">Гистограмма</option>
-              <option value="area">Область</option>
-            </select>
-            <input
-              aria-label={`Толщина: ${title}`}
-              type="number"
-              min="1"
-              max="4"
-              value={
-                item.width ??
-                result.plots.find((plot) => plot.title === title)?.width ??
-                2
-              }
-              onChange={(event) =>
-                setDisplay(key, {
-                  width: Math.max(
-                    1,
-                    Math.min(4, Number(event.target.value) || 1),
-                  ) as 1 | 2 | 3 | 4,
-                })
-              }
-            />
-          </>
-        )}
+        {key.startsWith("plot:") &&
+          result.plots.some((plot) => plot.title === title) && (
+            <>
+              <Choice
+                label={`Стиль: ${title}`}
+                value={
+                  item.style ??
+                  result.plots.find((plot) => plot.title === title)?.style ??
+                  "line"
+                }
+                onChange={(style) =>
+                  setDisplay(key, { style: style as PinePlotStyle })
+                }
+                items={[
+                  ["line", "Линия"],
+                  ["linebr", "Линия с разрывами"],
+                  ["stepline", "Ступени"],
+                  ["steplinebr", "Ступени с разрывами"],
+                  ["stepline_diamond", "Ступени и ромбы"],
+                  ["circles", "Точки"],
+                  ["cross", "Крестики"],
+                  ["columns", "Столбцы"],
+                  ["histogram", "Гистограмма"],
+                  ["area", "Область"],
+                  ["areabr", "Область с разрывами"],
+                  ["hline", "Уровень"],
+                ]}
+              />
+              <input
+                aria-label={`Толщина: ${title}`}
+                type="number"
+                min="1"
+                max="4"
+                value={
+                  item.width ??
+                  result.plots.find((plot) => plot.title === title)?.width ??
+                  2
+                }
+                onChange={(event) =>
+                  setDisplay(key, {
+                    width: Math.max(
+                      1,
+                      Math.min(4, Number(event.target.value) || 1),
+                    ) as 1 | 2 | 3 | 4,
+                  })
+                }
+              />
+            </>
+          )}
       </div>
     );
   };
@@ -92,6 +111,15 @@ export function PineSettings({
   return (
     <details className="pine-instance-settings" open={defaultOpen}>
       <summary>Параметры и отображение</summary>
+      <label className="search-field settings-parameter-search">
+        <span>⌕</span>
+        <input
+          aria-label="Поиск параметров"
+          placeholder="Найти параметр…"
+          value={parameterSearch}
+          onChange={(event) => setParameterSearch(event.target.value)}
+        />
+      </label>
       {result.inputMeta.length > 0 && (
         <section>
           <h4>Параметры скрипта</h4>
@@ -100,7 +128,7 @@ export function PineSettings({
             const title = input.title || input.name;
             return (
               <label
-                className="pine-setting-input"
+                className={`pine-setting-input${parameterSearch && `${title} ${input.group ?? ""}`.toLocaleLowerCase().includes(parameterSearch.trim().toLocaleLowerCase()) ? " parameter-match" : ""}`}
                 key={input.id}
                 title={input.tooltip}
               >
@@ -118,24 +146,23 @@ export function PineSettings({
                     }
                   />
                 ) : input.options?.length ? (
-                  <select
+                  <Choice
+                    label={input.title ?? input.name}
                     value={String(value)}
                     disabled={input.active === false}
-                    onChange={(event) =>
+                    onChange={(next) =>
                       setInput(
                         input.id,
                         input.type === "int" || input.type === "float"
-                          ? Number(event.target.value)
-                          : event.target.value,
+                          ? Number(next)
+                          : next,
                       )
                     }
-                  >
-                    {input.options.map((option) => (
-                      <option key={String(option)} value={String(option)}>
-                        {String(option)}
-                      </option>
-                    ))}
-                  </select>
+                    items={input.options.map((option) => [
+                      String(option),
+                      String(option),
+                    ])}
+                  />
                 ) : input.type === "int" || input.type === "float" ? (
                   <input
                     type="number"
@@ -184,6 +211,22 @@ export function PineSettings({
           "Маркеры сигналов",
           result.markers[0]?.color ?? "#99a5ff",
         )}
+        {result.visuals
+          ?.filter(
+            (visual) =>
+              !result.plots.some((plot) => plot.title === visual.title) &&
+              !["char", "shape"].includes(visual.kind),
+          )
+          .map((visual) =>
+            row(
+              `plot:${visual.title}`,
+              visual.title,
+              String(visual.options.color ?? "#2962ff"),
+            ),
+          )}
+        {row("polylines", "Ломаные и кривые", "#2962ff")}
+        {row("linefills", "Заливки между линиями", "#2962ff")}
+        {row("tables", "Таблицы", "#ffffff")}
         {row("boxes", "Боксы", "#f59e0b")}
         {row("lines", "Линии", "#99a5ff")}
         {row("labels", "Подписи", "#ffffff")}

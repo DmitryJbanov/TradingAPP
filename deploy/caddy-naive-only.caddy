@@ -1,0 +1,16 @@
+# Fragment for the existing route, AFTER its unchanged forward_proxy.
+# Replace 192.0.2.10 with this NaiveProxy server's actual public egress IPv4.
+# Keep the original camouflage reverse_proxy inside the fallback handle.
+@via_naive remote_ip 192.0.2.10
+handle @via_naive {
+    reverse_proxy 127.0.0.1:3000 {
+        header_up X-Divmoney-Client-IP {remote_host}
+        header_up -Proxy-Authorization
+    }
+}
+handle {
+    reverse_proxy https://demo.cloudreve.org {
+        header_up Host {upstream_hostport}
+        header_up X-Forwarded-Host {host}
+    }
+}

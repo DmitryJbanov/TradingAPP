@@ -1,3 +1,16 @@
+export type PinePlotStyle =
+  | "line"
+  | "linebr"
+  | "stepline"
+  | "steplinebr"
+  | "stepline_diamond"
+  | "area"
+  | "areabr"
+  | "histogram"
+  | "columns"
+  | "circles"
+  | "cross"
+  | "hline";
 export type PineKind = "indicator" | "strategy";
 export interface PineScript {
   id: string;
@@ -23,7 +36,7 @@ export interface PineElementStyle {
   visible?: boolean;
   color?: string;
   width?: 1 | 2 | 3 | 4;
-  style?: "line" | "histogram" | "area";
+  style?: PinePlotStyle;
 }
 export interface PineInstanceSettings {
   inputs?: Record<string, unknown>;
@@ -93,11 +106,19 @@ export interface PinePoint {
 }
 export interface PinePlot {
   title: string;
-  style: "line" | "histogram" | "area";
+  style: PinePlotStyle;
   visible?: boolean;
   color: string;
   width: 1 | 2 | 3 | 4;
   points: PinePoint[];
+}
+export interface PineVisual {
+  id: string;
+  title: string;
+  kind: string;
+  options: Record<string, unknown>;
+  visible?: boolean;
+  points: { time: number; value: unknown; options: Record<string, unknown> }[];
 }
 export interface PineMarker {
   time: number;
@@ -111,6 +132,9 @@ export interface PineDrawing {
   boxes: Record<string, unknown>[];
   lines: Record<string, unknown>[];
   labels: Record<string, unknown>[];
+  polylines?: Record<string, unknown>[];
+  linefills?: Record<string, unknown>[];
+  tables?: Record<string, unknown>[];
 }
 export interface PineTrade {
   entry: number;
@@ -126,6 +150,11 @@ export interface PineResult {
   kind: PineKind;
   overlay: boolean;
   plots: PinePlot[];
+  visuals?: PineVisual[];
+  explicitPlotOrder?: boolean;
+  scale?: string;
+  precision?: number;
+  format?: string;
   markers: PineMarker[];
   drawings: PineDrawing;
   warnings: string[];

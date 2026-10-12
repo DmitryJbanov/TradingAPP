@@ -3,6 +3,7 @@ export const heatmapRanges = [
   "24h",
   "3d",
   "7d",
+  "14d",
   "30d",
   "90d",
   "180d",
@@ -14,6 +15,7 @@ export const heatmapRangeLabels: Record<HeatmapRange, string> = {
   "24h": "24 часа",
   "3d": "3 дня",
   "7d": "7 дней",
+  "14d": "2 недели",
   "30d": "30 дней",
   "90d": "90 дней",
   "180d": "180 дней",
@@ -216,18 +218,58 @@ export function parseHeatmap(value: unknown, asset: string): HeatmapData {
         : 0,
   };
 }
-export function heatmapModel(data: HeatmapData, params: HeatmapParams) {
-  const values = data.liquidation_levels
-    .map((c) => c[2])
-    .filter((v) => v > 0)
-    .sort((a, b) => a - b);
-  const max = values.at(-1) ?? 0;
-  const lastX = data.liquidation_levels.reduce((m, c) => Math.max(m, c[0]), 0);
+// Weak keys release indexes with their snapshots; no cell data is copied.
+const columnIndexes = new WeakMap<
+  [number, number, number][],
+  Map<number, number[]>
+>();
+export function heatmapColumnIndex(cells: [number, number, number][]) {
+  let index = columnIndexes.get(cells);
+  if (!index) {
+    index = new Map();
+    cells.forEach(([x], i) => {
+      let column = index!.get(x);
+      if (!column) index!.set(x, (column = []));
+      column.push(i);
+    });
+    columnIndexes.set(cells, index);
+  }
+  return index;
+}
+
+const snapshotStats = new WeakMap<
+  HeatmapData,
+  { max: number; lastX: number; values?: number[] }
+>();
+export function heatmapModel(
+  data: HeatmapData,
+  params: Pick<HeatmapParams, "scale" | "threshold" | "limit">,
+) {
+  let stats = snapshotStats.get(data);
+  if (!stats) {
+    let max = 0,
+      lastX = 0;
+    for (const [x, , value] of data.liquidation_levels) {
+      if (value > max) max = value;
+      if (x > lastX) lastX = x;
+    }
+    stats = { max, lastX };
+    snapshotStats.set(data, stats);
+  }
+  const { max, lastX } = stats;
+  const values =
+    params.scale === "percentile"
+      ? (stats.values ??= data.liquidation_levels
+          .map((c) => c[2])
+          .filter((v) => v > 0)
+          .sort((a, b) => a - b))
+      : [];
+  const logMax = Math.log1p(max);
   const columns = Math.max(lastX + 1, data.priceColumns);
   function intensity(v: number) {
     if (v <= 0 || !max) return 0;
     if (params.scale === "linear") return v / max;
-    if (params.scale === "log") return Math.log1p(v) / Math.log1p(max);
+    if (params.scale === "log") return Math.log1p(v) / logMax;
     let lo = 0,
       hi = values.length;
     while (lo < hi) {

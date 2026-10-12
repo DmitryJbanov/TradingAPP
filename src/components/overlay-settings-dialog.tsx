@@ -1,4 +1,5 @@
 "use client";
+import { IndicatorPresets } from "./indicator-presets";
 import { useState } from "react";
 import {
   Dialog,
@@ -43,11 +44,13 @@ export function OverlaySettingsDialog({
       : isFvg
         ? normalizeFvgParams
         : normalizeSmcParams;
+  const [base, setBase] = useState(instance);
   const [params, setParams] = useState<Record<string, ParameterValue>>(() =>
       normalize(instance.params),
     ),
     [frames, setFrames] = useState(instance.timeframes ?? allFrames),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [parameterSearch, setParameterSearch] = useState("");
   function update(key: string, value: ParameterValue) {
     setParams((p) => ({ ...p, [key]: value }));
     setError("");
@@ -72,7 +75,7 @@ export function OverlaySettingsDialog({
     }
     const next = normalize(values);
     onApply({
-      ...instance,
+      ...base,
       params: next,
       timeframes: frames,
       color: isDrz
@@ -144,14 +147,33 @@ export function OverlaySettingsDialog({
               ? "DRZ · BOSWaves"
               : isFvg
                 ? "Fair Value Gap · LuxAlgo"
-                : "SMC · LuxAlgo"} · Настройки
+                : "SMC · LuxAlgo"}{" "}
+            · Настройки
           </DialogTitle>
           <DialogDescription>
             Параметры этого экземпляра. Изменения вступят в силу после
             применения.
           </DialogDescription>
         </DialogHeader>
+        <IndicatorPresets
+          instance={{ ...base, params: normalize(params), timeframes: frames }}
+          onLoad={(next) => {
+            setBase(next);
+            setParams(normalize(next.params));
+            setFrames(next.timeframes ?? allFrames);
+            setError("");
+          }}
+        />
         <Tabs defaultValue="inputs">
+          <label className="search-field settings-parameter-search">
+            <span>⌕</span>
+            <input
+              aria-label="Поиск параметров"
+              placeholder="Найти параметр…"
+              value={parameterSearch}
+              onChange={(event) => setParameterSearch(event.target.value)}
+            />
+          </label>
           <TabsList>
             <TabsTrigger value="inputs">Аргументы</TabsTrigger>
             <TabsTrigger value="style">Стиль</TabsTrigger>
@@ -172,7 +194,10 @@ export function OverlaySettingsDialog({
                     <fieldset className="vmc-group" key={group}>
                       <legend>{group}</legend>
                       {members.map((f) => (
-                        <label className="vmc-field" key={f.key}>
+                        <label
+                          className={`vmc-field${parameterSearch && f.label.toLocaleLowerCase().includes(parameterSearch.trim().toLocaleLowerCase()) ? " parameter-match" : ""}`}
+                          key={f.key}
+                        >
                           <span>{f.label}</span>
                           {control(f)}
                         </label>

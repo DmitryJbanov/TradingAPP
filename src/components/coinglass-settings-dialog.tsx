@@ -1,5 +1,7 @@
 "use client";
+import { IndicatorPresets } from "./indicator-presets";
 import { useState } from "react";
+import { Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +25,7 @@ import {
 import type { useCoinglass } from "../hooks/use-coinglass";
 import { CoinglassMap } from "./coinglass-map";
 import { CoinglassCandles } from "./coinglass-candles";
+import { Choice } from "./controls";
 
 export function CoinglassSettingsDialog({
   instance,
@@ -45,6 +48,7 @@ export function CoinglassSettingsDialog({
   onClose: () => void;
   onApply: (next: IndicatorInstance) => void;
 }) {
+  const [base, setBase] = useState(instance);
   const [params, setParams] = useState(() => coinglassParams(instance.params));
   const [saved] = useState(() => coinglassParams(instance.params));
   const snapshotId = state.snapshotId;
@@ -60,17 +64,18 @@ export function CoinglassSettingsDialog({
   );
   const snapshot = source.data?.snapshot;
   const normalized = coinglassParams(params);
-  const valid = (
-    [
-      "minRelative",
-      "minProminence",
-      "limit",
-      "hoverMs",
-      "rangeDays",
-      "requestLimit",
-      "staleHours",
-    ] as const
-  ).every((k) => normalized[k] === params[k]) &&
+  const valid =
+    (
+      [
+        "minRelative",
+        "minProminence",
+        "limit",
+        "hoverMs",
+        "rangeDays",
+        "requestLimit",
+        "staleHours",
+      ] as const
+    ).every((k) => normalized[k] === params[k]) &&
     normalized.volumeOpacities.every(
       (value, index) => value === params.volumeOpacities[index],
     );
@@ -178,7 +183,7 @@ export function CoinglassSettingsDialog({
       return;
     }
     onApply({
-      ...instance,
+      ...base,
       params: { ...normalized, snapshotIds: {} },
       color: normalized.volumeColors[0],
     });
@@ -198,6 +203,14 @@ export function CoinglassSettingsDialog({
         <DialogHeader>
           <DialogTitle>CoinGlass · визуальная настройка</DialogTitle>
         </DialogHeader>
+        <IndicatorPresets
+          instance={{ ...base, params: coinglassParams(params) }}
+          onLoad={(next) => {
+            setBase(next);
+            setParams(coinglassParams(next.params));
+            setError("");
+          }}
+        />
         <div className="cg-source">
           {snapshot ? (
             <p>
@@ -222,13 +235,40 @@ export function CoinglassSettingsDialog({
                 по этим сохранённым данным.
               </p>
             )}
-          <button
-            className="button"
-            disabled={working || !valid}
-            onClick={() => void state.run({ ...instance, params: normalized })}
-          >
-            {working ? "Сбор выполняется…" : "Обновить данные CoinGlass"}
-          </button>
+          <div className="cg-load-controls">
+            <label className="cg-load-period">
+              Период сбора
+              <Choice
+                label="Период сбора уровней ликвидаций"
+                value={String(params.rangeDays)}
+                onChange={(value) =>
+                  setParams((p) => ({ ...p, rangeDays: Number(value) }))
+                }
+                items={[1, 7, 14, 30, 90, 180, 365].map((days) => [
+                  String(days),
+                  days === 14 ? "2 недели" : `${days} дн.`,
+                ])}
+              />
+            </label>
+            <button
+              className="button"
+              disabled={working || !valid}
+              onClick={() => {
+                const next = { ...base, params: normalized };
+                onApply(next);
+                void state.run(next);
+              }}
+            >
+              {working ? "Сбор выполняется…" : "Обновить данные CoinGlass"}
+            </button>
+          </div>
+          {working && state.job?.params?.rangeDays !== undefined && (
+            <p className="cg-help">
+              Сейчас загружается период {state.job.params.rangeDays} дн.
+              Выбранный период {params.rangeDays} дн. можно загрузить после
+              завершения текущего сбора.
+            </p>
+          )}
           {working && (
             <progress
               max={100}
@@ -365,19 +405,21 @@ export function CoinglassSettingsDialog({
             {field("limit", "Количество ближайших уровней", 1, 50, 1)}
             <label className="cg-field">
               Относительно цены снимка
-              <select
+              <Choice
+                label="Относительно цены снимка"
                 value={params.side}
-                onChange={(e) =>
+                onChange={(value) =>
                   setParams((p) => ({
                     ...p,
-                    side: e.target.value as CoinglassParams["side"],
+                    side: value as CoinglassParams["side"],
                   }))
                 }
-              >
-                <option value="both">С обеих сторон</option>
-                <option value="above">Выше цены</option>
-                <option value="below">Ниже цены</option>
-              </select>
+                items={[
+                  ["both", "С обеих сторон"],
+                  ["above", "Выше цены"],
+                  ["below", "Ниже цены"],
+                ]}
+              />
             </label>
             <details open>
               <summary>Оформление</summary>
@@ -390,6 +432,34 @@ export function CoinglassSettingsDialog({
                   }
                 />{" "}
                 Подписи уровней
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={normalized.showCumulativeVolume}
+                  onChange={(e) =>
+                    setParams((p) => ({
+                      ...p,
+                      showCumulativeVolume: e.target.checked,
+                    }))
+                  }
+                />{" "}
+                Показывать кумулятивный объём на графике
+                <Info
+                  size={14}
+                  aria-label="Справка о дельте кумулятивного объёма"
+                  style={{
+                    marginLeft: 6,
+                    verticalAlign: "middle",
+                    color: "var(--muted-foreground)",
+                  }}
+                >
+                  <title>
+                    Дельта = ликвидность выше текущей цены минус ликвидность
+                    ниже неё в пределах отклонения курсора. Плюс означает, что
+                    сверху объём больше; минус — что снизу больше.
+                  </title>
+                </Info>
               </label>
             </details>
             <details open>
@@ -405,12 +475,23 @@ export function CoinglassSettingsDialog({
                 Показывать цветные уровни на графике
               </label>
               <p className="cg-help">
-                Цвета назначаются по логарифмическому объёму от минимального к максимальному на карте.
+                Цвета назначаются по логарифмическому объёму от минимального к
+                максимальному на карте.
               </p>
               <p className="cg-help">
-                Справа на графике отображается профиль накопленного объёма по ценовым уровням; сумма показана над профилем.
+                Справа на графике отображается профиль накопленного объёма по
+                ценовым уровням; сумма показана над профилем.
               </p>
-              {(["Очень низкий", "Низкий", "Средний", "Выше среднего", "Высокий", "Максимальный"] as const).map((label, index) => (
+              {(
+                [
+                  "Очень низкий",
+                  "Низкий",
+                  "Средний",
+                  "Выше среднего",
+                  "Высокий",
+                  "Максимальный",
+                ] as const
+              ).map((label, index) => (
                 <div className="cg-volume-tier" key={label}>
                   <span>{label} объём</span>
                   <input
@@ -467,10 +548,6 @@ export function CoinglassSettingsDialog({
             </details>
             <details>
               <summary>Сбор и актуальность</summary>
-              <p className="cg-help">
-                Период сбора: {params.rangeDays} дн. Изменить его можно рядом с
-                кнопкой парсинга на главном графике.
-              </p>
               {field("requestLimit", "Лимит записей в запросе", 1, 1440, 1)}
               <p className="cg-help">
                 Период и лимит записей применяются при запуске / обновлении
@@ -480,6 +557,42 @@ export function CoinglassSettingsDialog({
                   ` Текущий снимок: ${snapshot.rangeDays} дн.${snapshot.requestLimit ? `, лимит ${snapshot.requestLimit}` : ""}.`}
               </p>
               {field("staleHours", "Считать устаревшим через, ч", 1, 720, 1)}
+            </details>
+            <details>
+              <summary>Оформление кумулятивного объёма</summary>
+              <label className="settings-row">
+                Область, px
+                <input
+                  type="number"
+                  min="140"
+                  max="700"
+                  step="10"
+                  value={params.cumulativeWidth}
+                  onChange={(event) =>
+                    setParams((p) => ({
+                      ...p,
+                      cumulativeWidth: Math.max(
+                        140,
+                        Math.min(700, Number(event.target.value) || 140),
+                      ),
+                    }))
+                  }
+                />
+              </label>
+              <input
+                aria-label="Ширина области кумулятивного объёма"
+                type="range"
+                min="140"
+                max="700"
+                step="10"
+                value={params.cumulativeWidth}
+                onChange={(event) =>
+                  setParams((p) => ({
+                    ...p,
+                    cumulativeWidth: Number(event.target.value),
+                  }))
+                }
+              />
             </details>
             <button
               type="button"

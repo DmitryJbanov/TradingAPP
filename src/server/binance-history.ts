@@ -22,7 +22,7 @@ export async function loadBinanceHistory(
   const endpoint = binanceEndpoint(symbol),
     byTime = new Map<number, Candle>();
   let endTime: number | undefined, warning: string | undefined;
-  for (let page = 0; page < 5 && byTime.size < count; page++) {
+  for (let page = 0; page < 12 && byTime.size < count; page++) {
     const limit = Math.min(1000, count - byTime.size),
       query = new URLSearchParams({
         symbol: upstreamSymbol(symbol),

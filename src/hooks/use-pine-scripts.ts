@@ -1,6 +1,17 @@
 "use client";
+import {
+  cachedPairValue,
+  savePairValue,
+  calculationKey,
+  fetchCandles,
+} from "./pair-cache";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CandleResponse, Timeframe } from "../domain/market";
+import {
+  candleIntervals,
+  type Candle,
+  type CandleResponse,
+  type Timeframe,
+} from "../domain/market";
 import type { IndicatorInstance } from "../domain/workspace";
 import type { PineInstanceSettings, PineResult } from "../domain/pine-scripts";
 import { createPineQueue } from "../indicators/pine-queue";
@@ -50,6 +61,7 @@ export function usePineScripts(
     let disposed = false;
     const abort = new AbortController();
     const cancellations = new Set<() => void>();
+    const workers = new Map<string, Worker>();
     const scope = symbol + timeframe + sourceScope;
     const sameScope = previousScope.current === scope;
     previousScope.current = scope;
@@ -60,17 +72,80 @@ export function usePineScripts(
     }));
     const queue = createPineQueue<CandleResponse>(async (candles) => {
       if (!candles.data.length) return;
+      const cacheKey =
+        "pine:" + calculationKey(candles, timeframe) + ":" + signature;
+      const cached = cachedPairValue<{
+        results: PineResult[];
+        errors: string[];
+        loading: boolean;
+      }>(
+        symbol,
+        cacheKey,
+        /\b(?:request\s*\.\s*)?security\s*\(/.test(signature)
+          ? 60000
+          : Infinity,
+      );
+      if (cached) {
+        if (!disposed) setState(cached);
+        return;
+      }
       await (async () => {
         const needsSecurity = scripts.some(({ script }) =>
-          /\brequest\s*\.\s*security\s*\(/i.test(
+          /\b(?:request\s*\.\s*)?security\s*\(/i.test(
             script.source.replace(/\/\/[^\n]*/g, ""),
           ),
         );
         let higherTimeframeBars = candles.data;
+        const securityBars: Partial<Record<Timeframe, Candle[]>> = {};
+        if (needsSecurity) {
+          const requestedMinutes = scripts
+            .flatMap(({ script, inputs }) => [
+              ...Array.from(
+                script.source.matchAll(
+                  /\b(?:input(?:\.(?:string|timeframe))?\s*\(|(?:request\.)?security\s*\([^,]+,)\s*['"](\d+)['"]/g,
+                ),
+                (m) => Number(m[1]),
+              ),
+              ...Object.values(inputs)
+                .filter((v) => typeof v === "string" && /^\d+$/.test(v))
+                .map(Number),
+            ])
+            .filter((minutes) => minutes > 0);
+          const minimum = Math.min(...requestedMinutes) * 60;
+          const lower = Object.entries(candleIntervals)
+            .filter(([, seconds]) => seconds <= minimum)
+            .sort((a, b) => b[1] - a[1])[0];
+          if (lower && lower[1] < candleIntervals[timeframe]) {
+            const [interval, seconds] = lower;
+            const count = Math.min(
+              12000,
+              Math.ceil(
+                (candles.data.at(-1)!.time - candles.data[0].time) / seconds,
+              ) + 300,
+            );
+            const response = await fetchCandles(
+              `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&count=${count}${candles.source === "demo" ? "&demo=1" : ""}${candles.exchange ? `&exchange=${candles.exchange}` : ""}`,
+              { signal: abort.signal },
+            );
+            if (!response.ok)
+              throw Error(
+                `Не удалось загрузить свечи ${interval}: HTTP ${response.status}.`,
+              );
+            const lowerData = (await response.json()) as CandleResponse;
+            if (
+              lowerData.provider !== candles.provider ||
+              (lowerData.source === "demo") !== (candles.source === "demo")
+            )
+              throw Error(
+                "Источник свечей request.security() отличается от источника графика.",
+              );
+            securityBars[interval as Timeframe] = lowerData.data;
+          }
+        }
         if (needsSecurity && timeframe !== "1d") {
           const demo = candles.source === "demo" ? "&demo=1" : "";
-          const response = await fetch(
-            `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&count=1000${demo}`,
+          const response = await fetchCandles(
+            `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&count=1000${demo}${candles.exchange ? `&exchange=${candles.exchange}` : ""}`,
             { signal: abort.signal },
           );
           if (!response.ok)
@@ -108,37 +183,60 @@ export function usePineScripts(
                     });
                     return;
                   }
-                  const worker = new Worker(
-                    new URL("../indicators/pine.worker.ts", import.meta.url),
-                    { type: "module" },
-                  );
-                  const finish = (value: {
-                    result?: PineResult;
-                    error?: string;
-                  }) => {
+                  let worker = workers.get(id);
+                  if (!worker) {
+                    worker = new Worker(
+                      new URL("../indicators/pine.worker.ts", import.meta.url),
+                      { type: "module" },
+                    );
+                    workers.set(id, worker);
+                  }
+                  const activeWorker = worker;
+                  let settled = false;
+                  const finish = (
+                    value: {
+                      result?: PineResult;
+                      error?: string;
+                    },
+                    terminate = false,
+                  ) => {
+                    if (settled) return;
+                    settled = true;
                     cancellations.delete(cancel);
                     clearTimeout(timer);
-                    worker.terminate();
+                    activeWorker.onmessage = null;
+                    activeWorker.onerror = null;
+                    if (terminate) {
+                      activeWorker.terminate();
+                      workers.delete(id);
+                    }
                     resolve(value);
                   };
                   const timer = setTimeout(
                     () =>
-                      finish({
-                        error: `${script.name}: превышено время исполнения (5 мин.).`,
-                      }),
+                      finish(
+                        {
+                          error: `${script.name}: превышено время исполнения (5 мин.).`,
+                        },
+                        true,
+                      ),
                     PINE_EXECUTION_TIMEOUT_MS,
                   );
-                  const cancel = () => finish({});
+                  const cancel = () => finish({}, true);
                   cancellations.add(cancel);
                   worker.onerror = (e) =>
-                    finish({
-                      error: `${script.name}: ${e.message || "ошибка worker"}`,
-                    });
+                    finish(
+                      {
+                        error: `${script.name}: ${e.message || "ошибка worker"}`,
+                      },
+                      true,
+                    );
                   worker.onmessage = (e) =>
                     finish(
                       e.data.error
                         ? { error: `${script.name}: ${e.data.error}` }
                         : { result: { ...e.data.result, id } },
+                      !!e.data.error,
                     );
                   worker.postMessage({
                     script,
@@ -148,6 +246,7 @@ export function usePineScripts(
                     higherTimeframeBars,
                     mintick: candles.tickSize,
                     settings: { inputs },
+                    securityBars,
                   });
                 },
               ),
@@ -155,12 +254,15 @@ export function usePineScripts(
         );
       })()
         .then((results) => {
-          if (!disposed)
-            setState({
+          if (!disposed) {
+            const next = {
               results: results.flatMap((r) => (r.result ? [r.result] : [])),
               errors: results.flatMap((r) => (r.error ? [r.error] : [])),
               loading: false,
-            });
+            };
+            if (!next.errors.length) savePairValue(symbol, cacheKey, next);
+            setState(next);
+          }
         })
         .catch((error) => {
           if (!disposed)
@@ -174,6 +276,8 @@ export function usePineScripts(
       queueRef.current = null;
       abort.abort();
       cancellations.forEach((cancel) => cancel());
+      workers.forEach((worker) => worker.terminate());
+      workers.clear();
     };
   }, [symbol, timeframe, signature, sourceScope]);
   useEffect(() => {
@@ -202,12 +306,54 @@ export function usePineScripts(
         return {
           ...result,
           plots,
+          visuals: result.visuals?.map((visual) => {
+            const key = ["shape", "char"].includes(visual.kind)
+              ? "markers"
+              : "plot:" + visual.title;
+            const override = display[key];
+            return {
+              ...visual,
+              visible: visible(key),
+              kind: override?.style ?? visual.kind,
+              options: {
+                ...visual.options,
+                ...(override?.width ? { linewidth: override.width } : {}),
+                ...(override?.color ? { color: override.color } : {}),
+              },
+              points: visual.points.map((point) => ({
+                ...point,
+                options: {
+                  ...point.options,
+                  ...(override?.color ? { color: override.color } : {}),
+                },
+              })),
+            };
+          }),
           markers: result.markers.map((marker) => ({
             ...marker,
             color: color("markers", marker.color),
             visible: visible("markers"),
           })),
           drawings: {
+            ...result.drawings,
+            polylines: result.drawings.polylines?.map((item) => ({
+              ...item,
+              visible: visible("polylines"),
+              line_color: color(
+                "polylines",
+                String(item.line_color ?? "#2962ff"),
+              ),
+            })),
+            linefills: result.drawings.linefills?.map((item) => ({
+              ...item,
+              visible: visible("linefills"),
+              color: color("linefills", String(item.color ?? "#2962ff")),
+            })),
+            tables: result.drawings.tables?.map((item) => ({
+              ...item,
+              visible: visible("tables"),
+              bgcolor: color("tables", String(item.bgcolor ?? "transparent")),
+            })),
             boxes: result.drawings.boxes.map((box) => ({
               ...box,
               visible: visible("boxes"),

@@ -1,5 +1,10 @@
 "use client";
 import {
+  saveCandles,
+  cachedPairValue,
+  savePairValue,
+} from "../hooks/pair-cache";
+import {
   CoinglassMonitor,
   CoinglassPanel,
   CoinglassSettingsDialog,
@@ -9,8 +14,15 @@ import { coinglassDefaults } from "../domain/coinglass";
 import { isSiteTheme, siteThemes } from "../domain/themes";
 import { heatmapDefaults } from "../domain/heatmap";
 import { useHeatmap } from "../hooks/use-heatmap";
+import { IndicatorPresets } from "./indicator-presets";
 import { HeatmapPanel, HeatmapSettings } from "./heatmap";
 import { IndicatorIcon, indicatorIcons } from "./indicator-icon";
+import {
+  exchanges,
+  isMarketExchange,
+  marketSymbol,
+  type MarketExchange,
+} from "../domain/exchanges";
 import { SymbolSearch } from "./symbol-search";
 import { CoinIcon } from "./coin-icon";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -24,6 +36,7 @@ import {
   ChevronRight,
   ExternalLink,
   Globe2,
+  GripVertical,
   Layers3,
   LayoutGrid,
   ListTodo,
@@ -48,6 +61,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -71,9 +91,11 @@ import {
 } from "../domain/market";
 import { indicatorRegistry, type IndicatorInstance } from "../domain/workspace";
 import { useResource, useStored } from "../hooks/use-resource";
+import { useReorderAnimation } from "../hooks/use-reorder-animation";
 import { useSharedIndicators } from "../hooks/use-shared-indicators";
 import { Choice } from "./controls";
 import { MarketChart, defaultPalette, type ChartPalette } from "./chart";
+import { useWhaleChart } from "./whale-chart-overlay";
 
 import { useVmc } from "../hooks/use-vmc";
 import { VmcSettingsDialog } from "./vmc-settings-dialog";
@@ -85,7 +107,6 @@ import { HistoryCount } from "./history-count";
 import { candleCount, DEFAULT_CANDLE_COUNT } from "../domain/history";
 import { candleIntervals } from "../domain/market";
 import { mergeLatestCandles } from "../domain/latest-candles";
-import { backlog } from "../domain/backlog";
 import { useOverlays } from "../hooks/use-overlays";
 import { OverlaySettingsDialog } from "./overlay-settings-dialog";
 import { drzDefaults } from "../indicators/drz-settings";
@@ -127,6 +148,27 @@ const favoriteColors = [
 const favoriteKey = (symbol: string) => symbol.replace(/^(FUTURES|SPOT):/, "");
 const hasFavorite = (favorites: string[], symbol: string) =>
   favorites.some((saved) => favoriteKey(saved) === favoriteKey(symbol));
+const moveFavoriteInOrder = (
+  order: string[],
+  source: string,
+  target: string,
+  after = false,
+) => {
+  const from = order.findIndex(
+    (item) => favoriteKey(item) === favoriteKey(source),
+  );
+  const to = order.findIndex(
+    (item) => favoriteKey(item) === favoriteKey(target),
+  );
+  if (from < 0 || to < 0 || from === to) return order;
+  const next = [...order];
+  const [item] = next.splice(from, 1);
+  const targetIndex = next.findIndex(
+    (value) => favoriteKey(value) === favoriteKey(target),
+  );
+  next.splice(targetIndex + (after ? 1 : 0), 0, item);
+  return next;
+};
 type FearGreedPoint = {
   timestamp: string;
   value: number;
@@ -143,6 +185,7 @@ type FearGreedSnapshot = {
 };
 const hasIndicatorSettings = (id: string) =>
   [
+    "mtm",
     "stoch-rsi",
     "vmc",
     "sonarlab-ob",
@@ -309,7 +352,17 @@ function Backend() {
 }
 
 export default function Terminal({ symbol }: { symbol?: string }) {
-  const markets = useResource<MarketResponse>("/api/markets", 30000);
+  const [storedExchange, setExchange] = useStored<MarketExchange>(
+    "vector.exchange.v1",
+    "binance",
+  );
+  const exchange = isMarketExchange(storedExchange)
+    ? storedExchange
+    : "binance";
+  const markets = useResource<MarketResponse>(
+    symbol ? `/api/markets?exchange=${exchange}` : "/api/markets",
+    30000,
+  );
   const fearGreedStatus = useResource<FearGreedStatus>(
     "/api/coinglass/fear-greed-status",
     5000,
@@ -347,6 +400,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
     fearGreedStatus.refresh,
   ]);
   const [theme, setTheme] = useStored("vector.theme.v1", "black"),
+    [timezone, setTimezone] = useStored("vector.timezone.v1", "Europe/Moscow"),
     [accent, setAccent] = useStored("vector.accent.v1", "#99a5ff"),
     [palette, setPalette] = useStored<ChartPalette>(
       "vector.chart.v1",
@@ -356,7 +410,10 @@ export default function Terminal({ symbol }: { symbol?: string }) {
       "BTCUSDT",
       "ETHUSDT",
       "SOLUSDT",
-    ]);
+    ]),
+    [notes] = useStored<
+      { id: string; title: string; body: string; updatedAt: number }[]
+    >("vector.notes.v1", []);
   const baseRows = markets.data?.data ?? [];
   const missingFavorites = favorites.filter(
     (saved) =>
@@ -366,7 +423,9 @@ export default function Terminal({ symbol }: { symbol?: string }) {
   );
   const favoriteMarkets = useResource<MarketResponse>(
     "/api/markets/favorites?symbols=" +
-      encodeURIComponent(missingFavorites.join(",")),
+      encodeURIComponent(missingFavorites.join(",")) +
+      "&exchange=" +
+      exchange,
     15000,
     !symbol && missingFavorites.length > 0,
   );
@@ -411,6 +470,8 @@ export default function Terminal({ symbol }: { symbol?: string }) {
     } catch {}
   }, [setPalette]);
   const [settings, setSettings] = useState(false),
+    [draggingFavorite, setDraggingFavorite] = useState(""),
+    [dropFavorite, setDropFavorite] = useState(""),
     [query, setQuery] = useState(""),
     [category, setCategory] = useState("crypto"),
     [favoriteOnly, setFavoriteOnly] = useState(false),
@@ -436,6 +497,11 @@ export default function Terminal({ symbol }: { symbol?: string }) {
         : [...prev, s],
     );
   }
+  function moveFavorite(source: string, target: string, after = false) {
+    setFavorites((previous) =>
+      moveFavoriteInOrder(previous, source, target, after),
+    );
+  }
   const filtered = useMemo(
     () =>
       rows
@@ -455,8 +521,17 @@ export default function Terminal({ symbol }: { symbol?: string }) {
             (!maxPrice || q.price <= +maxPrice) &&
             (!minVolume || q.volume >= +minVolume * 1e6),
         )
-        .sort((a, b) =>
-          sort === "volume"
+        .sort((a, b) => {
+          if (favoriteOnly) {
+            const aIndex = favorites.findIndex(
+              (saved) => favoriteKey(saved) === favoriteKey(a.symbol),
+            );
+            const bIndex = favorites.findIndex(
+              (saved) => favoriteKey(saved) === favoriteKey(b.symbol),
+            );
+            return aIndex - bIndex;
+          }
+          return sort === "volume"
             ? b.volume - a.volume
             : sort === "gainers"
               ? b.change - a.change
@@ -464,8 +539,8 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                 ? a.change - b.change
                 : sort === "price"
                   ? b.price - a.price
-                  : a.symbol.localeCompare(b.symbol),
-        ),
+                  : a.symbol.localeCompare(b.symbol);
+        }),
     [
       rows,
       category,
@@ -480,6 +555,14 @@ export default function Terminal({ symbol }: { symbol?: string }) {
       minVolume,
       sort,
     ],
+  );
+  const favoriteTableRef = useReorderAnimation<HTMLTableSectionElement>(
+    favoriteOnly
+      ? `${favorites.map(favoriteKey).join("|")}:${filtered
+          .slice(0, +count)
+          .map((quote) => favoriteKey(quote.symbol))
+          .join("|")}`
+      : "",
   );
   const crypto = rows.filter((q) => q.category === "crypto");
   const top = crypto.slice(0, 4);
@@ -509,11 +592,16 @@ export default function Terminal({ symbol }: { symbol?: string }) {
       />
       {symbol ? (
         <PairWorkspace
+          key={symbol}
+          exchange={exchange}
+          setExchange={setExchange}
           symbol={symbol}
           rows={rows}
           favorites={favorites}
           star={star}
+          moveFavorite={moveFavorite}
           palette={palette}
+          timezone={timezone}
           openSettings={() => setSettings(true)}
         />
       ) : (
@@ -784,6 +872,9 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                 <Table className="market-table">
                   <TableHeader>
                     <TableRow>
+                      {favoriteOnly && (
+                        <TableHead className="favorite-drag-head" />
+                      )}
                       <TableHead className="star-cell" />
                       <TableHead>Инструмент</TableHead>
                       <TableHead className="numeric">Цена</TableHead>
@@ -796,9 +887,81 @@ export default function Terminal({ symbol }: { symbol?: string }) {
                       <TableHead />
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
+                  <TableBody
+                    ref={favoriteTableRef}
+                    data-favorites-order={
+                      favoriteOnly ? favorites.join("|") : ""
+                    }
+                  >
                     {filtered.slice(0, +count).map((q) => (
-                      <TableRow key={q.symbol}>
+                      <TableRow
+                        key={q.symbol}
+                        data-sort-id={
+                          favoriteOnly ? favoriteKey(q.symbol) : undefined
+                        }
+                        draggable={favoriteOnly}
+                        className={
+                          favoriteOnly ? "favorite-sortable" : undefined
+                        }
+                        onDragStart={(event) => {
+                          if (!favoriteOnly) return;
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData(
+                            "text/plain",
+                            favoriteKey(q.symbol),
+                          );
+                          setDraggingFavorite(favoriteKey(q.symbol));
+                        }}
+                        onDragOver={(event) => {
+                          if (
+                            !favoriteOnly ||
+                            !draggingFavorite ||
+                            draggingFavorite === favoriteKey(q.symbol)
+                          )
+                            return;
+                          event.preventDefault();
+                          setDropFavorite(favoriteKey(q.symbol));
+                        }}
+                        onDragLeave={() => setDropFavorite("")}
+                        onDrop={(event) => {
+                          if (!favoriteOnly) return;
+                          event.preventDefault();
+                          const source =
+                            event.dataTransfer.getData("text/plain") ||
+                            draggingFavorite;
+                          const rect =
+                            event.currentTarget.getBoundingClientRect();
+                          moveFavorite(
+                            source,
+                            favoriteKey(q.symbol),
+                            event.clientY > rect.top + rect.height / 2,
+                          );
+                          setDraggingFavorite("");
+                          setDropFavorite("");
+                        }}
+                        onDragEnd={() => {
+                          setDraggingFavorite("");
+                          setDropFavorite("");
+                        }}
+                        data-dragging={
+                          draggingFavorite === favoriteKey(q.symbol) ||
+                          undefined
+                        }
+                        data-drop-target={
+                          dropFavorite === favoriteKey(q.symbol) || undefined
+                        }
+                      >
+                        {favoriteOnly && (
+                          <TableCell className="favorite-controls-cell">
+                            <span
+                              className="favorite-drag-handle"
+                              title={`Перетащить ${q.base}`}
+                              aria-label={`Перетащить ${q.base}`}
+                            >
+                              <GripVertical size={14} />
+                            </span>
+                          </TableCell>
+                        )}
                         <TableCell>
                           <button
                             className={
@@ -901,28 +1064,28 @@ export default function Terminal({ symbol }: { symbol?: string }) {
               <Backend />
               <section
                 className="panel backlog-panel"
-                aria-labelledby="backlog-title"
+                aria-labelledby="notes-title"
               >
                 <div className="section-heading">
-                  <h2 id="backlog-title">
-                    <ListTodo size={16} /> Следующие доработки
+                  <h2 id="notes-title">
+                    <ListTodo size={16} /> Заметки
                   </h2>
                 </div>
                 <ol className="backlog-list">
-                  {backlog.slice(0, 3).map((task) => (
-                    <li key={task.id}>
-                      <strong>{task.title}</strong>
-                      <span>{task.description}</span>
+                  {notes.slice(0, 3).map((note) => (
+                    <li key={note.id}>
+                      <strong>{note.title || "Без названия"}</strong>
+                      <span>{note.body || "Пустая заметка"}</span>
                     </li>
                   ))}
                 </ol>
-                {!backlog.length && (
+                {!notes.length && (
                   <p className="empty-state">
-                    Все запланированные задачи выполнены.
+                    Создайте заметку для общей рабочей области.
                   </p>
                 )}
-                <a className="backlog-link" href="/backlog">
-                  Полный беклог ({backlog.length}) →
+                <a className="backlog-link" href="/notes">
+                  Все заметки ({notes.length}) →
                 </a>
               </section>
               <section className="panel market-pulse">
@@ -968,7 +1131,7 @@ export default function Terminal({ symbol }: { symbol?: string }) {
               </div>
             </aside>
           </div>
-          <footer className="footer">0.5 ALFA</footer>
+          <footer className="footer">0.7 BETA</footer>
         </main>
       )}
       <Dialog open={settings} onOpenChange={setSettings}>
@@ -997,6 +1160,18 @@ export default function Terminal({ symbol }: { symbol?: string }) {
             />
           </label>
           <div className="settings-divider">Рабочая область графика</div>
+          <label className="settings-row">
+            Часовой пояс
+            <Select value={timezone} onValueChange={setTimezone}>
+              <SelectTrigger aria-label="Часовой пояс графика">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Europe/Moscow">Москва · UTC+3</SelectItem>
+                <SelectItem value="UTC">UTC</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
           {(
             [
               ["background", "Фон"],
@@ -1034,23 +1209,33 @@ export default function Terminal({ symbol }: { symbol?: string }) {
 }
 
 function PairWorkspace({
+  exchange,
+  setExchange,
   symbol,
   rows,
   favorites,
   star,
+  moveFavorite,
   palette,
+  timezone,
   openSettings,
 }: {
+  exchange: MarketExchange;
+  setExchange: (exchange: MarketExchange) => void;
   symbol: string;
   rows: Quote[];
   favorites: string[];
   star: (s: string) => void;
+  moveFavorite: (source: string, target: string, after?: boolean) => void;
   palette: ChartPalette;
+  timezone: string;
   openSettings: () => void;
 }) {
   const [favoriteColorMap, setFavoriteColorMap] = useStored<
     Record<string, string>
   >("vector.favorite-colors.v1", {});
+  const [draggingFavorite, setDraggingFavorite] = useState("");
+  const [dropFavorite, setDropFavorite] = useState("");
   function setFavoriteColor(symbol: string, color: string) {
     setFavoriteColorMap((previous) => {
       const next = { ...previous };
@@ -1059,13 +1244,28 @@ function PairWorkspace({
       return next;
     });
   }
-  const [tf, setTf] = useState<Timeframe>("4h"),
+  const [tf, setTf] = useState<Timeframe>(
+      () => cachedPairValue<Timeframe>(symbol, `view:tf:${exchange}`) ?? "4h",
+    ),
     [query, setQuery] = useState(""),
     [onlyFavorites, setOnlyFavorites] = useState(true),
     [manager, setManager] = useState(false),
     [reset, setReset] = useState(0),
     [indicatorSearch, setIndicatorSearch] = useState("");
+  useEffect(() => {
+    savePairValue(symbol, `view:tf:${exchange}`, tf);
+  }, [symbol, exchange, tf]);
   const [indicatorRefresh, setIndicatorRefresh] = useState(0);
+  const indicatorClickTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  useEffect(
+    () => () => {
+      if (indicatorClickTimer.current)
+        clearTimeout(indicatorClickTimer.current);
+    },
+    [],
+  );
   const [catalogTab, setCatalogTab] = useState("indicators");
   const [editorOpen, setEditorOpen] = useState(false);
   const [storedScripts, setScripts] = useStored<PineScript[]>(
@@ -1096,21 +1296,34 @@ function PairWorkspace({
     "vector.candles.v1",
     DEFAULT_CANDLE_COUNT,
   );
-  const historyCount = candleCount(storedCount);
+  const whale = useWhaleChart(symbol);
+  const whaleHistory = whale.selected?.time
+    ? Math.ceil(
+        (Date.now() / 1000 - whale.selected.time) / candleIntervals[tf],
+      ) + 100
+    : 0;
+  const historyCount = Math.min(
+    12000,
+    Math.max(candleCount(storedCount), whaleHistory),
+  );
   const resource = useResource<CandleResponse>(
     "/api/candles?symbol=" +
       encodeURIComponent(symbol) +
       "&interval=" +
       tf +
       "&count=" +
-      historyCount,
+      historyCount +
+      "&exchange=" +
+      exchange,
     0,
   );
   const latest = useResource<CandleResponse>(
     "/api/candles/latest?symbol=" +
       encodeURIComponent(symbol) +
       "&interval=" +
-      tf,
+      tf +
+      "&exchange=" +
+      exchange,
     2000,
   );
   const [candleState, setCandleState] = useState<{
@@ -1146,12 +1359,18 @@ function PairWorkspace({
       }
       return;
     }
+    if (response && resource.data)
+      saveCandles(
+        `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${tf}&count=${historyCount}&exchange=${exchange}`,
+        response,
+      );
     accumulated.current = { base: resource.data, response };
     setCandleState(accumulated.current);
   }, [
     symbol,
     tf,
     historyCount,
+    exchange,
     latest.data,
     resource.data,
     resource.loading,
@@ -1181,10 +1400,27 @@ function PairWorkspace({
   const editingIndicator = indicators.find((i) => i.id === settingsId);
   function openIndicatorSettings(id: string) {
     setManager(false);
+    if (indicators.find((i) => i.id === id)?.pine) {
+      setPineSettingsId(id);
+      return;
+    }
     setSettingsId(id);
   }
-  const q = rows.find((x) => x.symbol === symbol),
-    item = catalog.find((x) => x.symbol === symbol) ?? candleData?.instrument;
+  const q = rows.find((x) => marketSymbol(x.symbol) === marketSymbol(symbol)),
+    cleanSymbol = marketSymbol(symbol),
+    fallbackQuote = cleanSymbol.endsWith("USDC") ? "USDC" : "USDT",
+    item =
+      candleData?.instrument ??
+      q ??
+      catalog.find((x) => x.symbol === symbol) ??
+      (/^[A-Z0-9]+(?:USDT|USDC)$/.test(cleanSymbol)
+        ? {
+            symbol,
+            base: cleanSymbol.slice(0, -4),
+            quote: fallbackQuote,
+            name: cleanSymbol.slice(0, -4),
+          }
+        : undefined);
   const heatmap = useHeatmap(symbol, item?.base ?? "", indicators, tf);
   const heatmapLayer = useMemo(() => {
     if (!heatmap.visible || !heatmap.data || !heatmap.model) return undefined;
@@ -1209,11 +1445,16 @@ function PairWorkspace({
   const coins = rows.filter((x) => x.category === "crypto");
   const missingFavorites = favorites.filter((saved) => {
     const clean = saved.replace(/^(FUTURES|SPOT):/, "");
-    return !coins.some((item) => item.symbol === clean);
+    return !coins.some((item) => marketSymbol(item.symbol) === clean);
   });
+  const favoriteListRef = useReorderAnimation<HTMLDivElement>(
+    onlyFavorites ? favorites.map(favoriteKey).join("|") : "",
+  );
   const favoriteQuotes = useResource<MarketResponse>(
     "/api/markets/favorites?symbols=" +
-      encodeURIComponent(missingFavorites.join(",")),
+      encodeURIComponent(missingFavorites.join(",")) +
+      "&exchange=" +
+      exchange,
     15000,
     onlyFavorites && missingFavorites.length > 0,
   );
@@ -1225,9 +1466,9 @@ function PairWorkspace({
             ["USDT", "USDC", "FDUSD", "BUSD", "BTC", "ETH"].find((suffix) =>
               clean.endsWith(suffix),
             ) ?? "";
-          const item = coins.find((x) => x.symbol === clean);
+          const item = coins.find((x) => marketSymbol(x.symbol) === clean);
           const fetched = favoriteQuotes.data?.data.find(
-            (x) => x.symbol === clean,
+            (x) => marketSymbol(x.symbol) === clean,
           );
           return item
             ? { ...item, symbol: saved }
@@ -1255,7 +1496,7 @@ function PairWorkspace({
   ).filter((x) =>
     (x.symbol + " " + x.name).toLowerCase().includes(query.toLowerCase()),
   );
-  function changeIndicators(next: IndicatorInstance[]) {
+  function changeIndicators(next: Parameters<typeof setIndicators>[0]) {
     setIndicators(next);
   }
   function openPineEditor(script?: PineScript) {
@@ -1317,19 +1558,20 @@ function PairWorkspace({
       </main>
     );
   return (
-    <main className="pair-page">
-      <div className="pair-breadcrumb">
-        <a href="/">
-          <ArrowLeft size={14} />
-          Рынки
-        </a>
-        <ChevronRight size={13} />
-        <span>{categoryNames[item.category]}</span>
-        <ChevronRight size={13} />
-        <b>{symbol}</b>
-      </div>
+    <main className={`pair-page${editorOpen ? " has-pine-editor" : ""}`}>
       <div className="pair-layout">
         <section className="chart-workspace panel">
+          {resource.error && (
+            <div className="market-source-error" role="alert">
+              {resource.error}{" "}
+              <button
+                className="button"
+                onClick={() => void resource.refresh(true)}
+              >
+                Повторить
+              </button>
+            </div>
+          )}
           <div className="pair-heading">
             <CoinIcon base={item.base} />
             <div className="pair-instrument">
@@ -1345,21 +1587,20 @@ function PairWorkspace({
                   {q && <Change value={q.change} />}
                 </div>
               </div>
-              <p>{item.name}</p>
+              <p className="pair-instrument-meta">
+                {item.name}{" "}
+                <span
+                  className={"source-badge " + (candleData?.source ?? "demo")}
+                >
+                  {candleData?.source === "live"
+                    ? candleData.provider
+                    : candleData?.source === "stale"
+                      ? `${candleData.provider} · устарели`
+                      : `${exchanges[exchange]} Futures`}
+                </span>
+              </p>
             </div>
-            <SymbolSearch
-              favorites={favorites}
-              star={star}
-              query={query}
-              onQueryChange={setQuery}
-            />
-            <span className={"source-badge " + (candleData?.source ?? "demo")}>
-              {candleData?.source === "live"
-                ? candleData.provider
-                : candleData?.source === "stale"
-                  ? `${candleData.provider} · устарели`
-                  : "DEMO"}
-            </span>
+
             <button
               className={
                 "star-button " +
@@ -1373,72 +1614,110 @@ function PairWorkspace({
                 fill={hasFavorite(favorites, symbol) ? "currentColor" : "none"}
               />
             </button>
-          </div>
-          <div className="chart-toolbar">
-            <Tabs value={tf} onValueChange={(v) => setTf(v as Timeframe)}>
-              <TabsList>
-                {[
-                  ["15m", "15м"],
-                  ["1h", "1ч"],
-                  ["4h", "4ч"],
-                  ["1d", "1д"],
-                ].map(([v, t]) => (
-                  <TabsTrigger value={v} key={v}>
-                    {t}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-            <span className="toolbar-separator" />
-            <HistoryCount value={historyCount} onChange={setCount} />
-            <button
-              className="button toolbar-button"
-              onClick={() => setManager(true)}
-            >
-              <Layers3 size={16} />
-              Индикаторы
-              {indicators.length > 0 && (
-                <span className="count-badge">{indicators.length}</span>
-              )}
-            </button>
-            <button
-              className="button toolbar-button"
-              onClick={() => setEditorOpen((v) => !v)}
-              aria-pressed={editorOpen}
-            >
-              <TerminalSquare size={16} /> Pine Editor
-            </button>
-            <div className="toolbar-end">
-              <button
-                className="icon-button"
-                title="Сбросить масштаб"
-                aria-label="Сбросить масштаб"
-                onClick={() => setReset((x) => x + 1)}
-              >
-                <Maximize2 size={17} />
-              </button>
-              <button
-                className="icon-button"
-                title="Оформление графика"
-                aria-label="Оформление графика"
-                onClick={openSettings}
-              >
-                <Palette size={17} />
-              </button>
-              <button
-                className="button"
-                disabled={resource.loading}
-                onClick={async () => {
-                  await resource.refresh(true);
-                  setIndicatorRefresh((v) => v + 1);
+            <div className="chart-toolbar">
+              <Choice
+                label="Источник рыночных данных"
+                value={exchange}
+                onChange={(value) => {
+                  if (isMarketExchange(value)) setExchange(value);
                 }}
+                items={Object.entries(exchanges)}
+              />
+              <div className="chart-timeframes">
+                <Tabs value={tf} onValueChange={(v) => setTf(v as Timeframe)}>
+                  <TabsList>
+                    {[
+                      ["15m", "15м"],
+                      ["1h", "1ч"],
+                      ["4h", "4ч"],
+                      ["1d", "1д"],
+                    ].map(([v, t]) => (
+                      <TabsTrigger value={v} key={v}>
+                        {t}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+                <Select
+                  value={
+                    ["15m", "1h", "4h", "1d"].includes(tf) ? undefined : tf
+                  }
+                  onValueChange={(v) => setTf(v as Timeframe)}
+                >
+                  <SelectTrigger aria-label="Другой таймфрейм">
+                    <SelectValue placeholder="Ещё" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[
+                      ["1m", "1 минута"],
+                      ["3m", "3 минуты"],
+                      ["5m", "5 минут"],
+                      ["15m", "15 минут"],
+                      ["30m", "30 минут"],
+                      ["1h", "1 час"],
+                      ["2h", "2 часа"],
+                      ["4h", "4 часа"],
+                      ["1d", "1 день"],
+                      ["1w", "1 неделя"],
+                    ].map(([v, label]) => (
+                      <SelectItem key={v} value={v}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="toolbar-separator" />
+              <HistoryCount value={historyCount} onChange={setCount} />
+              <button
+                className="button toolbar-button"
+                onClick={() => setManager(true)}
               >
-                <RefreshCw
-                  size={15}
-                  className={resource.loading ? "spin" : ""}
-                />
-                Обновить
+                <Layers3 size={16} />
+                Индикаторы
+                {indicators.length > 0 && (
+                  <span className="count-badge">{indicators.length}</span>
+                )}
               </button>
+              <button
+                className="button toolbar-button"
+                onClick={() => setEditorOpen((v) => !v)}
+                aria-pressed={editorOpen}
+              >
+                <TerminalSquare size={16} /> Pine Editor
+              </button>
+              <div className="toolbar-end">
+                <button
+                  className="icon-button"
+                  title="Сбросить масштаб"
+                  aria-label="Сбросить масштаб"
+                  onClick={() => setReset((x) => x + 1)}
+                >
+                  <Maximize2 size={17} />
+                </button>
+                <button
+                  className="icon-button"
+                  title="Оформление графика"
+                  aria-label="Оформление графика"
+                  onClick={openSettings}
+                >
+                  <Palette size={17} />
+                </button>
+                <button
+                  className="button"
+                  disabled={resource.loading}
+                  onClick={async () => {
+                    await resource.refresh(true);
+                    setIndicatorRefresh((v) => v + 1);
+                  }}
+                >
+                  <RefreshCw
+                    size={15}
+                    className={resource.loading ? "spin" : ""}
+                  />
+                  Обновить
+                </button>
+              </div>
             </div>
           </div>
           {(resource.error || latest.error) && (
@@ -1465,13 +1744,25 @@ function PairWorkspace({
                   <button
                     type="button"
                     className="indicator-chip-main"
-                    onClick={() =>
-                      i.pine
-                        ? setPineSettingsId(i.id)
-                        : hasIndicatorSettings(i.definitionId)
-                          ? openIndicatorSettings(i.id)
-                          : setManager(true)
-                    }
+                    title="Нажмите для настроек · двойное нажатие — удалить"
+                    onClick={() => {
+                      if (indicatorClickTimer.current)
+                        clearTimeout(indicatorClickTimer.current);
+                      indicatorClickTimer.current = setTimeout(() => {
+                        i.pine
+                          ? setPineSettingsId(i.id)
+                          : hasIndicatorSettings(i.definitionId)
+                            ? openIndicatorSettings(i.id)
+                            : setManager(true);
+                        indicatorClickTimer.current = null;
+                      }, 300);
+                    }}
+                    onDoubleClick={() => {
+                      if (indicatorClickTimer.current)
+                        clearTimeout(indicatorClickTimer.current);
+                      indicatorClickTimer.current = null;
+                      changeIndicators(indicators.filter((x) => x.id !== i.id));
+                    }}
                     style={{ opacity: i.enabled ? 1 : 0.5 }}
                   >
                     <IndicatorIcon name={i.icon} color={i.color} />
@@ -1488,8 +1779,8 @@ function PairWorkspace({
                       i.enabled ? "Скрыть индикатор" : "Показать индикатор"
                     }
                     onClick={() =>
-                      changeIndicators(
-                        indicators.map((x) =>
+                      changeIndicators((previous) =>
+                        previous.map((x) =>
                           x.id === i.id ? { ...x, enabled: !x.enabled } : x,
                         ),
                       )
@@ -1502,12 +1793,39 @@ function PairWorkspace({
             </div>
           )}
           <div className="chart-stage">
+            {whale.selection && (
+              <div className="whale-chart-toolbar">
+                <a href={`/whales/${whale.selection.address}`}>
+                  Кит {whale.selection.address.slice(0, 8)}…
+                  {whale.selection.address.slice(-4)}
+                </a>
+                <span>
+                  {whale.resource.error ||
+                    whale.resource.data?.error ||
+                    (!whale.resource.data?.profile || whale.positionLoading
+                      ? "Загружаем сделки…"
+                      : !whale.selected
+                        ? "Выбранная сделка или позиция отсутствует в доступной истории"
+                        : whale.selected.time === undefined
+                          ? `Средняя цена входа $${whale.selected.price.toLocaleString("ru-RU", { maximumFractionDigits: 8 })} · время неизвестно, метка не выставляется`
+                          : bars.length && whale.selected.time < bars[0].time
+                            ? "Сделка вне загруженной истории — увеличьте таймфрейм"
+                            : "Входы и выходы · наведите на отметку для подробностей")}
+                </span>
+                <button className="button" onClick={whale.clear}>
+                  Скрыть сделки кита
+                </button>
+              </div>
+            )}
             <MarketChart
-              key={symbol}
+              key={`${exchange}:${symbol}`}
               symbol={symbol}
               bars={bars}
+              whalePoints={whale.points}
               timeframe={tf}
               palette={palette}
+              timezone={timezone}
+              tickSize={candleData?.tickSize}
               resetKey={reset}
               vmcPanes={vmc.panes}
               stochRsiPanes={stochRsi}
@@ -1519,17 +1837,29 @@ function PairWorkspace({
               heatmapLevels={heatmap.levels}
               heatmapLayer={heatmapLayer}
               pineResults={pine.results}
+              indicatorNames={Object.fromEntries(
+                indicators
+                  .filter(
+                    (i) =>
+                      i.enabled && (!i.timeframes || i.timeframes.includes(tf)),
+                  )
+                  .map((i) => [
+                    i.id,
+                    i.pine?.name ??
+                      indicatorRegistry.find((d) => d.id === i.definitionId)
+                        ?.name ??
+                      i.definitionId,
+                  ]),
+              )}
             />
             {historyWarning && (
               <div className="chart-history-note" role="status">
                 {historyWarning}
               </div>
             )}
-            {!bars.length && (
-              <div className="chart-loading">
-                {resource.error || latest.error
-                  ? "Не удалось загрузить график"
-                  : "Загружаем свечи…"}
+            {!bars.length && (resource.error || latest.error) && (
+              <div className="chart-history-note" role="alert">
+                Не удалось загрузить график
               </div>
             )}
           </div>
@@ -1638,28 +1968,86 @@ function PairWorkspace({
               {onlyFavorites ? "Все" : <Star size={13} />}
             </button>
           </div>
-          <label className="search-field">
-            <Search size={14} />
-            <input
-              aria-label="Поиск в списке инструментов"
-              placeholder="Поиск инструмента…"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
+          <SymbolSearch
+            exchange={exchange}
+            favorites={favorites}
+            star={star}
+            query={query}
+            onQueryChange={setQuery}
+          />
           <div className="watchlist-labels">
             <span>Инструмент</span>
             <span>Цена / 24ч</span>
           </div>
-          <div className="watchlist-items">
+          <div
+            className="watchlist-items"
+            ref={favoriteListRef}
+            data-favorites-order={onlyFavorites ? favorites.join("|") : ""}
+          >
             {list.map((x) => (
               <div
-                className={`watch-item ${x.symbol === symbol ? "active" : ""}`}
+                className={`watch-item ${marketSymbol(x.symbol) === marketSymbol(symbol) ? "active" : ""}`}
                 key={x.symbol}
+                data-sort-id={onlyFavorites ? favoriteKey(x.symbol) : undefined}
+                draggable={onlyFavorites}
+                data-dragging={
+                  draggingFavorite === favoriteKey(x.symbol) || undefined
+                }
+                data-drop-target={
+                  dropFavorite === favoriteKey(x.symbol) || undefined
+                }
+                onDragStart={(event) => {
+                  if (!onlyFavorites) return;
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData(
+                    "text/plain",
+                    favoriteKey(x.symbol),
+                  );
+                  setDraggingFavorite(favoriteKey(x.symbol));
+                }}
+                onDragOver={(event) => {
+                  if (
+                    !onlyFavorites ||
+                    !draggingFavorite ||
+                    draggingFavorite === favoriteKey(x.symbol)
+                  )
+                    return;
+                  event.preventDefault();
+                  setDropFavorite(favoriteKey(x.symbol));
+                }}
+                onDragLeave={() => setDropFavorite("")}
+                onDrop={(event) => {
+                  if (!onlyFavorites) return;
+                  event.preventDefault();
+                  const source =
+                    event.dataTransfer.getData("text/plain") ||
+                    draggingFavorite;
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  moveFavorite(
+                    source,
+                    favoriteKey(x.symbol),
+                    event.clientY > rect.top + rect.height / 2,
+                  );
+                  setDraggingFavorite("");
+                  setDropFavorite("");
+                }}
+                onDragEnd={() => {
+                  setDraggingFavorite("");
+                  setDropFavorite("");
+                }}
                 style={{
                   borderLeftColor: favoriteColorMap[x.symbol] || undefined,
                 }}
               >
+                {onlyFavorites && (
+                  <span
+                    className="favorite-drag-handle watch-drag-handle"
+                    title={`Перетащить ${x.base}`}
+                    aria-label={`Перетащить ${x.base}`}
+                  >
+                    <GripVertical size={14} />
+                  </span>
+                )}
                 <a
                   className="watch-item-link"
                   href={"/pair/" + encodeURIComponent(x.symbol)}
@@ -1743,7 +2131,7 @@ function PairWorkspace({
         </aside>
       </div>
       <Dialog open={manager} onOpenChange={setManager}>
-        <DialogContent className="indicator-dialog">
+        <DialogContent className="indicator-dialog indicator-manager">
           <DialogHeader>
             <DialogTitle>Индикаторы и стратегии</DialogTitle>
             <DialogDescription>
@@ -1758,7 +2146,6 @@ function PairWorkspace({
               <TabsTrigger value="custom-indicators">
                 Мои индикаторы
               </TabsTrigger>
-              <TabsTrigger value="custom-strategies">Мои стратегии</TabsTrigger>
             </TabsList>
           </Tabs>
           <button className="button" onClick={() => openPineEditor()}>
@@ -1773,320 +2160,166 @@ function PairWorkspace({
               onChange={(e) => setIndicatorSearch(e.target.value)}
             />
           </label>
-          <div className="indicator-catalog">
-            {catalogTab === "indicators" &&
-              indicatorRegistry
-                .filter(
-                  (x) =>
-                    x.id !== "pine-script" &&
-                    x.name
-                      .toLowerCase()
-                      .includes(indicatorSearch.toLowerCase()),
-                )
-                .map((d) => (
-                  <div className="indicator-definition" key={d.id}>
-                    <Layers3 size={20} />
-                    <div>
-                      <b>{d.name}</b>
-                      <p>{d.description}</p>
-                    </div>
+          <div className="indicator-manager-columns">
+            <section>
+              <h3>Доступные</h3>
+              <div className="indicator-catalog">
+                {catalogTab === "indicators" &&
+                  indicatorRegistry
+                    .filter(
+                      (x) =>
+                        x.id !== "pine-script" &&
+                        !["stoch-rsi", "pine-rsi", "pine-sma"].includes(x.id) &&
+                        x.name
+                          .toLowerCase()
+                          .includes(indicatorSearch.toLowerCase()),
+                    )
+                    .map((d) => (
+                      <div className="indicator-definition" key={d.id}>
+                        <div>
+                          <b>{d.name}</b>
+                        </div>
+                        <button
+                          className="icon-button"
+                          disabled={
+                            ["coinglass", "coinglass-heatmap"].includes(d.id) &&
+                            indicators.some((i) => i.definitionId === d.id)
+                          }
+                          aria-label={"Добавить " + d.name}
+                          onClick={() =>
+                            changeIndicators([
+                              ...indicators,
+                              {
+                                id: crypto.randomUUID(),
+                                definitionId: d.id,
+                                enabled: true,
+                                period:
+                                  d.id === "vmc" ? 9 : d.id === "mtm" ? 60 : 20,
+                                color:
+                                  d.id === "stoch-rsi"
+                                    ? "#2962FF"
+                                    : d.id === "sonarlab-ob"
+                                      ? orderBlockDefaults.col_bullish
+                                      : "#99a5ff",
+                                paneId: ["vmc", "stoch-rsi", "mtm"].includes(
+                                  d.id,
+                                )
+                                  ? "oscillator"
+                                  : "main",
+                                ...(d.id === "mtm"
+                                  ? { params: { maPeriod: 60 } }
+                                  : d.id === "stoch-rsi"
+                                    ? { params: { ...stochRsiDefaults } }
+                                    : d.id === "vmc"
+                                      ? {
+                                          params: { ...vmcDefaults },
+                                          style: { ...vmcStyleDefaults },
+                                        }
+                                      : d.id === "sonarlab-ob"
+                                        ? { params: { ...orderBlockDefaults } }
+                                        : d.id === "drz"
+                                          ? { params: { ...drzDefaults } }
+                                          : d.id === "fvg-luxalgo"
+                                            ? { params: { ...fvgDefaults } }
+                                            : d.id === "smc"
+                                              ? { params: { ...smcDefaults } }
+                                              : d.id === "coinglass"
+                                                ? {
+                                                    params: {
+                                                      ...coinglassDefaults,
+                                                    },
+                                                  }
+                                                : d.id === "coinglass-heatmap"
+                                                  ? {
+                                                      params: {
+                                                        ...heatmapDefaults,
+                                                      },
+                                                    }
+                                                  : {}),
+                              },
+                            ])
+                          }
+                        >
+                          <Plus size={19} />
+                        </button>
+                      </div>
+                    ))}
+                <PineCatalog
+                  tab={catalogTab}
+                  query={indicatorSearch}
+                  scripts={scripts}
+                  onAdd={addPine}
+                  onEdit={openPineEditor}
+                  onDelete={(id) => {
+                    setScripts(scripts.filter((s) => s.id !== id));
+                    setIndicators((previous) =>
+                      previous.filter((i) => i.pine?.id !== id),
+                    );
+                  }}
+                />
+              </div>
+            </section>
+            <section>
+              <h3>Активные · {indicators.length}</h3>
+              <div className="indicator-instances">
+                {indicators.map((i, index) => (
+                  <div className="indicator-instance" key={i.id}>
+                    <button
+                      className="indicator-row-name"
+                      onClick={() => openIndicatorSettings(i.id)}
+                      title="Открыть настройки"
+                    >
+                      {i.pine?.name ??
+                        indicatorRegistry.find((d) => d.id === i.definitionId)
+                          ?.name}
+                    </button>
+                    <Switch
+                      checked={i.enabled}
+                      aria-label={`Видимость ${i.pine?.name ?? i.definitionId}`}
+                      onCheckedChange={(enabled) =>
+                        changeIndicators((previous) =>
+                          previous.map((x) =>
+                            x.id === i.id ? { ...x, enabled } : x,
+                          ),
+                        )
+                      }
+                    />
                     <button
                       className="icon-button"
-                      disabled={
-                        ["coinglass", "coinglass-heatmap"].includes(d.id) &&
-                        indicators.some((i) => i.definitionId === d.id)
-                      }
-                      aria-label={"Добавить " + d.name}
+                      disabled={index === 0}
+                      aria-label="Переместить выше"
+                      onClick={() => {
+                        const next = [...indicators];
+                        [next[index - 1], next[index]] = [
+                          next[index],
+                          next[index - 1],
+                        ];
+                        changeIndicators(next);
+                      }}
+                    >
+                      <ArrowUpRight size={15} />
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label="Удалить индикатор"
                       onClick={() =>
-                        changeIndicators([
-                          ...indicators,
-                          {
-                            id: crypto.randomUUID(),
-                            definitionId: d.id,
-                            enabled: true,
-                            period:
-                              d.id === "vmc" ? 9 : d.id === "mtm" ? 60 : 20,
-                            color:
-                              d.id === "stoch-rsi"
-                                ? "#2962FF"
-                                : d.id === "sonarlab-ob"
-                                  ? orderBlockDefaults.col_bullish
-                                  : "#99a5ff",
-                            paneId: ["vmc", "stoch-rsi", "mtm"].includes(d.id)
-                              ? "oscillator"
-                              : "main",
-                            ...(d.id === "mtm"
-                              ? { params: { maPeriod: 60 } }
-                              : d.id === "stoch-rsi"
-                                ? { params: { ...stochRsiDefaults } }
-                                : d.id === "vmc"
-                                  ? {
-                                      params: { ...vmcDefaults },
-                                      style: { ...vmcStyleDefaults },
-                                    }
-                                  : d.id === "sonarlab-ob"
-                                    ? { params: { ...orderBlockDefaults } }
-                                    : d.id === "drz"
-                                      ? { params: { ...drzDefaults } }
-                                      : d.id === "fvg-luxalgo"
-                                        ? { params: { ...fvgDefaults } }
-                                        : d.id === "smc"
-                                          ? { params: { ...smcDefaults } }
-                                          : d.id === "coinglass"
-                                            ? {
-                                                params: {
-                                                  ...coinglassDefaults,
-                                                },
-                                              }
-                                            : d.id === "coinglass-heatmap"
-                                              ? {
-                                                  params: {
-                                                    ...heatmapDefaults,
-                                                  },
-                                                }
-                                              : {}),
-                          },
-                        ])
+                        changeIndicators(
+                          indicators.filter((x) => x.id !== i.id),
+                        )
                       }
                     >
-                      <Plus size={19} />
+                      <Trash2 size={15} />
                     </button>
                   </div>
                 ))}
-            <PineCatalog
-              tab={catalogTab}
-              query={indicatorSearch}
-              scripts={scripts}
-              onAdd={addPine}
-              onEdit={openPineEditor}
-              onDelete={(id) => {
-                setScripts(scripts.filter((s) => s.id !== id));
-                setIndicators((previous) =>
-                  previous.filter((i) => i.pine?.id !== id),
-                );
-              }}
-            />
-          </div>
-          <h3>В рабочей области · {indicators.length}</h3>
-          <div className="indicator-instances">
-            {indicators.map((i, index) => (
-              <div className="indicator-instance" key={i.id}>
-                <div className="instance-heading">
-                  <IndicatorIcon name={i.icon} color={i.color} />
-                  <Switch
-                    checked={i.enabled}
-                    aria-label="Видимость индикатора"
-                    onCheckedChange={(v) =>
-                      changeIndicators(
-                        indicators.map((x) =>
-                          x.id === i.id ? { ...x, enabled: v } : x,
-                        ),
-                      )
-                    }
-                  />
-                  <b>
-                    {i.pine?.name ??
-                      indicatorRegistry.find((x) => x.id === i.definitionId)
-                        ?.name}
-                  </b>
-                  <button
-                    className="icon-button"
-                    disabled={index === 0}
-                    aria-label="Переместить выше"
-                    onClick={() => {
-                      const next = [...indicators];
-                      [next[index - 1], next[index]] = [
-                        next[index],
-                        next[index - 1],
-                      ];
-                      changeIndicators(next);
-                    }}
-                  >
-                    <ArrowUpRight size={15} />
-                  </button>
-                  <button
-                    className="icon-button"
-                    aria-label="Удалить индикатор"
-                    onClick={() =>
-                      changeIndicators(indicators.filter((x) => x.id !== i.id))
-                    }
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-                <div className="instance-options">
-                  Иконка
-                  <IndicatorIcon name={i.icon ?? "layers"} color={i.color} />
-                  <Choice
-                    label="Иконка индикатора"
-                    value={i.icon ?? "layers"}
-                    items={indicatorIcons.map(([key, label]) => [key, label])}
-                    onChange={(icon) =>
-                      changeIndicators(
-                        indicators.map((x) =>
-                          x.id === i.id ? { ...x, icon } : x,
-                        ),
-                      )
-                    }
-                  />
-                  <span>Цвет</span>
-                  <input
-                    type="color"
-                    aria-label={`Цвет значка ${i.pine?.name ?? "индикатора"}`}
-                    value={i.color}
-                    onChange={(event) =>
-                      changeIndicators(
-                        indicators.map((x) =>
-                          x.id === i.id
-                            ? { ...x, color: event.target.value }
-                            : x,
-                        ),
-                      )
-                    }
-                  />
-                </div>
-                {i.pine ? (
-                  <div className="instance-options">
-                    <button
-                      className="button"
-                      onClick={() => openPineEditor(i.pine)}
-                    >
-                      <TerminalSquare size={16} /> Открыть код
-                    </button>
-                    <span className="muted">
-                      Pine Script ·{" "}
-                      {i.pine.kind === "strategy" ? "стратегия" : "индикатор"}
-                    </span>
-                    {pine.results.find((result) => result.id === i.id) && (
-                      <PineSettings
-                        result={
-                          pine.results.find((result) => result.id === i.id)!
-                        }
-                        settings={
-                          (i.params as PineInstanceSettings | undefined) ?? {}
-                        }
-                        onChange={(params) =>
-                          changeIndicators(
-                            indicators.map((x) =>
-                              x.id === i.id ? { ...x, params } : x,
-                            ),
-                          )
-                        }
-                      />
-                    )}
-                  </div>
-                ) : hasIndicatorSettings(i.definitionId) ? (
-                  <div className="instance-options">
-                    <button
-                      className="button"
-                      onClick={() => openIndicatorSettings(i.id)}
-                    >
-                      <Settings2 size={16} />
-                      Настройки
-                    </button>
-                    <span className="muted">
-                      {["vmc", "stoch-rsi"].includes(i.definitionId)
-                        ? "Отдельная панель"
-                        : "На ценовом графике"}{" "}
-                      · расчёт подключён
-                    </span>
-                  </div>
-                ) : (
-                  <div className="instance-options">
-                    <label>
-                      {i.definitionId === "mtm" ? "N · импульс" : "Период"}
-                      <input
-                        type="number"
-                        min="1"
-                        max={i.definitionId === "mtm" ? 100 : 500}
-                        value={i.period}
-                        onChange={(e) =>
-                          changeIndicators(
-                            indicators.map((x) =>
-                              x.id === i.id
-                                ? {
-                                    ...x,
-                                    period: Math.max(
-                                      1,
-                                      Math.min(
-                                        i.definitionId === "mtm" ? 100 : 500,
-                                        Number(e.target.value) || 1,
-                                      ),
-                                    ),
-                                  }
-                                : x,
-                            ),
-                          )
-                        }
-                      />
-                    </label>
-                    {i.definitionId === "mtm" && (
-                      <label>
-                        N1 · средняя MTM
-                        <input
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={
-                            Number(
-                              (i.params as { maPeriod?: number } | undefined)
-                                ?.maPeriod,
-                            ) || 60
-                          }
-                          onChange={(e) =>
-                            changeIndicators(
-                              indicators.map((x) =>
-                                x.id === i.id
-                                  ? {
-                                      ...x,
-                                      params: {
-                                        ...x.params,
-                                        maPeriod: Math.max(
-                                          1,
-                                          Math.min(
-                                            100,
-                                            Number(e.target.value) || 1,
-                                          ),
-                                        ),
-                                      },
-                                    }
-                                  : x,
-                              ),
-                            )
-                          }
-                        />
-                      </label>
-                    )}
-                    <label>
-                      Цвет
-                      <input
-                        type="color"
-                        value={i.color}
-                        onChange={(e) =>
-                          changeIndicators(
-                            indicators.map((x) =>
-                              x.id === i.id
-                                ? { ...x, color: e.target.value }
-                                : x,
-                            ),
-                          )
-                        }
-                      />
-                    </label>
-                    <span className="muted">
-                      {i.definitionId === "mtm"
-                        ? "Отдельная панель · close − close[N] и SMA(MTM, N1)"
-                        : "Расчёт не подключён"}
-                    </span>
-                  </div>
+                {!indicators.length && (
+                  <p className="muted">
+                    Добавьте индикатор из каталога, чтобы настроить его
+                    параметры.
+                  </p>
                 )}
               </div>
-            ))}
-            {!indicators.length && (
-              <p className="muted">
-                Добавьте индикатор из каталога, чтобы настроить его параметры.
-              </p>
-            )}
+            </section>
           </div>
         </DialogContent>
       </Dialog>
@@ -2106,6 +2339,16 @@ function PairWorkspace({
                   Параметры скрипта и оформление элементов на графике.
                 </DialogDescription>
               </DialogHeader>
+              <IndicatorPresets
+                instance={instance}
+                onLoad={(next) =>
+                  changeIndicators(
+                    indicators.map((item) =>
+                      item.id === next.id ? next : item,
+                    ),
+                  )
+                }
+              />
               <div className="instance-options">
                 <span>Иконка</span>
                 <IndicatorIcon name={instance.icon} color={instance.color} />
@@ -2164,6 +2407,100 @@ function PairWorkspace({
           </Dialog>
         );
       })()}
+      {editingIndicator?.definitionId === "mtm" && (
+        <Dialog open onOpenChange={(open) => !open && setSettingsId(null)}>
+          <DialogContent className="settings-dialog">
+            <DialogHeader>
+              <DialogTitle>TM · Momentum</DialogTitle>
+              <DialogDescription>
+                Параметры расчёта импульса и сглаживания.
+              </DialogDescription>
+            </DialogHeader>
+            <IndicatorPresets
+              instance={editingIndicator}
+              onLoad={(next) =>
+                changeIndicators(
+                  indicators.map((item) => (item.id === next.id ? next : item)),
+                )
+              }
+            />
+            <div className="vmc-fields">
+              <label className="vmc-field">
+                <span>N · импульс</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={editingIndicator.period}
+                  onChange={(e) =>
+                    changeIndicators(
+                      indicators.map((i) =>
+                        i.id === editingIndicator.id
+                          ? {
+                              ...i,
+                              period: Math.max(
+                                1,
+                                Math.min(100, Number(e.target.value) || 1),
+                              ),
+                            }
+                          : i,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <label className="vmc-field">
+                <span>N1 · средняя MTM</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={
+                    Number(
+                      (editingIndicator.params as { maPeriod?: number })
+                        ?.maPeriod,
+                    ) || 60
+                  }
+                  onChange={(e) =>
+                    changeIndicators(
+                      indicators.map((i) =>
+                        i.id === editingIndicator.id
+                          ? {
+                              ...i,
+                              params: {
+                                ...i.params,
+                                maPeriod: Math.max(
+                                  1,
+                                  Math.min(100, Number(e.target.value) || 1),
+                                ),
+                              },
+                            }
+                          : i,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <label className="vmc-field">
+                <span>Цвет значка</span>
+                <input
+                  type="color"
+                  value={editingIndicator.color}
+                  onChange={(e) =>
+                    changeIndicators(
+                      indicators.map((i) =>
+                        i.id === editingIndicator.id
+                          ? { ...i, color: e.target.value }
+                          : i,
+                      ),
+                    )
+                  }
+                />
+              </label>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
       {editingIndicator &&
         ["drz", "smc", "fvg-luxalgo"].includes(
           editingIndicator.definitionId,
@@ -2182,6 +2519,7 @@ function PairWorkspace({
         )}
       {editingIndicator?.definitionId === "coinglass-heatmap" && (
         <HeatmapSettings
+          instance={editingIndicator}
           state={heatmap}
           onClose={() => setSettingsId(null)}
           onChange={(params) =>

@@ -56,3 +56,14 @@ services/coinglass/.coinglass-session.json
 services/coinglass/output/
 services/coinglass/.venv/
 **/__pycache__/
+
+# Local databases, diagnostics and editor state.
+**/.idea/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
+*.patch
+/coinglass-error.png

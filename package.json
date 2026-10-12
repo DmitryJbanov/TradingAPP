@@ -1,6 +1,6 @@
 {
   "name": "divmoney",
-  "version": "0.5.0-alpha",
+  "version": "0.7.0-beta",
   "private": true,
   "engines": {
     "node": ">=22.13.0"

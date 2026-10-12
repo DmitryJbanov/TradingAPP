@@ -2,13 +2,15 @@
 import { bindCoinglassPriceCopy } from "./coinglass-price-copy";
 import type { CoinglassOverlay } from "../domain/coinglass";
 import { DrawingTools, type DrawingChart } from "./drawing-tools";
-import { useEffect, useRef, useState } from "react";
+import { bindFutureTimeScale } from "./future-time-scale";
+import { WhaleChartOverlay } from "./whale-chart-overlay";
+import { whaleCandleTime, type WhaleChartPoint } from "../domain/whale-chart";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createChart,
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
-  AreaSeries,
   createSeriesMarkers,
   ColorType,
   CrosshairMode,
@@ -18,6 +20,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import {
+  candleIntervals,
   deviation,
   priceFormat,
   type Candle,
@@ -30,6 +33,7 @@ import { OrderBlocksRenderer } from "../indicators/order-blocks-renderer";
 import { PriceOverlaysRenderer } from "../indicators/price-overlays-renderer";
 import type { PriceOverlay } from "../hooks/use-overlays";
 import type { PineResult } from "../domain/pine-scripts";
+import { PineVisualRenderer } from "../indicators/pine-visual-renderer";
 import { PineDrawingsRenderer } from "../indicators/pine-drawings-renderer";
 import {
   CoinGlassHeatmapRenderer,
@@ -73,6 +77,8 @@ export function MarketChart({
   symbol,
   palette,
   timeframe,
+  timezone = "Europe/Moscow",
+  tickSize = 0.01,
   resetKey,
   vmcPanes,
   stochRsiPanes = [],
@@ -84,11 +90,15 @@ export function MarketChart({
   heatmapLayer,
   mtmPanes = [],
   pineResults = [],
+  indicatorNames = {},
+  whalePoints = [],
 }: {
   bars: Candle[];
   symbol: string;
   palette: ChartPalette;
   timeframe: Timeframe;
+  timezone?: string;
+  tickSize?: number;
   resetKey: number;
   vmcPanes: VmcPane[];
   stochRsiPanes?: StochRsiPane[];
@@ -103,13 +113,39 @@ export function MarketChart({
     points: { time: number; value: number; average: number }[];
   }[];
   pineResults?: PineResult[];
+  indicatorNames?: Record<string, string>;
+  whalePoints?: WhaleChartPoint[];
 }) {
   const [drawingApi, setDrawingApi] = useState<DrawingChart>();
   const [copyStatus, setCopyStatus] = useState("");
+  const chartContainer = useRef<HTMLDivElement>(null);
+  const [chartHeight, setChartHeight] = useState<number>();
+  useEffect(() => {
+    const container = chartContainer.current;
+    if (!container) return;
+    const update = () =>
+      setChartHeight(
+        Math.max(
+          390,
+          window.innerHeight -
+            container.getBoundingClientRect().top -
+            window.scrollY -
+            12,
+        ),
+      );
+    const observer = new ResizeObserver(update);
+    observer.observe(container.closest(".chart-workspace") ?? container);
+    update();
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
   const host = useRef<HTMLDivElement>(null),
     chart = useRef<IChartApi | null>(null),
     series = useRef<ISeriesApi<"Candlestick"> | null>(null),
-    volume = useRef<ISeriesApi<"Histogram"> | null>(null),
+    futureAxis = useRef<ISeriesApi<"Line"> | null>(null),
     current = useRef(0);
   const vmcSeries = useRef(
     new Map<string, { series: VmcSeries; renderer: VmcRenderer }>(),
@@ -135,14 +171,27 @@ export function MarketChart({
   const priceOverlaysRenderer = useRef<PriceOverlaysRenderer | null>(null);
   const heatmapRenderer = useRef<CoinGlassHeatmapRenderer | null>(null);
   const coinglassLevelsRenderer = useRef<CoinGlassLevelsRenderer | null>(null);
-  const pineDrawingsRenderer = useRef<PineDrawingsRenderer | null>(null);
   const fitted = useRef("");
+  const selectedWhale = whalePoints.find((point) => point.selected);
+  const whaleTime = selectedWhale?.time;
+  const whaleId = selectedWhale?.id;
   const [cursor, setCursor] = useState<{
     x: number;
     y: number;
     price: number;
     percent: number | null;
   } | null>(null);
+  const [pineTooltip, setPineTooltip] = useState<{
+    x: number;
+    y: number;
+    text: string;
+  } | null>(null);
+  const [cursorTime, setCursorTime] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const [ohlc, setOhlc] = useState<Candle | null>(null);
   useEffect(() => {
     if (!host.current) return;
@@ -181,6 +230,7 @@ export function MarketChart({
         borderColor: palette.grid,
         timeVisible: true,
         secondsVisible: false,
+        ignoreWhitespaceIndices: false,
         rightOffset: 8,
         barSpacing: 8,
         minBarSpacing: 0.05,
@@ -201,22 +251,19 @@ export function MarketChart({
     const s = c.addSeries(CandlestickSeries, {
       upColor: palette.up,
       downColor: palette.down,
+      lastValueVisible: false,
       borderVisible: false,
       wickUpColor: palette.up,
       wickDownColor: palette.down,
     });
-    const v = c.addSeries(HistogramSeries, {
-      priceScaleId: "volume",
-      priceFormat: { type: "volume" },
-      lastValueVisible: false,
-      priceLineVisible: false,
-    });
-    c.priceScale("volume").applyOptions({
-      scaleMargins: { top: 0.85, bottom: 0 },
-    });
     chart.current = c;
     series.current = s;
-    volume.current = v;
+    futureAxis.current = c.addSeries(LineSeries, {
+      visible: false,
+      lastValueVisible: false,
+      priceLineVisible: false,
+      autoscaleInfoProvider: () => null,
+    });
     const drawingContext: DrawingChart = {
       chart: c,
       series: s,
@@ -235,15 +282,29 @@ export function MarketChart({
     const cgLevelsRenderer = new CoinGlassLevelsRenderer();
     s.attachPrimitive(cgLevelsRenderer);
     coinglassLevelsRenderer.current = cgLevelsRenderer;
-    const pineRenderer = new PineDrawingsRenderer();
-    s.attachPrimitive(pineRenderer);
-    pineDrawingsRenderer.current = pineRenderer;
     c.subscribeCrosshairMove((p) => {
+      const hovered = String(p.hoveredObjectId ?? "");
+      setPineTooltip(
+        p.point && hovered.startsWith("pine-tooltip:")
+          ? {
+              x: p.point.x,
+              y:
+                p.point.y +
+                c
+                  .panes()
+                  .slice(0, p.paneIndex ?? 0)
+                  .reduce((height, pane) => height + pane.getHeight(), 0),
+              text: hovered.slice(13),
+            }
+          : null,
+      );
       if (!p.point || !p.time || p.point.x < 0 || p.point.y < 0) {
         setCursor(null);
         setOhlc(null);
+        setCursorTime(null);
         return;
       }
+      setCursorTime(Number(p.time));
       const price = p.paneIndex === 0 ? s.coordinateToPrice(p.point.y) : null;
       if (price === null) setCursor(null);
       if (price !== null)
@@ -251,7 +312,7 @@ export function MarketChart({
           x: p.point.x,
           y: p.point.y,
           price,
-          percent: deviation(current.current, price),
+          percent: deviation(price, current.current),
         });
       const bar = p.seriesData.get(s);
       setOhlc(
@@ -276,10 +337,50 @@ export function MarketChart({
       c.remove();
       chart.current = null;
       series.current = null;
-      volume.current = null;
+      futureAxis.current = null;
     };
     // One chart per workspace pane; updates below preserve independent axis scaling.
   }, []);
+  useEffect(() => {
+    const dateAt = (time: Time) =>
+      new Date(
+        typeof time === "number"
+          ? time * 1000
+          : typeof time === "string"
+            ? time
+            : Date.UTC(time.year, time.month - 1, time.day),
+      );
+    const zone = timezone === "UTC" ? "UTC" : "Europe/Moscow";
+    const format = (time: Time, options: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat("ru-RU", { ...options, timeZone: zone }).format(
+        dateAt(time),
+      );
+    chart.current?.applyOptions({
+      localization: {
+        timeFormatter: (time: Time) =>
+          format(time, {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }) + (zone === "UTC" ? " UTC" : " МСК"),
+      },
+      timeScale: {
+        tickMarkFormatter: (time: Time, type: number) =>
+          format(
+            time,
+            type === 0
+              ? { year: "numeric" }
+              : type === 1
+                ? { month: "short" }
+                : type === 2
+                  ? { day: "numeric", month: "short" }
+                  : { hour: "2-digit", minute: "2-digit" },
+          ),
+      },
+    });
+  }, [timezone]);
   useEffect(() => {
     chart.current?.applyOptions({
       layout: {
@@ -301,7 +402,7 @@ export function MarketChart({
   useEffect(() => {
     if (!bars.length) {
       series.current?.setData([]);
-      volume.current?.setData([]);
+      futureAxis.current?.setData([]);
       current.current = 0;
       setCursor(null);
       setOhlc(null);
@@ -313,33 +414,72 @@ export function MarketChart({
     series.current?.applyOptions({
       priceFormat: { type: "price", precision, minMove: 10 ** -precision },
     });
-    series.current?.setData(
-      bars.map((b, index) => {
-        const color = priceOverlays
-          .map((o) => o.result.candleColors?.[index])
-          .filter(Boolean)
-          .at(-1);
-        return {
-          ...b,
-          time: b.time as UTCTimestamp,
-          ...(color ? { color, wickColor: color, borderColor: color } : {}),
-        };
-      }),
-    );
-    volume.current?.setData(
-      bars.map((b) => ({
+    const candles = bars.map((b, index) => {
+      const color = priceOverlays
+        .map((o) => o.result.candleColors?.[index])
+        .filter(Boolean)
+        .at(-1);
+      return {
+        ...b,
         time: b.time as UTCTimestamp,
-        value: b.volume,
-        color: (b.close >= b.open ? palette.up : palette.down) + "38",
-      })),
-    );
+        ...(color ? { color, wickColor: color, borderColor: color } : {}),
+      };
+    });
+    const lastTime = Number(bars.at(-1)!.time);
+    const interval = candleIntervals[timeframe];
+    series.current?.setData(candles);
+    const stopFutureAxis =
+      chart.current && futureAxis.current
+        ? bindFutureTimeScale(
+            chart.current,
+            futureAxis.current,
+            lastTime,
+            interval,
+          )
+        : undefined;
     setCursor(null);
-    const fitKey = `${timeframe}:${historyCount}:${resetKey}`;
-    if (fitted.current !== fitKey) {
-      chart.current?.timeScale().fitContent();
-      fitted.current = fitKey;
-    }
-  }, [bars, palette, priceOverlays, timeframe, historyCount, resetKey]);
+    const entryTime = whaleCandleTime(bars, whaleTime, interval);
+    const hasWhaleTime = entryTime !== null;
+    // Apply the viewport after candle history is installed. The overlay only
+    // projects coordinates; it must not race the chart's history/reset fit.
+    const fitKey = hasWhaleTime
+      ? `${timeframe}:${resetKey}:${whaleId}:${whaleTime}:${bars[0].time}`
+      : `${timeframe}:${historyCount}:${resetKey}`;
+    const fitFrame = requestAnimationFrame(() => {
+      if (fitted.current === fitKey || !chart.current || drawingApi?.disposed)
+        return;
+      const entryIndex =
+        entryTime !== null
+          ? chart.current.timeScale().timeToIndex(entryTime as UTCTimestamp)
+          : null;
+      if (entryIndex !== null) {
+        chart.current?.timeScale().setVisibleLogicalRange({
+          from: entryIndex - 50,
+          to: entryIndex + 50,
+        });
+      } else {
+        chart.current?.timeScale().setVisibleRange({
+          from: bars[0].time as UTCTimestamp,
+          to: (lastTime + interval * 8) as UTCTimestamp,
+        });
+      }
+      if (!hasWhaleTime || entryIndex !== null) fitted.current = fitKey;
+    });
+    return () => {
+      cancelAnimationFrame(fitFrame);
+      stopFutureAxis?.();
+    };
+  }, [
+    bars,
+    palette,
+    priceOverlays,
+    timeframe,
+    historyCount,
+    resetKey,
+    whaleTime,
+    whaleId,
+    drawingApi,
+  ]);
   useEffect(() => {
     priceOverlaysRenderer.current?.configure(priceOverlays, palette.text);
   }, [priceOverlays, palette.text]);
@@ -353,7 +493,6 @@ export function MarketChart({
     orderBlocksRenderer.current?.configure(orderBlocks);
   }, [orderBlocks]);
   useEffect(() => {
-    chart.current?.timeScale().fitContent();
     chart.current
       ?.panes()
       .forEach((_, index) =>
@@ -508,47 +647,88 @@ export function MarketChart({
     const c = chart.current,
       s = series.current;
     if (!c || !s) return;
-    const added: ISeriesApi<"Line" | "Histogram" | "Area">[] = [];
+    const added: ISeriesApi<"Line">[] = [];
+    const detached: (() => void)[] = [];
     for (const result of pineResults) {
       const paneIndex = result.overlay ? 0 : c.panes().length;
-      for (const plot of result.plots) {
-        if (plot.visible === false) continue;
-        if (!plot.points.some((point) => point.value !== undefined)) continue;
-        const options = {
-          color: plot.color,
-          title: plot.title,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        };
-        const p =
-          plot.style === "histogram"
-            ? c.addSeries(HistogramSeries, options, paneIndex)
-            : plot.style === "area"
-              ? c.addSeries(
-                  AreaSeries,
-                  {
-                    ...options,
-                    lineColor: plot.color,
-                    topColor: plot.color,
-                    bottomColor: "transparent",
-                    lineWidth: plot.width,
-                  },
-                  paneIndex,
-                )
-              : c.addSeries(
-                  LineSeries,
-                  { ...options, lineWidth: plot.width },
-                  paneIndex,
-                );
-        p.setData(
-          plot.points.map((point) => ({
-            ...point,
-            time: point.time as UTCTimestamp,
-          })),
+      const separateScale =
+        !result.overlay || result.scale === "left" || result.scale === "none";
+      if (result.scale === "left")
+        c.applyOptions({ leftPriceScale: { visible: true } });
+      const visual = new PineVisualRenderer(result, bars, result.overlay);
+      const owner = !separateScale
+        ? s
+        : c.addSeries(
+            LineSeries,
+            {
+              priceScaleId:
+                result.scale === "left"
+                  ? "left"
+                  : result.scale === "none"
+                    ? "pine:" + result.id
+                    : "right",
+              priceFormat: {
+                type:
+                  result.format === "percent"
+                    ? "percent"
+                    : result.format === "volume"
+                      ? "volume"
+                      : "price",
+                precision: result.precision ?? 2,
+                minMove: 10 ** -(result.precision ?? 2),
+              },
+              color: "transparent",
+              lineVisible: false,
+              lastValueVisible: false,
+              priceLineVisible: false,
+              crosshairMarkerVisible: false,
+              autoscaleInfoProvider: () => {
+                const range = visual.priceRange();
+                return range ? { priceRange: range } : null;
+              },
+            },
+            paneIndex,
+          );
+      if (separateScale) {
+        (owner as ISeriesApi<"Line">).setData(
+          bars.map((b) => ({ time: b.time as UTCTimestamp, value: 0 })),
         );
-        if (!result.overlay) p.getPane().setStretchFactor(1);
-        added.push(p);
+        if (!result.overlay) owner.getPane().setStretchFactor(1);
+        added.push(owner as ISeriesApi<"Line">);
       }
+      const attach = (
+        target: typeof owner,
+        graphics: PineVisualRenderer,
+        overlay: boolean,
+      ) => {
+        target.attachPrimitive(graphics);
+        const objects = new PineDrawingsRenderer();
+        const select = (items: Record<string, unknown>[] | undefined) =>
+          (items ?? []).filter(
+            (item) =>
+              item.visible !== false &&
+              (item.force_overlay === true || result.overlay) === overlay,
+          );
+        objects.configure(
+          {
+            boxes: select(result.drawings.boxes),
+            lines: select(result.drawings.lines),
+            labels: select(result.drawings.labels),
+            polylines: select(result.drawings.polylines),
+            linefills: select(result.drawings.linefills),
+            tables: select(result.drawings.tables),
+          },
+          bars,
+        );
+        target.attachPrimitive(objects);
+        detached.push(() => {
+          target.detachPrimitive(graphics);
+          target.detachPrimitive(objects);
+        });
+      };
+      attach(owner, visual, result.overlay);
+      if (!result.overlay)
+        attach(s, new PineVisualRenderer(result, bars, true), true);
     }
     const markers = createSeriesMarkers(
       s,
@@ -561,32 +741,17 @@ export function MarketChart({
     return () => {
       if (chart.current === c) {
         markers.detach();
+        detached.forEach((detach) => detach());
         added.forEach((p) => c.removeSeries(p));
       }
     };
-  }, [pineResults, vmcPanes.length, stochRsiPanes.length, mtmPanes.length]);
-  useEffect(() => {
-    pineDrawingsRenderer.current?.configure(
-      pineResults.reduce(
-        (all, result) => ({
-          boxes: [
-            ...all.boxes,
-            ...result.drawings.boxes.filter((item) => item.visible !== false),
-          ],
-          lines: [
-            ...all.lines,
-            ...result.drawings.lines.filter((item) => item.visible !== false),
-          ],
-          labels: [
-            ...all.labels,
-            ...result.drawings.labels.filter((item) => item.visible !== false),
-          ],
-        }),
-        { boxes: [], lines: [], labels: [] } as PineResult["drawings"],
-      ),
-      bars,
-    );
-  }, [bars, pineResults, timeframe]);
+  }, [
+    pineResults,
+    bars,
+    vmcPanes.length,
+    stochRsiPanes.length,
+    mtmPanes.length,
+  ]);
   useEffect(() => {
     const s = series.current;
     if (!s) return;
@@ -614,7 +779,7 @@ export function MarketChart({
         return s.createPriceLine({
           price: level.price,
           color: overlay.params.volumeColors[colorIndex],
-          lineVisible: false,
+          lineVisible: overlay.params.showLevels,
           axisLabelVisible:
             overlay.params.showLevels && overlay.params.showLabels,
           title:
@@ -638,6 +803,7 @@ export function MarketChart({
         color: "#f5b942",
         lineWidth: 1,
         lineStyle: LineStyle.Dotted,
+        lineVisible: true,
         axisLabelVisible: true,
         title: `HM #${i + 1}`,
       }),
@@ -661,9 +827,98 @@ export function MarketChart({
       setCopyStatus,
     );
   }, [coinglass, heatmapLevels]);
+  const readouts = useMemo(() => {
+    const time = cursorTime ?? bars.at(-1)?.time;
+    if (time === undefined) return [];
+    const values: Record<string, string[]> = {};
+    function at<T extends { time: number }>(points: T[]): T | undefined {
+      let lo = 0,
+        hi = points.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (points[mid].time < time!) lo = mid + 1;
+        else hi = mid;
+      }
+      return points[lo]?.time === time ? points[lo] : undefined;
+    }
+    const value = (v: number | null | undefined) =>
+      v != null && Number.isFinite(v) ? v.toFixed(2) : "—";
+    vmcPanes.forEach((p) => {
+      const row = at(p.result.points);
+      values[p.id] = Object.entries(row?.values ?? {}).map(
+        ([k, v]) => `${k.toUpperCase()} ${value(v)}`,
+      );
+    });
+    stochRsiPanes.forEach((p) => {
+      const row = at(p.points);
+      values[p.id] = [`K ${value(row?.k)}`, `D ${value(row?.d)}`];
+    });
+    mtmPanes.forEach((p) => {
+      const row = at(p.points);
+      values[p.id] = [`MTM ${value(row?.value)}`, `MA ${value(row?.average)}`];
+    });
+    pineResults.forEach((r) => {
+      values[r.id] = r.plots
+        .filter((p) => p.visible !== false)
+        .map((p) => `${p.title} ${value(at(p.points)?.value)}`);
+    });
+    orderBlocks.forEach((r) => {
+      const i = bars.findIndex((b) => b.time === time);
+      values[r.id] = [`ROC ${value(r.result.roc[i])}`];
+    });
+    priceOverlays.forEach((r) => {
+      values[r.id] = r.result.lines
+        .filter((l) => time >= l.from && time <= l.to)
+        .slice(-6)
+        .map(
+          (l) =>
+            `${l.text ?? "Уровень"} ${priceFormat(l.endPrice === undefined || l.to === l.from ? l.price : l.price + ((l.endPrice - l.price) * (time - l.from)) / (l.to - l.from))}`,
+        );
+    });
+    return Object.entries(indicatorNames).map(([id, name]) => ({
+      id,
+      name,
+      values: values[id]?.join(" · ") || "—",
+    }));
+  }, [
+    cursorTime,
+    bars,
+    vmcPanes,
+    stochRsiPanes,
+    mtmPanes,
+    pineResults,
+    orderBlocks,
+    priceOverlays,
+    indicatorNames,
+  ]);
+  const last = bars.at(-1);
+  const closeTime = last ? last.time + candleIntervals[timeframe] : 0;
+  const remaining = Math.max(0, Math.ceil(closeTime - now / 1000));
+  const countdown = remaining
+    ? `${Math.floor(remaining / 3600)
+        .toString()
+        .padStart(2, "0")}:${Math.floor((remaining % 3600) / 60)
+        .toString()
+        .padStart(2, "0")}:${(remaining % 60).toString().padStart(2, "0")}`
+    : "00:00:00";
+  const priceY =
+    last && series.current
+      ? series.current.priceToCoordinate(last.close)
+      : null;
+  const showCumulativeVolume = coinglass.some(
+    (overlay) => overlay.params.showCumulativeVolume,
+  );
+  const percentage =
+    cursor?.percent == null
+      ? "—"
+      : `${cursor.percent >= 0 ? "+" : ""}${cursor.percent.toFixed(2)}%`;
+  const heatmapHover =
+    cursor && heatmapLayer
+      ? heatmapRenderer.current?.liquidityAt(cursor.x, cursor.y)
+      : undefined;
   const b = ohlc ?? bars.at(-1);
   return (
-    <>
+    <div className="chart-layout">
       {copyStatus && (
         <div role="status" className="notice">
           {copyStatus}
@@ -676,14 +931,25 @@ export function MarketChart({
           bars={bars}
           symbol={symbol}
           timeframe={timeframe}
+          tickSize={tickSize}
         />
       )}
       <div
         className="chart-container"
+        ref={chartContainer}
         style={{
+          height: chartHeight,
           background: palette.background,
         }}
       >
+        {drawingApi && whalePoints.length > 0 && (
+          <WhaleChartOverlay
+            api={drawingApi}
+            bars={bars}
+            timeframe={timeframe}
+            points={whalePoints}
+          />
+        )}
         <div className="chart-ohlc" style={{ color: palette.text }}>
           {b && (
             <>
@@ -698,13 +964,95 @@ export function MarketChart({
           )}
         </div>
         <div
+          className="chart-indicator-values"
+          aria-label="Значения индикаторов у курсора"
+        >
+          {readouts
+            .filter(
+              (r) =>
+                r.values &&
+                !r.values.split(" · ").every((value) => value.endsWith("—")),
+            )
+            .map((r) => (
+              <div key={r.id}>
+                <b>{r.name}</b>
+                <span>{r.values}</span>
+              </div>
+            ))}
+        </div>
+        {last && priceY !== null && (
+          <div
+            className="current-price-clock"
+            aria-label={`Текущая цена ${priceFormat(last.close)}, до закрытия свечи ${countdown}`}
+            title={`Текущая цена · до закрытия свечи ${timeframe}`}
+            style={{
+              top: Math.max(
+                40,
+                Math.min(
+                  priceY - 17,
+                  (series.current?.getPane().getHeight() ?? 500) - 36,
+                ),
+              ),
+              width: Math.max(90, series.current?.priceScale().width() ?? 90),
+              background: palette.up,
+              color: palette.background,
+            }}
+          >
+            <b>{priceFormat(last.close)}</b>
+            <time>{countdown}</time>
+          </div>
+        )}
+        <div
           className="chart-canvas"
           ref={host}
           role="img"
           aria-label="Свечной график. Перетаскивайте шкалы цены и времени для независимого масштабирования."
         />
+        {pineTooltip && (
+          <div
+            role="tooltip"
+            style={{
+              position: "absolute",
+              pointerEvents: "none",
+              zIndex: 25,
+              left: Math.max(
+                4,
+                Math.min(
+                  pineTooltip.x + 12,
+                  (host.current?.clientWidth ?? 800) - 300,
+                ),
+              ),
+              top: Math.max(
+                4,
+                Math.min(
+                  pineTooltip.y + 12,
+                  (chartHeight ?? host.current?.clientHeight ?? 600) - 80,
+                ),
+              ),
+              maxWidth: 280,
+              padding: "8px 10px",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              background: "var(--card)",
+              color: "var(--foreground)",
+              whiteSpace: "pre-wrap",
+              fontSize: 12,
+            }}
+          >
+            {pineTooltip.text}
+          </div>
+        )}
         {cursor && (
           <>
+            <div
+              className="cursor-axis-price"
+              style={{
+                top: Math.max(0, cursor.y - 11),
+                width: Math.max(90, series.current?.priceScale().width() ?? 90),
+              }}
+            >
+              {priceFormat(cursor.price)}
+            </div>
             <div
               className="cursor-percent"
               style={{
@@ -718,26 +1066,57 @@ export function MarketChart({
                 bottom: 30,
               }}
             >
-              {cursor.percent === null
-                ? "—"
-                : `${cursor.percent >= 0 ? "+" : ""}${cursor.percent.toFixed(2)}%`}
+              {percentage}
             </div>
-            <div
-              className="cursor-price"
-              style={{
-                top: Math.max(
-                  45,
-                  Math.min(
-                    cursor.y + 10,
-                    (host.current?.clientHeight ?? 500) - 90,
+            {!showCumulativeVolume && (
+              <div
+                className="cursor-price"
+                style={{
+                  top: Math.max(
+                    45,
+                    Math.min(
+                      cursor.y + 10,
+                      (host.current?.clientHeight ?? 500) - 90,
+                    ),
                   ),
-                ),
-                right: 95,
-              }}
-            >
-              Δ к текущей {cursor.percent?.toFixed(2) ?? "—"}%
-            </div>
+                  right: 95,
+                }}
+              >
+                {percentage}
+              </div>
+            )}
           </>
+        )}
+        {cursor && heatmapHover && (
+          <div
+            className="heatmap-cursor-tooltip"
+            role="tooltip"
+            style={{
+              left: Math.max(
+                4,
+                Math.min(
+                  cursor.x + 14,
+                  (host.current?.clientWidth ?? 500) - 250,
+                ),
+              ),
+              top: Math.max(
+                4,
+                Math.min(
+                  cursor.y + 14,
+                  (series.current?.getPane().getHeight() ?? 500) - 62,
+                ),
+              ),
+            }}
+          >
+            <b>Model 3 · Цена ${priceFormat(heatmapHover.price)}</b>
+            <span>
+              Ликвидность:{" "}
+              {new Intl.NumberFormat("ru-RU", {
+                maximumFractionDigits: 2,
+              }).format(heatmapHover.value)}{" "}
+              USD
+            </span>
+          </div>
         )}
         <a
           className="chart-attribution"
@@ -748,6 +1127,6 @@ export function MarketChart({
           Charts by TradingView
         </a>
       </div>
-    </>
+    </div>
   );
 }

@@ -15,6 +15,7 @@ import {
 import { SiteHeader } from "./site-header";
 import { WhaleAnalytics } from "./whale-analytics";
 import { Choice } from "./controls";
+import { whaleChartUrl } from "../domain/whale-chart";
 import { useResource } from "../hooks/use-resource";
 import {
   exampleWhale,
@@ -193,6 +194,12 @@ function Positions({
               onClick={() => toggleSort("entryPrice")}
             />
             <SortHeader
+              label="Время входа"
+              active={sort.key === "entryTime"}
+              direction={sort.direction}
+              onClick={() => toggleSort("entryTime")}
+            />
+            <SortHeader
               label="Цена"
               active={sort.key === "markPrice"}
               direction={sort.direction}
@@ -228,6 +235,7 @@ function Positions({
               direction={sort.direction}
               onClick={() => toggleSort("funding")}
             />
+            <th>График</th>
           </tr>
         </thead>
         <tbody>
@@ -269,12 +277,24 @@ function Positions({
               <td>{usd(p.value)}</td>
               <td>{n(p.size, 6)}</td>
               <td>{price(p.entryPrice)}</td>
+              <td>{date(p.entryTime)}</td>
               <td>{price(p.markPrice)}</td>
               <td className={tone(p.pnl)}>{usd(p.pnl)}</td>
               <td className={tone(p.roe)}>{n(p.roe)}%</td>
               <td>{price(p.liquidationPrice)}</td>
               <td>{usd(p.margin)}</td>
               <td className={tone(p.funding)}>{usd(p.funding)}</td>
+              <td>
+                {whaleChartUrl(p) ? (
+                  <a className="button" href={whaleChartUrl(p)!}>
+                    На графике
+                  </a>
+                ) : (
+                  <span title="Инструмент недоступен на выбранных биржах">
+                    —
+                  </span>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -387,6 +407,7 @@ function Trades({
               direction={sort.direction}
               onClick={() => toggleSort("fee")}
             />
+            <th>График</th>
           </tr>
         </thead>
         <tbody>
@@ -412,13 +433,24 @@ function Trades({
               <td>{usd(t.value)}</td>
               <td className={tone(t.pnl)}>{usd(t.pnl)}</td>
               <td>{usd(t.fee)}</td>
+              <td>
+                {whaleChartUrl(t) ? (
+                  <a className="button" href={whaleChartUrl(t)!}>
+                    На графике
+                  </a>
+                ) : (
+                  <span title="Инструмент недоступен на выбранных биржах">
+                    —
+                  </span>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
       {!rows.length && (
         <p className="empty-state">
-          В доступной истории нет фьючерсных сделок.
+          В доступной истории нет фьючерсных сделок по выбранным условиям.
         </p>
       )}
     </div>
@@ -435,12 +467,50 @@ function PnlChart({ points }: { points: [number, string][] }) {
   const start = points[0][0],
     end = points.at(-1)![0],
     duration = end - start || 1;
-  const coords = points
-    .map(
-      (p, i) =>
-        `${70 + ((p[0] - start) / duration) * 900},${18 + ((max - values[i]) / spread) * 180}`,
-    )
-    .join(" ");
+  const xAt = (index: number) =>
+    70 + ((points[index][0] - start) / duration) * 900;
+  const yAt = (value: number) => 18 + ((max - value) / spread) * 180;
+  const segments: {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    color: string;
+  }[] = [];
+  for (let i = 1; i < points.length; i++) {
+    const a = values[i - 1],
+      b = values[i];
+    const ax = xAt(i - 1),
+      ay = yAt(a),
+      bx = xAt(i),
+      by = yAt(b);
+    if ((a < 0 && b > 0) || (a > 0 && b < 0)) {
+      const ratio = -a / (b - a),
+        crossX = ax + (bx - ax) * ratio;
+      segments.push({
+        x1: ax,
+        y1: ay,
+        x2: crossX,
+        y2: yAt(0),
+        color: a > 0 ? "#0ecb81" : "#f6465d",
+      });
+      segments.push({
+        x1: crossX,
+        y1: yAt(0),
+        x2: bx,
+        y2: by,
+        color: b > 0 ? "#0ecb81" : "#f6465d",
+      });
+    } else {
+      segments.push({
+        x1: ax,
+        y1: ay,
+        x2: bx,
+        y2: by,
+        color: a + b >= 0 ? "#0ecb81" : "#f6465d",
+      });
+    }
+  }
   return (
     <svg
       viewBox="0 0 1000 245"
@@ -463,12 +533,17 @@ function PnlChart({ points }: { points: [number, string][] }) {
           </text>
         </g>
       ))}
-      <polyline
-        points={coords}
-        fill="none"
-        stroke={values.at(-1)! >= 0 ? "#0ecb81" : "#f6465d"}
-        strokeWidth="2"
-      />
+      {segments.map((segment, index) => (
+        <line
+          key={index}
+          x1={segment.x1}
+          y1={segment.y1}
+          x2={segment.x2}
+          y2={segment.y2}
+          stroke={segment.color}
+          strokeWidth="2"
+        />
+      ))}
       {[0, 0.5, 1].map((v) => (
         <text
           key={v}
@@ -514,11 +589,14 @@ export function WhalesPage({
     [label, setLabel] = useState(""),
     [query, setQuery] = useState("");
   const [side, setSide] = useState("all"),
-    [coin, setCoin] = useState("all"),
+    [coin, setCoin] = useState(""),
     [minValue, setMinValue] = useState("0");
   const [tab, setTab] = useState("positions"),
     [period, setPeriod] = useState("perpMonth");
-  const [watchlistView, setWatchlistView] = useState<"activity" | "positions">("activity");
+  const [portfolioScope, setPortfolioScope] = useState("all");
+  const [watchlistView, setWatchlistView] = useState<"activity" | "positions">(
+    "activity",
+  );
   const [accountSort, setAccountSort] = useState<{
     key:
       | "rank"
@@ -571,10 +649,19 @@ export function WhalesPage({
   const toggle = (user: string) =>
     void change(tracked.has(user) ? "remove" : "add", user);
   const data = profile.data?.profile;
+  const performance =
+    portfolioScope === "perp" ? data?.performance : data?.totalPerformance;
+  const pnlPeriod =
+    portfolioScope === "perp"
+      ? period
+      : period[4].toLowerCase() + period.slice(5);
   const accounts = overview.data?.accounts ?? [];
   const names = new Map<string, string>();
   for (const account of accounts)
-    names.set(account.address, aliases.get(account.address) || account.label || "");
+    names.set(
+      account.address,
+      aliases.get(account.address) || account.label || "",
+    );
   for (const whale of watchlist.data?.data ?? [])
     if (whale.label) names.set(whale.address, whale.label);
   const rankedAccounts = [...accounts]
@@ -612,8 +699,9 @@ export function WhalesPage({
     .filter(
       (p) =>
         (side === "all" || side === p.side) &&
-        (coin === "all" || coin === p.coin) &&
-        (p.value ?? 0) >= Number(minValue) &&
+        (!coin.trim() ||
+          p.coin.toLowerCase().includes(coin.trim().toLowerCase())) &&
+        (p.value ?? 0) >= (Number(minValue) || 0) &&
         (p.address + " " + (aliases.get(p.address) ?? ""))
           .toLowerCase()
           .includes(query.toLowerCase()),
@@ -621,16 +709,29 @@ export function WhalesPage({
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
   const activity = useMemo(() => {
     const rows = [
-      ...(overview.data?.activity ?? []),
       ...(watchlist.data?.data.flatMap((w) => w.profile?.fills ?? []) ?? []),
     ];
-    return [...new Map(rows.map((t) => [`${t.address}:${t.id}`, t])).values()]
-      .sort((a, b) => b.time - a.time)
-      .slice(0, 50);
-  }, [overview.data, watchlist.data]);
+    return [
+      ...new Map(rows.map((t) => [`${t.address}:${t.id}`, t])).values(),
+    ].sort((a, b) => b.time - a.time);
+  }, [watchlist.data]);
+  const filteredActivity = activity.filter(
+    (trade) =>
+      (side === "all" || trade.action.includes(side)) &&
+      (!coin.trim() ||
+        trade.coin.toLowerCase().includes(coin.trim().toLowerCase())) &&
+      trade.value >= (Number(minValue) || 0),
+  );
   const trackedPositions =
     watchlist.data?.data.flatMap((whale) => whale.profile?.positions ?? []) ??
     [];
+  const filteredTrackedPositions = trackedPositions.filter(
+    (position) =>
+      (side === "all" || position.side === side) &&
+      (!coin.trim() ||
+        position.coin.toLowerCase().includes(coin.trim().toLowerCase())) &&
+      (position.value ?? 0) >= (Number(minValue) || 0),
+  );
   return (
     <div className="terminal-shell">
       <SiteHeader active="whales" />
@@ -804,12 +905,13 @@ export function WhalesPage({
               <>
                 <div className="whale-stats">
                   {[
+                    ["Капитал портфеля", data.totalAccountValue],
                     ["Капитал perpetual", data.accountValue],
                     ["Стоимость позиций", data.positionValue],
-                    ["PnL за всё время", data.performance.allTime],
-                    ["PnL за 24 часа", data.performance.day],
-                    ["PnL за 7 дней", data.performance.week],
-                    ["PnL за 30 дней", data.performance.month],
+                    ["PnL за всё время", performance?.allTime],
+                    ["PnL за 24 часа", performance?.day],
+                    ["PnL за 7 дней", performance?.week],
+                    ["PnL за 30 дней", performance?.month],
                   ].map(([title, value]) => (
                     <div className="panel" key={String(title)}>
                       <span>{title}</span>
@@ -825,9 +927,39 @@ export function WhalesPage({
                     </div>
                   ))}
                 </div>
+                {data.staking &&
+                  (data.staking.delegated ?? 0) +
+                    (data.staking.undelegated ?? 0) +
+                    (data.staking.totalPendingWithdrawal ?? 0) >
+                    0 && (
+                    <div className="whale-stats">
+                      {[
+                        ["HYPE в стейкинге", data.staking.delegated],
+                        ["HYPE без делегирования", data.staking.undelegated],
+                        [
+                          "HYPE ожидает вывода",
+                          data.staking.totalPendingWithdrawal,
+                        ],
+                      ].map(([title, value]) => (
+                        <div className="panel" key={String(title)}>
+                          <span>{title}</span>
+                          <strong>{n(value as number | null, 6)} HYPE</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 <section className="panel whale-section">
                   <div className="whale-section-heading">
                     <h2>История PnL</h2>
+                    <Choice
+                      label="Охват PnL"
+                      value={portfolioScope}
+                      onChange={setPortfolioScope}
+                      items={[
+                        ["all", "Все активы"],
+                        ["perp", "Perpetual"],
+                      ]}
+                    />
                     <Choice
                       label="Период PnL"
                       value={period}
@@ -840,12 +972,18 @@ export function WhalesPage({
                       ]}
                     />
                   </div>
-                  <PnlChart points={data.history[period]?.pnlHistory ?? []} />
+                  <PnlChart
+                    points={data.history[pnlPeriod]?.pnlHistory ?? []}
+                  />
                 </section>
                 <section className="panel whale-section">
                   <div className="whale-tabs">
                     {[
                       ["positions", `Позиции (${data.positions.length})`],
+                      [
+                        "balances",
+                        `Спотовый баланс (${data.spotBalances?.length ?? 0})`,
+                      ],
                       ["trades", "Сделки"],
                       ["orders", `Ордера (${data.orders.length})`],
                       ["ledger", "Пополнения / выводы"],
@@ -860,6 +998,42 @@ export function WhalesPage({
                     ))}
                   </div>
                   {tab === "positions" && <Positions rows={data.positions} />}
+                  {tab === "balances" && (
+                    <div className="whale-table-scroll">
+                      <table className="whale-table">
+                        <thead>
+                          <tr>
+                            <th>Актив</th>
+                            <th>Количество</th>
+                            <th>Зарезервировано</th>
+                            <th>Доступно</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(data.spotBalances ?? []).map((balance) => (
+                            <tr key={balance.coin}>
+                              <td>{balance.coin}</td>
+                              <td>{n(balance.total, 8)}</td>
+                              <td>{n(balance.hold, 8)}</td>
+                              <td>
+                                {n(
+                                  balance.total != null && balance.hold != null
+                                    ? Math.max(0, balance.total - balance.hold)
+                                    : null,
+                                  8,
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {!data.spotBalances?.length && (
+                        <p className="empty-state">
+                          Положительных спотовых балансов нет.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {tab === "trades" && (
                     <>
                       <p className="muted whale-table-note">
@@ -959,8 +1133,9 @@ export function WhalesPage({
                   )}
                 </section>
                 <p className="whale-source">
-                  Обновлено {date(data.collectedAt)} · Основной perpetual рынок
-                  Hyperliquid. HIP-3 позиции других DEX и spot-баланс не
+                  Обновлено {date(data.collectedAt)} · Капитал портфеля и общий
+                  PnL — по последней точке portfolio Hyperliquid. Позиции и
+                  сделки — основной perpetual рынок; HIP-3 позиции других DEX не
                   включены.
                 </p>
                 {data.warnings.map((w) => (
@@ -1000,13 +1175,26 @@ export function WhalesPage({
                           <small className="whale-label">{w.label}</small>
                         )}
                       </td>
-                      <td>{usd(w.profile?.accountValue)}</td>
+                      <td>
+                        {usd(
+                          w.profile?.totalAccountValue ??
+                            w.profile?.accountValue,
+                        )}
+                      </td>
                       <td>
                         {w.profile?.positions.length ?? "—"} ·{" "}
                         {usd(w.profile?.positionValue)}
                       </td>
-                      <td className={tone(w.profile?.performance.day)}>
-                        {usd(w.profile?.performance.day)}
+                      <td
+                        className={tone(
+                          w.profile?.totalPerformance?.day ??
+                            w.profile?.performance.day,
+                        )}
+                      >
+                        {usd(
+                          w.profile?.totalPerformance?.day ??
+                            w.profile?.performance.day,
+                        )}
                       </td>
                       <td>
                         {w.profile?.fills[0] ? (
@@ -1018,8 +1206,7 @@ export function WhalesPage({
                             </small>
                           </>
                         ) : (
-                          (w.error ??
-                            (w.loading ? "Загрузка…" : "Нет сделок"))
+                          (w.error ?? (w.loading ? "Загрузка…" : "Нет сделок"))
                         )}
                       </td>
                       <td>{date(w.profile?.collectedAt)}</td>
@@ -1076,27 +1263,24 @@ export function WhalesPage({
                     ["Short", "Short"],
                   ]}
                 />
-                <Choice
-                  label="Актив"
-                  value={coin}
-                  onChange={setCoin}
-                  items={[
-                    ["all", "Все активы"],
-                    ...[...new Set(allPositions.map((p) => p.coin))]
-                      .sort()
-                      .map((c) => [c, c] as [string, string]),
-                  ]}
-                />
-                <Choice
-                  label="Минимальная позиция"
-                  value={minValue}
-                  onChange={setMinValue}
-                  items={[
-                    ["0", "Любой объём"],
-                    ["1000000", "От $1 млн"],
-                    ["10000000", "От $10 млн"],
-                  ]}
-                />
+                <label className="whale-filter-input">
+                  <span>Монета</span>
+                  <input
+                    value={coin}
+                    onChange={(event) => setCoin(event.target.value)}
+                    placeholder="Например, BTC"
+                  />
+                </label>
+                <label className="whale-filter-input">
+                  <span>Минимальный объём, $</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={minValue}
+                    onChange={(event) => setMinValue(event.target.value)}
+                  />
+                </label>
               </div>
               <Positions
                 rows={displayed}
@@ -1164,33 +1348,31 @@ export function WhalesPage({
                   </thead>
                   <tbody>
                     {rankedAccounts.map((a) => (
-                        <tr key={a.address}>
-                          <td>{accounts.indexOf(a) + 1}</td>
-                          <td>{wallet(a.address)}</td>
-                          <td>{aliases.get(a.address) || a.label || "—"}</td>
-                          <td>{usd(a.accountValue)}</td>
-                          <td className={tone(a.pnl)}>{usd(a.pnl)}</td>
-                          <td className={tone(a.pnl24h)}>{usd(a.pnl24h)}</td>
-                          <td>{a.collectedAt ? a.positions.length : "…"}</td>
-                          <td>
-                            <button
-                              className="icon-button"
-                              disabled={pending}
-                              aria-label={`Отслеживать ${a.address}`}
-                              aria-pressed={tracked.has(a.address)}
-                              onClick={() => toggle(a.address)}
-                            >
-                              <Star
-                                size={14}
-                                fill={
-                                  tracked.has(a.address)
-                                    ? "currentColor"
-                                    : "none"
-                                }
-                              />
-                            </button>
-                          </td>
-                        </tr>
+                      <tr key={a.address}>
+                        <td>{accounts.indexOf(a) + 1}</td>
+                        <td>{wallet(a.address)}</td>
+                        <td>{aliases.get(a.address) || a.label || "—"}</td>
+                        <td>{usd(a.accountValue)}</td>
+                        <td className={tone(a.pnl)}>{usd(a.pnl)}</td>
+                        <td className={tone(a.pnl24h)}>{usd(a.pnl24h)}</td>
+                        <td>{a.collectedAt ? a.positions.length : "…"}</td>
+                        <td>
+                          <button
+                            className="icon-button"
+                            disabled={pending}
+                            aria-label={`Отслеживать ${a.address}`}
+                            aria-pressed={tracked.has(a.address)}
+                            onClick={() => toggle(a.address)}
+                          >
+                            <Star
+                              size={14}
+                              fill={
+                                tracked.has(a.address) ? "currentColor" : "none"
+                              }
+                            />
+                          </button>
+                        </td>
+                      </tr>
                     ))}
                   </tbody>
                 </table>
@@ -1236,11 +1418,41 @@ export function WhalesPage({
                 </button>
               </div>
             </div>
+            <div className="whale-filters">
+              <Choice
+                label="Сторона позиции"
+                value={side}
+                onChange={setSide}
+                items={[
+                  ["all", "Все стороны"],
+                  ["Long", "Long"],
+                  ["Short", "Short"],
+                ]}
+              />
+              <label className="whale-filter-input">
+                <span>Монета</span>
+                <input
+                  value={coin}
+                  onChange={(event) => setCoin(event.target.value)}
+                  placeholder="Например, BTC"
+                />
+              </label>
+              <label className="whale-filter-input">
+                <span>Минимальный объём, $</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={minValue}
+                  onChange={(event) => setMinValue(event.target.value)}
+                />
+              </label>
+            </div>
             {watchlistView === "activity" ? (
-              <Trades rows={activity} overview names={names} />
+              <Trades rows={filteredActivity} overview names={names} />
             ) : (
               <Positions
-                rows={trackedPositions}
+                rows={filteredTrackedPositions}
                 overview
                 tracked={tracked}
                 names={names}

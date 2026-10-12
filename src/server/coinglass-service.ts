@@ -83,6 +83,12 @@ export async function handleCoinglass(
           if (!/^0x[0-9a-fA-F]{40}$/.test(address))
             throw new SymbolError("Некорректный адрес Hyperliquid", 400);
           query.set("address", address.toLowerCase());
+          const fill = url.searchParams.get("fill");
+          if (fill) {
+            if (!/^[A-Za-z0-9:._-]{1,180}$/.test(fill))
+              throw new SymbolError("Некорректный ID сделки", 400);
+            query.set("fill", fill);
+          }
         }
         if (url.searchParams.get("refresh") === "1") query.set("refresh", "1");
         return Response.json(

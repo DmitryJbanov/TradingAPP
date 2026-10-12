@@ -1,3 +1,5 @@
+import "./rsi-heatmap.test";
+import "./whale-chart.test";
 import "./coinglass.test";
 import "./pine.test";
 import "./heatmap.test";
@@ -115,3 +117,4 @@ test("provider success mapping and failure fallback do not mislabel data", async
     globalThis.fetch = original;
   }
 });
+import "./exchanges.test";

@@ -108,7 +108,8 @@ export class CoinGlassLevelsRenderer implements ISeriesPrimitive<Time> {
       if (!attachment || !this.overlays.length) return;
       target.useMediaCoordinateSpace(({ context, mediaSize }) => {
         const { series } = attachment;
-        const width = Math.min(180, Math.max(96, mediaSize.width * 0.22));
+        const requestedWidth = this.overlays[0].params.cumulativeWidth;
+        const width = Math.min(mediaSize.width, Math.max(140, Math.min(700, requestedWidth)));
         const left = Math.max(0, mediaSize.width - width);
         const laneWidth = width / this.overlays.length;
 
@@ -148,7 +149,7 @@ export class CoinGlassLevelsRenderer implements ISeriesPrimitive<Time> {
           );
           const laneLeft = left + overlayIndex * laneWidth;
           const laneRight = laneLeft + laneWidth;
-          const calloutWidth = laneWidth >= 120 ? Math.min(92, laneWidth * 0.48) : 0;
+          const calloutWidth = laneWidth >= 190 ? Math.min(180, laneWidth * 0.48) : 0;
           const histogramRight = laneRight - calloutWidth - (calloutWidth ? 8 : 0);
           const center = (laneLeft + histogramRight) / 2;
           const histogramWidth = Math.max(12, (histogramRight - laneLeft - 16) / 2);
@@ -198,6 +199,7 @@ export class CoinGlassLevelsRenderer implements ISeriesPrimitive<Time> {
             context.stroke();
           }
 
+          if (overlay.params.showCumulativeVolume) {
           context.fillStyle = this.palette.text;
           context.font = "10px sans-serif";
           context.textBaseline = "top";
@@ -215,7 +217,7 @@ export class CoinGlassLevelsRenderer implements ISeriesPrimitive<Time> {
           const levelIndexes = new Map(
             levels.map((level, index) => [level, index] as const),
           );
-          const drawSide = (side: typeof above, direction: "up" | "down") => {
+          const drawSide = (side: typeof above) => {
             let cumulative = 0;
             side.forEach((level) => {
               cumulative += level.intensity;
@@ -245,7 +247,7 @@ export class CoinGlassLevelsRenderer implements ISeriesPrimitive<Time> {
               context.fillStyle = deltaColors[index];
               context.globalAlpha = overlay.params.volumeOpacities[colorIndex] / 100;
               context.fillRect(
-                direction === "up" ? center : center - barWidth,
+                center - barWidth,
                 top,
                 barWidth,
                 bottom - top,
@@ -253,8 +255,8 @@ export class CoinGlassLevelsRenderer implements ISeriesPrimitive<Time> {
               context.globalAlpha = 1;
             });
           };
-          drawSide(above, "up");
-          drawSide(below, "down");
+          drawSide(above);
+          drawSide(below);
 
           const currentY = series.priceToCoordinate(currentPrice);
           if (currentY !== null) {
@@ -271,10 +273,12 @@ export class CoinGlassLevelsRenderer implements ISeriesPrimitive<Time> {
             const distanceText = `${this.cursorPrice >= currentPrice ? "+" : "−"}${(
               distance! * 100
             ).toFixed(2)}%`;
-            const deltaText = `ΔΣ ${delta >= 0 ? "+" : "−"}$${new Intl.NumberFormat(
-              "en-US",
-              { notation: "compact", maximumFractionDigits: 1 },
-            ).format(Math.abs(delta))}`;
+            const deltaText = Math.abs(delta) < 0.005
+              ? "Баланс объёма"
+              : `Снизу ${delta > 0 ? "меньше" : "больше"} на $${new Intl.NumberFormat(
+                  "en-US",
+                  { notation: "compact", maximumFractionDigits: 1 },
+                ).format(Math.abs(delta))}`;
             const cursorY = series.priceToCoordinate(this.cursorPrice);
             const boxWidth = calloutWidth;
             if (cursorY !== null && boxWidth >= 80) {
@@ -299,6 +303,7 @@ export class CoinGlassLevelsRenderer implements ISeriesPrimitive<Time> {
               context.fillText(deltaText, boxLeft + boxWidth - 5, boxTop + 17, boxWidth - 10);
               context.textAlign = "left";
             }
+          }
           }
         });
         context.restore();

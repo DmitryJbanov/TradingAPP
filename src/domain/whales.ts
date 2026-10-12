@@ -2,6 +2,8 @@ export const exampleWhale = "0x6859da14835424957a1e6b397d8026b1d9ff7e1e";
 export const validWhaleAddress = (value: string) =>
   /^0x[0-9a-fA-F]{40}$/.test(value.trim());
 export interface WhalePosition {
+  positionId?: string | null;
+  entryTime?: number | null;
   address: string;
   coin: string;
   side: "Long" | "Short";
@@ -18,6 +20,7 @@ export interface WhalePosition {
   funding: number | null;
 }
 export interface WhaleFill {
+  startPosition?: number | null;
   id: string;
   address: string;
   coin: string;
@@ -35,6 +38,14 @@ export interface WhaleProfile {
   address: string;
   collectedAt: string;
   accountValue: number | null;
+  totalAccountValue?: number | null;
+  totalPerformance?: Record<string, number | null>;
+  spotBalances?: { coin: string; total: number | null; hold: number | null }[];
+  staking?: {
+    delegated: number | null;
+    undelegated: number | null;
+    totalPendingWithdrawal: number | null;
+  };
   positionValue: number | null;
   marginUsed: number | null;
   withdrawable: number | null;
@@ -105,6 +116,8 @@ export interface WatchedWhale {
     | "address"
     | "collectedAt"
     | "accountValue"
+    | "totalAccountValue"
+    | "totalPerformance"
     | "positionValue"
     | "positions"
     | "performance"

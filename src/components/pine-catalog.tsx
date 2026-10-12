@@ -21,7 +21,16 @@ export function PineCatalog({
     tab === "strategies" || tab === "custom-strategies"
       ? "strategy"
       : "indicator";
-  const list = (custom ? scripts : pineTemplates).filter(
+  const list = (
+    tab === "strategies"
+      ? [
+          ...pineTemplates,
+          ...scripts.filter((s) => !pineTemplates.some((t) => t.id === s.id)),
+        ]
+      : custom
+        ? scripts
+        : []
+  ).filter(
     (s) =>
       s.kind === kind && s.name.toLowerCase().includes(query.toLowerCase()),
   );
@@ -29,26 +38,23 @@ export function PineCatalog({
     <>
       {list.map((s) => (
         <div className="indicator-definition" key={s.id}>
-          <Code2 size={20} />
           <div>
             <b>{s.name}</b>
-            <p>
-              {s.kind === "strategy"
-                ? "Стратегия · тестирование на истории"
-                : "Индикатор · Pine Script"}
-              {custom ? " · мой скрипт" : " · шаблон"}
-            </p>
           </div>
           <button
             className="icon-button"
             aria-label={`Открыть код ${s.name}`}
             onClick={() =>
-              onEdit(custom ? s : { ...s, id: crypto.randomUUID() })
+              onEdit(
+                scripts.some((x) => x.id === s.id)
+                  ? s
+                  : { ...s, id: crypto.randomUUID() },
+              )
             }
           >
             <Pencil size={16} />
           </button>
-          {custom && (
+          {scripts.some((x) => x.id === s.id) && (
             <button
               className="icon-button"
               aria-label={`Удалить скрипт ${s.name}`}

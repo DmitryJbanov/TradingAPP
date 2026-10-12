@@ -1,2 +1,2 @@
-import { BacklogPage } from "@/src/components/backlog-page";
-export default BacklogPage;
+import { NotesPage } from "@/src/components/notes-page";
+export default NotesPage;

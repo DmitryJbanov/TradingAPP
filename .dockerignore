@@ -15,3 +15,15 @@ services/coinglass/credentials.txt
 services/coinglass/.coinglass-session.json
 services/coinglass/output
 **/__pycache__
+.test-build
+*.tsbuildinfo
+**/.idea
+*.patch
+*.sqlite*
+*.db*
+coinglass-error.png
+docs
+tests
+examples
+deploy
+**/test_*.py

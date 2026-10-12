@@ -1,4 +1,5 @@
 "use client";
+import { cachedCompute, fetchCandles } from "./pair-cache";
 import { useMemo } from "react";
 import type { CandleResponse, Timeframe } from "../domain/market";
 import type { IndicatorInstance } from "../domain/workspace";
@@ -24,7 +25,13 @@ export function useStochRsi(
     () =>
       (JSON.parse(signature) as IndicatorInstance[]).map((i) => ({
         id: i.id,
-        points: computeStochRsi(main?.data ?? [], i.params),
+        points: cachedCompute(
+          main,
+          timeframe,
+          "computeStochRsi",
+          i.params,
+          () => computeStochRsi(main?.data ?? [], i.params),
+        ),
       })),
     [signature, main],
   );

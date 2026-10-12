@@ -10,14 +10,6 @@ import { useSnapshotClock } from "../hooks/use-coinglass-preview";
 import { useResource } from "../hooks/use-resource";
 import type { useCoinglass } from "../hooks/use-coinglass";
 import type { IndicatorInstance } from "../domain/workspace";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
 export function CoinglassMonitor() {
   const r = useResource<{ jobs: CoinglassJob[]; headless: boolean }>(
     "/api/coinglass/status",
@@ -132,34 +124,6 @@ export function CoinglassPanel({
             >
               <Settings2 size={14} /> Визуально
             </button>{" "}
-            <label className="compact-filter">
-              <span>Период</span>
-              <Select
-                value={String(params.rangeDays)}
-                disabled={
-                  state.submitting ||
-                  job?.state === "running" ||
-                  job?.state === "queued"
-                }
-                onValueChange={(value) =>
-                  onChange({
-                    ...i,
-                    params: { ...params, rangeDays: Number(value) },
-                  })
-                }
-              >
-                <SelectTrigger size="sm" aria-label="Период карты ликвидаций">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[1, 7, 30, 90, 180, 365].map((days) => (
-                    <SelectItem key={days} value={String(days)}>
-                      {days} дн.
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>{" "}
             <button
               type="button"
               className="button compact-action"

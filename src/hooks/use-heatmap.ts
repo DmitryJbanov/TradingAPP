@@ -1,5 +1,5 @@
 "use client";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useResource } from "./use-resource";
 import { heatmapModel, heatmapParams, parseHeatmap } from "../domain/heatmap";
 import type { IndicatorInstance } from "../domain/workspace";
@@ -8,6 +8,7 @@ import type { Timeframe } from "../domain/market";
 interface HeatmapJob {
   state: "queued" | "running" | "done" | "error";
   message: string;
+  params?: { range?: string };
   result?: { snapshotId: string; collectedAt: string };
 }
 export function useHeatmap(
@@ -55,9 +56,13 @@ export function useHeatmap(
     () => heatmapParams(instance?.params),
     [instance?.params],
   );
+  const { scale, threshold, limit } = settings;
   const model = useMemo(
-    () => (parsed.data ? heatmapModel(parsed.data, settings) : undefined),
-    [parsed.data, settings],
+    () =>
+      parsed.data
+        ? heatmapModel(parsed.data, { scale, threshold, limit })
+        : undefined,
+    [parsed.data, scale, threshold, limit],
   );
   const visible =
     !!instance?.enabled &&
@@ -84,6 +89,20 @@ export function useHeatmap(
       setSubmitting(false);
     }
   }
+  const autoRequested = useRef("");
+  const autoRange = settings.range;
+  useEffect(() => {
+    if (!instance?.enabled || !status.data) return;
+    const key = symbol + ":" + autoRange;
+    if (autoRequested.current === key) return;
+    if (["queued", "running"].includes(status.data.job?.state ?? "")) {
+      if (status.data.job?.params?.range === autoRange)
+        autoRequested.current = key;
+      return;
+    }
+    autoRequested.current = key;
+    void run();
+  }, [symbol, autoRange, instance?.enabled, status.data]);
   return {
     instance,
     settings,

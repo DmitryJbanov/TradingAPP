@@ -36,6 +36,8 @@ def run(request, runtime, folder):
         if not size: continue
         margin, pnl, funding = number(p.get('margin')), number(p.get('unrealizedPnl')), number(p.get('fundingFee'))
         positions.append(dict(address=p['userId'].lower(), coin=p['coin'], side='Long' if size > 0 else 'Short',
+                              positionId=str(p['id']) if p.get('id') is not None else None,
+                              entryTime=number(p.get('createTime')),
                               size=abs(size), value=number(p.get('positionUsd')), entryPrice=number(p.get('entryPrice')),
                               markPrice=number(p.get('price')), leverage=number(p.get('leverage')), marginType=p.get('positionType'),
                               pnl=pnl, roe=pnl / margin * 100 if pnl is not None and margin else None,

@@ -30,8 +30,8 @@ export function demoCandles(
       0.009 * Math.cos(n * 0.089 + seed));
   return Array.from({ length: count }, (_, i) => {
     const time = end - (count - 1 - i) * step,
-      first = time / 900,
-      last = Math.min(first + width - 1, currentBase);
+      first = Math.floor(time / 900),
+      last = Math.min(Math.floor((time + step - 1) / 900), currentBase);
     let high = -Infinity,
       low = Infinity,
       volume = 0;
@@ -41,7 +41,8 @@ export function demoCandles(
         pad = item.seed * (0.0005 + 0.001 * Math.abs(Math.sin(n + seed)));
       high = Math.max(high, a + pad, b + pad);
       low = Math.min(low, a - pad, b - pad);
-      volume += 100 + Math.abs(Math.sin(n + seed)) * 9000;
+      volume +=
+        (100 + Math.abs(Math.sin(n + seed)) * 9000) * Math.min(1, width);
     }
     return {
       time,

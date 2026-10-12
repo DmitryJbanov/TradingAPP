@@ -1,0 +1,11 @@
+# Import this site block into the existing Caddyfile OUTSIDE its global block.
+# Replace terminal.example.com with the application domain.
+# Keep the existing NaiveProxy site, forward_proxy plugin, credentials and TLS config.
+terminal.example.com {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:3000 {
+        # Overwrite any value supplied by the browser.
+        header_up X-Divmoney-Client-IP {remote_host}
+        header_up -Proxy-Authorization
+    }
+}

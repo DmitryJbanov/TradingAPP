@@ -1,4 +1,5 @@
 "use client";
+import { cachedCompute, fetchCandles } from "./pair-cache";
 import { useEffect, useMemo, useState, useRef } from "react";
 import type {
   CandleInterval,
@@ -55,7 +56,7 @@ export function useVmc(
     .filter((t) => t !== timeframe)
     .sort()
     .join(",");
-  const key = `${symbol}:${timeframe}:${count}:${main?.source}:${main?.provider}:${main?.asOf}:${requests}:${refreshToken}`;
+  const key = `${symbol}:${timeframe}:${count}:${main?.source}:${main?.provider}:${main?.exchange}:${requests}:${refreshToken}`;
   const [state, setState] = useState<{
     key: string;
     histories: Partial<Record<CandleInterval, CandleResponse["data"]>>;
@@ -67,44 +68,66 @@ export function useVmc(
     lastRefresh.current = refreshToken;
     const abort = new AbortController();
     const tfs = requests.split(",") as CandleInterval[];
-    void Promise.allSettled(
-      tfs.map(async (tf) => {
-        const response = await fetch(
-          `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${tf}&count=${count}${main.source === "demo" ? "&demo=1" : ""}${force ? "&refresh=1" : ""}`,
-          { signal: abort.signal },
-        );
-        if (!response.ok) throw Error(`${tf}: HTTP ${response.status}`);
-        const data = (await response.json()) as CandleResponse;
-        if (data.source !== main.source || data.provider !== main.provider)
-          throw Error(`${tf}: источник отличается от основного графика`);
-        return { tf, bars: data.data };
-      }),
-    ).then((results) => {
-      if (abort.signal.aborted) return;
-      const histories: Partial<Record<CandleInterval, CandleResponse["data"]>> =
-          {},
-        warnings: string[] = [];
-      results.forEach((r, index) => {
-        if (r.status === "fulfilled") histories[r.value.tf] = r.value.bars;
-        else
-          warnings.push(
-            `${tfs[index]}: дополнительные свечи недоступны; сигналы по ним не показаны.`,
+    let inFlight = false;
+    const load = () => {
+      if (inFlight || abort.signal.aborted) return;
+      inFlight = true;
+      void Promise.allSettled(
+        tfs.map(async (tf) => {
+          const response = await fetchCandles(
+            `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${tf}&count=${count}${main.exchange ? `&exchange=${main.exchange}` : ""}${main.source === "demo" ? "&demo=1" : ""}${force ? "&refresh=1" : ""}`,
+            { signal: abort.signal },
           );
+          if (!response.ok) throw Error(`${tf}: HTTP ${response.status}`);
+          const data = (await response.json()) as CandleResponse;
+          if (data.source !== main.source || data.provider !== main.provider)
+            throw Error(`${tf}: источник отличается от основного графика`);
+          return { tf, bars: data.data };
+        }),
+      ).then((results) => {
+        inFlight = false;
+        if (abort.signal.aborted) return;
+        const histories: Partial<
+            Record<CandleInterval, CandleResponse["data"]>
+          > = {},
+          warnings: string[] = [];
+        results.forEach((r, index) => {
+          if (r.status === "fulfilled") histories[r.value.tf] = r.value.bars;
+          else
+            warnings.push(
+              `${tfs[index]}: дополнительные свечи недоступны; сигналы по ним не показаны.`,
+            );
+        });
+        setState({ key, histories, warnings });
       });
-      setState({ key, histories, warnings });
-    });
-    return () => abort.abort();
+    };
+    load();
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 60000);
+    return () => {
+      clearInterval(timer);
+      abort.abort();
+    };
   }, [key]);
   const ready = state.key === key;
   const panes = useMemo<VmcPane[]>(
     () =>
       active.map((i) => ({
         ...i,
-        result: computeVmc(main?.data ?? [], i.params, {
-          interval: timeframe,
-          histories: ready ? state.histories : {},
-          now: main ? Date.parse(main.asOf) / 1000 : undefined,
-        }),
+        result: cachedCompute(
+          main,
+          timeframe,
+          "computeVmc",
+          i.params,
+          () =>
+            computeVmc(main?.data ?? [], i.params, {
+              interval: timeframe,
+              histories: ready ? state.histories : {},
+              now: main ? Date.parse(main.asOf) / 1000 : undefined,
+            }),
+          ready ? state.histories : {},
+        ),
       })),
     [active, main, timeframe, ready, state.histories],
   );

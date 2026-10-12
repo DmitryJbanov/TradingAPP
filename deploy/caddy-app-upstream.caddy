@@ -1,0 +1,7 @@
+# Replace ONLY the existing web reverse_proxy block with this fragment.
+# Keep it AFTER the existing forward_proxy in the same route/site.
+# Do not retain header_up Host {upstream_hostport} from an external HTTPS upstream.
+reverse_proxy 127.0.0.1:3000 {
+    header_up X-Divmoney-Client-IP {remote_host}
+    header_up -Proxy-Authorization
+}

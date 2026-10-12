@@ -11,6 +11,8 @@ export interface CoinglassParams {
   volumeColors: [string, string, string, string, string, string];
   volumeOpacities: [number, number, number, number, number, number];
   showLevels: boolean;
+  showCumulativeVolume: boolean;
+  cumulativeWidth: number;
   showLabels: boolean;
   staleHours: number;
   /** Pinned source per asset; selection parameters remain shared across instruments. */
@@ -29,6 +31,8 @@ export const coinglassDefaults: CoinglassParams = {
   volumeColors: ["#14192d", "#26306e", "#5a2396", "#be2d4b", "#f57823", "#ffe146"],
   volumeOpacities: [5, 6, 25, 23, 27, 44],
   showLevels: true,
+  showCumulativeVolume: true,
+  cumulativeWidth: 380,
   showLabels: true,
   staleHours: 24,
 };
@@ -88,7 +92,7 @@ export function coinglassParams(value: unknown): CoinglassParams {
       ? (p[key] as string)
       : coinglassDefaults[key];
   return {
-    rangeDays: [1, 7, 30, 90, 180, 365].includes(p.rangeDays as number)
+    rangeDays: [1, 7, 14, 30, 90, 180, 365].includes(p.rangeDays as number)
       ? (p.rangeDays as number)
       : 90,
     requestLimit: numeric("requestLimit", 1, 1440, true),
@@ -112,6 +116,12 @@ export function coinglassParams(value: unknown): CoinglassParams {
     volumeColors,
     volumeOpacities,
     showLevels: typeof p.showLevels === "boolean" ? p.showLevels : true,
+    showCumulativeVolume:
+      typeof p.showCumulativeVolume === "boolean" ? p.showCumulativeVolume : true,
+    cumulativeWidth:
+      typeof p.cumulativeWidth === "number" && Number.isFinite(p.cumulativeWidth)
+        ? Math.max(140, Math.min(700, p.cumulativeWidth))
+        : coinglassDefaults.cumulativeWidth,
     showLabels: typeof p.showLabels === "boolean" ? p.showLabels : true,
     staleHours: numeric("staleHours", 1, 720, true),
   };

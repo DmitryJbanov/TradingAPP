@@ -1,4 +1,5 @@
 "use client";
+import { IndicatorPresets } from "./indicator-presets";
 import { useState } from "react";
 import {
   Dialog,
@@ -24,6 +25,7 @@ export function StochRsiSettingsDialog({
   onClose: () => void;
   onApply: (next: IndicatorInstance) => void;
 }) {
+  const [base, setBase] = useState(instance);
   const [params, setParams] = useState(() =>
     normalizeStochRsiParams(instance.params),
   );
@@ -49,6 +51,14 @@ export function StochRsiSettingsDialog({
             графика.
           </DialogDescription>
         </DialogHeader>
+        <IndicatorPresets
+          instance={{ ...base, params: normalizeStochRsiParams(params) }}
+          onLoad={(next) => {
+            setBase(next);
+            setParams(normalizeStochRsiParams(next.params));
+            setError("");
+          }}
+        />
         <div className="vmc-settings-scroll">
           <fieldset className="vmc-group">
             <legend>Параметры</legend>
@@ -96,7 +106,7 @@ export function StochRsiSettingsDialog({
               setError("Введите целые числа не меньше 1.");
               return;
             }
-            onApply({ ...instance, params });
+            onApply({ ...base, params });
             onClose();
           }}
         >

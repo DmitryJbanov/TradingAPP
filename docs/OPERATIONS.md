@@ -25,19 +25,7 @@ Standalone включает саморегистрацию и вход по им
 
 Для публичного сервера рекомендуется задать в `.env` точный origin, например `PUBLIC_ORIGIN=https://terminal.example.com`. Если он не задан, приложение сверяет Origin с Host текущего запроса. `SESSION_COOKIE_SECURE=true` оставляйте включённым за HTTPS reverse proxy. Для локального HTTP-тестирования установите `SESSION_COOKIE_SECURE=false` и не публикуйте такой режим в сеть. В Compose порт приложения привязан к localhost; наружу публикуйте только HTTPS reverse proxy. При саморегистрации применяются минимум 12 символов пароля и ограничение частоты запросов входа/регистрации. Секрет сессии хранится в HttpOnly/SameSite cookie, а в SQLite записан только его хеш.
 
-Пример минимального Nginx location за уже настроенным HTTPS server:
-
-```nginx
-location / {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_read_timeout 20s;
-}
-```
-
-Собственные внешние proxy-заголовки приложением для авторизации не используются. Не размещайте `.env`, SQLite-файл или исходный каталог как static root; сервер обслуживает только release/public. Задайте корректный `Host` в proxy и не отключайте TLS.
+Для сервера с Caddy/NaiveProxy используйте [DEPLOY_CADDY.md](DEPLOY_CADDY.md), серверный override `compose.server.yaml` и готовый site block в `deploy/caddy-terminal.caddy`. При включённом доверии к прокси Caddy должен перезаписывать `X-Divmoney-Client-IP`; upstream доступен только локально. Это сохраняет отдельный лимит попыток входа для каждого IP клиента.
 
 ## Обновление
 

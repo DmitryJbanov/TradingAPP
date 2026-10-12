@@ -13,6 +13,7 @@ self.onmessage = async (event) => {
       higherTimeframeBars,
       mintick,
       settings,
+      securityBars,
     } = event.data;
     self.postMessage({
       result: await runPine(
@@ -23,6 +24,7 @@ self.onmessage = async (event) => {
         higherTimeframeBars,
         mintick,
         settings,
+        securityBars,
       ),
     });
   } catch (error) {

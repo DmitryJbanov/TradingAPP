@@ -1,15 +1,31 @@
 "use client";
-import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import {
+  candleCachePair,
+  cachedPairValue,
+  saveCandles,
+  clearPairCache,
+} from "./pair-cache";
+import type { CandleResponse } from "../domain/market";
 import { useProfiles } from "../components/profile-provider";
 /** Abort and generation guard prevent a slow previous symbol from replacing the active one. */
 export function useResource<T>(url: string, period = 30000, enabled = true) {
-  const [data, setData] = useState<T>();
+  const pair = candleCachePair(url);
+  const initialCache = pair ? cachedPairValue<T>(pair, url) : undefined;
+  const [data, setData] = useState<T | undefined>(initialCache);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialCache);
   const controller = useRef<AbortController | null>(null);
   const version = useRef(0);
   const inFlight = useRef(false);
-  const loadedUrl = useRef("");
+  const loadedUrl = useRef(initialCache ? url : "");
   const refresh = useCallback(
     async (force = false) => {
       controller.current?.abort();
@@ -30,6 +46,7 @@ export function useResource<T>(url: string, period = 30000, enabled = true) {
         const next = await r.json();
         if (id === version.current) {
           loadedUrl.current = url;
+          if (pair) saveCandles(url, next as CandleResponse);
           setData(next as T);
           setError("");
         }
@@ -43,15 +60,19 @@ export function useResource<T>(url: string, period = 30000, enabled = true) {
         }
       }
     },
-    [url],
+    [url, pair],
   );
   useEffect(() => {
-    setData(undefined);
+    const cached = pair ? cachedPairValue<T>(pair, url) : undefined;
+    loadedUrl.current = cached ? url : "";
+    setData(cached);
+    setError("");
+    setLoading(!cached);
     if (!enabled) {
       setLoading(false);
       return;
     }
-    void refresh();
+    if (!cached) void refresh();
     const timer =
       period > 0
         ? setInterval(() => {
@@ -66,7 +87,7 @@ export function useResource<T>(url: string, period = 30000, enabled = true) {
     };
   }, [refresh, period, enabled]);
   return {
-    data: loadedUrl.current === url ? data : undefined,
+    data: loadedUrl.current === url ? data : initialCache,
     error,
     loading,
     refresh,
@@ -74,7 +95,22 @@ export function useResource<T>(url: string, period = 30000, enabled = true) {
 }
 export function useStored<T>(key: string, initial: T) {
   const profiles = useProfiles();
-  const [value, setValue] = useState(initial);
+  const saveProfile = profiles?.setValue;
+  const lastProfile = useRef(profiles?.active);
+  if (lastProfile.current !== profiles?.active) {
+    clearPairCache();
+    lastProfile.current = profiles?.active;
+  }
+  const [value, setValue] = useState<T>(() => {
+    if (profiles) return profiles.getValue(key, initial);
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(key);
+        if (stored !== null) return JSON.parse(stored) as T;
+      } catch {}
+    }
+    return initial;
+  });
   const current = useRef(value);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -101,11 +137,17 @@ export function useStored<T>(key: string, initial: T) {
         localStorage.setItem(key, JSON.stringify(value));
       } catch {}
   }, [key, value, ready, profiles]);
-  const update = useCallback<Dispatch<SetStateAction<T>>>((next) => {
-    const resolved = typeof next === "function" ? (next as (old: T) => T)(current.current) : next;
-    current.current = resolved;
-    setValue(resolved);
-    profiles?.setValue(key, resolved);
-  }, [key, profiles]);
+  const update = useCallback<Dispatch<SetStateAction<T>>>(
+    (next) => {
+      const resolved =
+        typeof next === "function"
+          ? (next as (old: T) => T)(current.current)
+          : next;
+      current.current = resolved;
+      setValue(resolved);
+      saveProfile?.(key, resolved);
+    },
+    [key, saveProfile],
+  );
   return [value, update] as const;
 }

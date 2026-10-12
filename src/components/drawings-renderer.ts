@@ -6,14 +6,37 @@ import type {
   Time,
   Logical,
 } from "lightweight-charts";
-import { fibLevels, logicalAtTime, type Drawing } from "../domain/drawings";
+import {
+  drawingHandles,
+  fibLevels,
+  logicalAtTime,
+  type Drawing,
+} from "../domain/drawings";
 import type { Candle } from "../domain/market";
+type ProfileData = {
+  low: number;
+  high: number;
+  rows: number;
+  bins: number[];
+  up: number[];
+  down: number[];
+  max: number;
+  poc: number;
+  vaLow: number;
+  vaHigh: number;
+};
 export class DrawingsRenderer implements ISeriesPrimitive<Time> {
   private attachment: SeriesAttachedParameter<Time> | null = null;
   private drawings: Drawing[] = [];
   private bars: Candle[] = [];
   private interval = 3600;
+  private tickSize = 0.01;
+  private profileCache = new WeakMap<
+    Drawing,
+    { bars: Candle[]; data: ProfileData }
+  >();
   private selectedId?: string;
+  private hoverId?: string;
   private view: IPrimitivePaneView = {
     zOrder: () => "top",
     renderer: () => this.renderer,
@@ -74,6 +97,53 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
             );
             c.stroke();
           }
+          if (d.tool === "ruler") {
+            c.fillStyle =
+              d.points[1].price >= d.points[0].price ? "#26a69a" : "#ef5350";
+            c.strokeStyle = c.fillStyle;
+            c.globalAlpha = 0.18;
+            c.fillRect(p.x, p.y, q.x - p.x, q.y - p.y);
+            c.globalAlpha = 1;
+            c.strokeRect(p.x, p.y, q.x - p.x, q.y - p.y);
+            line(p.x, p.y, q.x, q.y);
+            const delta = d.points[1].price - d.points[0].price,
+              percent = d.points[0].price
+                ? (100 * delta) / d.points[0].price
+                : 0;
+            const bars = Math.abs(
+              logicalAtTime(this.bars, d.points[1].time, this.interval) -
+                logicalAtTime(this.bars, d.points[0].time, this.interval),
+            );
+            const hours = Math.abs(d.points[1].time - d.points[0].time) / 3600;
+            const text =
+              (delta >= 0 ? "+" : "") +
+              delta.toPrecision(6) +
+              " · " +
+              percent.toFixed(2) +
+              "% · " +
+              Math.round(bars) +
+              " свечей · " +
+              (hours >= 24
+                ? (hours / 24).toFixed(1) + " дн."
+                : hours.toFixed(1) + " ч.");
+            c.font = "24px ui-monospace,monospace";
+            const width = c.measureText(text).width + 32;
+            const x = Math.max(
+                2,
+                Math.min(size.width - width, (p.x + q.x - width) / 2),
+              ),
+              y = Math.max(
+                48,
+                Math.min(
+                  size.height - 12,
+                  delta < 0 ? Math.max(p.y, q.y) + 48 : Math.min(p.y, q.y) - 8,
+                ),
+              );
+            c.fillStyle = "#182029";
+            c.fillRect(x, y - 40, width, 48);
+            c.fillStyle = "#ffffff";
+            c.fillText(text, x + 16, y - 8);
+          }
           if (d.tool === "rectangle") {
             c.globalAlpha = 0.15;
             c.fillRect(p.x, p.y, q.x - p.x, q.y - p.y);
@@ -81,66 +151,29 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
             c.strokeRect(p.x, p.y, q.x - p.x, q.y - p.y);
           }
           if (d.tool === "volume-profile") {
-            const low = Math.min(d.points[0].price, d.points[1].price),
-              high = Math.max(d.points[0].price, d.points[1].price),
-              rows = d.profile?.rows ?? 150;
+            const { low, high, rows, bins, up, down, max, poc, vaLow, vaHigh } =
+              this.profileData(d);
             if (high <= low) continue;
-            const start = Math.min(d.points[0].time, d.points[1].time),
-              end = Math.max(d.points[0].time, d.points[1].time),
-              bins = Array.from({ length: rows }, () => 0),
-              up = Array.from({ length: rows }, () => 0),
-              down = Array.from({ length: rows }, () => 0);
-            for (const bar of this.bars) {
-              if (
-                bar.time < start ||
-                bar.time > end ||
-                bar.high < low ||
-                bar.low > high
-              )
-                continue;
-              const first = Math.max(
-                0,
-                Math.min(
-                  rows - 1,
-                  Math.floor(
-                    ((Math.max(low, bar.low) - low) / (high - low)) * rows,
-                  ),
-                ),
-              );
-              const last = Math.max(
-                0,
-                Math.min(
-                  rows - 1,
-                  Math.floor(
-                    ((Math.min(high, bar.high) - low) / (high - low)) * rows,
-                  ),
-                ),
-              );
-              for (let i = first; i <= last; i++) {
-                const volume = bar.volume / (last - first + 1);
-                bins[i] += volume;
-                (bar.close >= bar.open ? up : down)[i] += volume;
-              }
+            const width = Math.max(0, Math.abs(q.x - p.x));
+            if (!max) {
+              if (d.id === this.selectedId || d.id === this.hoverId)
+                c.strokeRect(
+                  Math.min(p.x, q.x),
+                  Math.min(p.y, q.y),
+                  width,
+                  Math.abs(q.y - p.y),
+                );
+              continue;
             }
-            const max = Math.max(...bins),
-              width = Math.max(0, Math.abs(q.x - p.x));
-            if (!max) continue;
-            const poc = bins.indexOf(max),
-              target =
-                bins.reduce((sum, value) => sum + value, 0) *
-                ((d.profile?.valueArea ?? 70) / 100);
-            let valueArea = bins[poc],
-              vaLow = poc,
-              vaHigh = poc;
-            while (valueArea < target && (vaLow > 0 || vaHigh < rows - 1)) {
-              if (
-                vaLow === 0 ||
-                (vaHigh < rows - 1 && bins[vaHigh + 1] > bins[vaLow - 1])
-              )
-                valueArea += bins[++vaHigh];
-              else valueArea += bins[--vaLow];
-            }
-            c.globalAlpha = 0.5;
+            const settings = d.profile;
+            const fullWidth = width * ((settings?.widthPercent ?? 100) / 100),
+              right = Math.max(p.x, q.x),
+              anchor =
+                settings?.placement === "right" ? right : Math.min(p.x, q.x);
+            const deltaMax = Math.max(
+              ...up.map((v, i) => Math.abs(v - down[i])),
+            );
+            c.globalAlpha = (settings?.opacity ?? 50) / 100;
             bins.forEach((value, i) => {
               const y1 = a.series.priceToCoordinate(
                   low + ((i + 1) / rows) * (high - low),
@@ -148,61 +181,93 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
                 y2 = a.series.priceToCoordinate(
                   low + (i / rows) * (high - low),
                 );
-              if (y1 === null || y2 === null) return;
-              const barWidth = (width * value) / max,
-                left = Math.min(p.x, q.x),
-                height = Math.max(1, y2 - y1);
-              c.fillStyle = d.color;
-              c.fillRect(left, y1, (barWidth * up[i]) / (value || 1), height);
-              c.fillStyle =
-                d.profile?.showValueArea !== false && i >= vaLow && i <= vaHigh
-                  ? "#42a5f5"
-                  : "#ef7185";
-              c.fillRect(
-                left + (barWidth * up[i]) / (value || 1),
-                y1,
-                (barWidth * down[i]) / (value || 1),
-                height,
-              );
-              if (i === poc && d.profile?.showPoc !== false) {
-                c.fillStyle = "#ffb74d";
+              if (y1 === null || y2 === null || !value) return;
+              const delta = up[i] - down[i],
+                magnitude =
+                  settings?.volume === "delta" ? Math.abs(delta) : value;
+              const w =
+                  (fullWidth * magnitude) /
+                  (settings?.volume === "delta" ? deltaMax || 1 : max),
+                left = settings?.placement === "right" ? anchor - w : anchor,
+                h = Math.max(1, Math.abs(y2 - y1)),
+                top = Math.min(y1, y2);
+              const va =
+                settings?.showValueArea !== false && i >= vaLow && i <= vaHigh;
+              const upColor = va
+                  ? (settings?.valueAreaUpColor ?? "#42a5f5")
+                  : (settings?.upColor ?? d.color),
+                downColor = va
+                  ? (settings?.valueAreaDownColor ?? "#90caf9")
+                  : (settings?.downColor ?? "#ef7185");
+              if (
+                settings?.volume === "delta" ||
+                settings?.volume === "total"
+              ) {
+                c.fillStyle =
+                  settings.volume === "delta" && delta < 0
+                    ? downColor
+                    : upColor;
+                c.fillRect(left, top, w, h);
+              } else {
+                c.fillStyle = upColor;
+                c.fillRect(left, top, (w * up[i]) / value, h);
+                c.fillStyle = downColor;
                 c.fillRect(
-                  left,
-                  y1,
-                  barWidth,
-                  Math.max(1, Math.min(2, height)),
+                  left + (w * up[i]) / value,
+                  top,
+                  (w * down[i]) / value,
+                  h,
                 );
               }
             });
             c.globalAlpha = 1;
+            const left = Math.min(p.x, q.x),
+              lineEnd =
+                d.profile?.extendLevels === true ? size.width : left + width;
             const line = (price: number, label: string, color: string) => {
               const y = a.series.priceToCoordinate(price);
               if (y === null) return;
               c.strokeStyle = color;
               c.beginPath();
-              c.moveTo(Math.min(p.x, q.x), y);
-              c.lineTo(Math.min(p.x, q.x) + width, y);
+              c.moveTo(left, y);
+              c.lineTo(lineEnd, y);
               c.stroke();
               c.font = "10px ui-monospace, monospace";
               c.fillStyle = color;
-              c.fillText(label, Math.min(p.x, q.x) + width + 4, y + 3);
+              if (d.profile?.showLabels === false) return;
+              if (d.profile?.extendLevels !== true)
+                c.fillText(label, lineEnd + 4, y + 3);
+              else {
+                c.textAlign = "right";
+                c.fillText(label, lineEnd - 4, y + 3);
+                c.textAlign = "left";
+              }
             };
             if (d.profile?.showPoc !== false)
-              line(low + ((poc + 0.5) / rows) * (high - low), "POC", "#ffb74d");
+              line(
+                low + ((poc + 0.5) / rows) * (high - low),
+                "POC",
+                d.profile?.pocColor ?? "#ffb74d",
+              );
             if (d.profile?.showValueArea !== false) {
-              line(low + (vaLow / rows) * (high - low), "VAL", "#42a5f5");
+              line(
+                low + (vaLow / rows) * (high - low),
+                "VAL",
+                d.profile?.valueAreaColor ?? "#42a5f5",
+              );
               line(
                 low + ((vaHigh + 1) / rows) * (high - low),
                 "VAH",
-                "#42a5f5",
+                d.profile?.valueAreaColor ?? "#42a5f5",
               );
             }
-            c.strokeRect(
-              Math.min(p.x, q.x),
-              Math.min(p.y, q.y),
-              width,
-              Math.abs(q.y - p.y),
-            );
+            if (d.id === this.selectedId || d.id === this.hoverId)
+              c.strokeRect(
+                Math.min(p.x, q.x),
+                Math.min(p.y, q.y),
+                width,
+                Math.abs(q.y - p.y),
+              );
           }
           if (d.tool === "fibonacci")
             for (const ratio of fibLevels) {
@@ -215,11 +280,26 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
                 y - 4,
               );
             }
-          if (d.id === this.selectedId) {
+          if (d.id === this.selectedId || d.id === this.hoverId) {
             c.fillStyle = "#ffffff";
-            for (const v of points as { x: number; y: number }[]) {
+            const handles = drawingHandles(d)
+              .map((point) => ({
+                x: a.chart
+                  .timeScale()
+                  .logicalToCoordinate(
+                    logicalAtTime(
+                      this.bars,
+                      point.time,
+                      this.interval,
+                    ) as Logical,
+                  ),
+                y: a.series.priceToCoordinate(point.price),
+              }))
+              .filter((p) => p.x !== null && p.y !== null)
+              .map((p) => ({ x: Number(p.x), y: Number(p.y) }));
+            for (const v of handles) {
               c.beginPath();
-              c.arc(v.x, v.y, 4, 0, Math.PI * 2);
+              c.arc(v.x, v.y, d.id === this.selectedId ? 4 : 3, 0, Math.PI * 2);
               c.fill();
               c.strokeStyle = d.color;
               c.lineWidth = 1;
@@ -246,11 +326,102 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
     bars: Candle[],
     interval: number,
     selectedId?: string,
+    hoverId?: string,
+    tickSize = 0.01,
   ) {
     this.drawings = drawings;
     this.bars = bars;
     this.interval = interval;
     this.selectedId = selectedId;
+    this.hoverId = hoverId;
+    if (this.tickSize !== tickSize) this.profileCache = new WeakMap();
+    this.tickSize = tickSize;
     this.attachment?.requestUpdate();
+  }
+  profileData(drawing: Drawing): ProfileData {
+    const cached = this.profileCache.get(drawing);
+    if (cached?.bars === this.bars) return cached.data;
+    let low = Math.min(drawing.points[0].price, drawing.points[1].price);
+    let high = Math.max(drawing.points[0].price, drawing.points[1].price);
+    if (drawing.profile?.autoExtendRight === true) {
+      const start = Math.min(drawing.points[0].time, drawing.points[1].time);
+      for (const bar of this.bars)
+        if (bar.time >= start) {
+          low = Math.min(low, bar.low);
+          high = Math.max(high, bar.high);
+        }
+    }
+    const rows =
+      drawing.profile?.rowLayout === "ticks"
+        ? Math.max(
+            1,
+            Math.min(
+              500,
+              Math.ceil(
+                (high - low) /
+                  ((drawing.profile.ticksPerRow ?? 1) * this.tickSize),
+              ),
+            ),
+          )
+        : (drawing.profile?.rows ?? 150);
+    const bins = Array.from({ length: rows }, () => 0);
+    const up = Array.from({ length: rows }, () => 0);
+    const down = Array.from({ length: rows }, () => 0);
+    if (high > low) {
+      const start = Math.min(drawing.points[0].time, drawing.points[1].time);
+      const end =
+        drawing.profile?.autoExtendRight === true
+          ? Infinity
+          : Math.max(drawing.points[0].time, drawing.points[1].time);
+      for (const bar of this.bars) {
+        if (
+          bar.time < start ||
+          bar.time > end ||
+          bar.high < low ||
+          bar.low > high
+        )
+          continue;
+        const first = Math.max(
+          0,
+          Math.min(
+            rows - 1,
+            Math.floor(((Math.max(low, bar.low) - low) / (high - low)) * rows),
+          ),
+        );
+        const last = Math.max(
+          0,
+          Math.min(
+            rows - 1,
+            Math.floor(
+              ((Math.min(high, bar.high) - low) / (high - low)) * rows,
+            ),
+          ),
+        );
+        for (let i = first; i <= last; i++) {
+          const volume = bar.volume / (last - first + 1);
+          bins[i] += volume;
+          (bar.close >= bar.open ? up : down)[i] += volume;
+        }
+      }
+    }
+    const max = Math.max(...bins);
+    const poc = max ? bins.indexOf(max) : 0;
+    const target =
+      bins.reduce((sum, value) => sum + value, 0) *
+      ((drawing.profile?.valueArea ?? 70) / 100);
+    let valueArea = bins[poc],
+      vaLow = poc,
+      vaHigh = poc;
+    while (valueArea < target && (vaLow > 0 || vaHigh < rows - 1)) {
+      if (
+        vaLow === 0 ||
+        (vaHigh < rows - 1 && bins[vaHigh + 1] > bins[vaLow - 1])
+      )
+        valueArea += bins[++vaHigh];
+      else valueArea += bins[--vaLow];
+    }
+    const data = { low, high, rows, bins, up, down, max, poc, vaLow, vaHigh };
+    this.profileCache.set(drawing, { bars: this.bars, data });
+    return data;
   }
 }
