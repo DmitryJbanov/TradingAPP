@@ -85,3 +85,5 @@ Pine Editor вынесен в правую панель с ручным изме
 Общее отображение Pine: `src/indicators/pine-visuals.ts` переносит выходные данные runtime, `pine-visual-renderer.ts` рисует ряды, заливки и сигналы в правильной панели; `pine-drawings-renderer.ts` — объекты и таблицы.
 
 Клиентский LRU-кеш свечей и расчётов последних 10 пар: `src/hooks/pair-cache.ts`. Управление фигурами, настройки FRVP и часового пояса описаны в [CHART_TOOLS.md](CHART_TOOLS.md).
+
+Общие заметки всех профилей: `global_notes` в `standalone/profiles.ts`, маршруты `/api/notes` в `standalone/server.ts`, отдельные записи с revision и сохранением черновиков в `src/components/notes-page.tsx`.

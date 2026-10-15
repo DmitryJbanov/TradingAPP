@@ -28,7 +28,7 @@ const server = createServer(async (req, res) => {
         if (typeof req.headers[key] === "string")
           requestHeaders.set(key, req.headers[key]);
       const requestUrl = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
-      if (url.pathname.startsWith("/api/auth/") || url.pathname.startsWith("/api/profiles")) {
+      if (url.pathname.startsWith("/api/auth/") || url.pathname.startsWith("/api/profiles") || url.pathname === "/api/notes" || url.pathname.startsWith("/api/notes/")) {
         if (["/api/auth/login", "/api/auth/register"].includes(url.pathname)) {
           // Only enable for an upstream that overwrites this header and cannot be bypassed.
           const proxyIp = req.headers["x-divmoney-client-ip"];

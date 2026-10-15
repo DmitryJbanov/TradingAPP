@@ -227,7 +227,159 @@ function profilePayload(user: User) {
       .all(active)
       .map((r: any) => [r.key, JSON.parse(r.value)]),
   );
+  settings["vector.notes.v1"] = globalNotes();
   return { profiles, active, settings };
+}
+type GlobalNote = {
+  id: string;
+  title: string;
+  body: string;
+  updatedAt: number;
+  revision: number;
+};
+const noteColumns = "id,title,body,updated_at AS updatedAt,revision";
+db.exec(
+  "CREATE TABLE IF NOT EXISTS global_notes(id TEXT PRIMARY KEY,title TEXT NOT NULL,body TEXT NOT NULL,updated_at INTEGER NOT NULL,revision INTEGER NOT NULL,deleted INTEGER NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS notes_migrations(id INTEGER PRIMARY KEY)",
+);
+if (!db.prepare("SELECT 1 FROM notes_migrations WHERE id=1").get()) {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const seen = new Map<string, string>();
+    const versions = new Set<string>();
+    for (const row of db
+      .prepare(
+        "SELECT value FROM profile_settings WHERE key='vector.notes.v1' ORDER BY updated_at",
+      )
+      .all()) {
+      const notes = JSON.parse(String(row.value));
+      if (!validSetting("vector.notes.v1", notes)) continue;
+      for (const note of notes) {
+        const content = JSON.stringify([note.title, note.body]);
+        const version = note.id + "\0" + content;
+        if (versions.has(version)) continue;
+        versions.add(version);
+        const existing = seen.get(note.id);
+        if (existing === content) continue;
+        const id =
+          existing || !/^[A-Za-z0-9_-]{1,100}$/.test(note.id)
+            ? randomBytes(16).toString("hex")
+            : note.id;
+        seen.set(id, content);
+        db.prepare(
+          "INSERT OR IGNORE INTO global_notes(id,title,body,updated_at,revision) VALUES(?,?,?,?,1)",
+        ).run(id, note.title, note.body, note.updatedAt);
+      }
+    }
+    db.prepare("INSERT INTO notes_migrations(id) VALUES(1)").run();
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+function globalNotes() {
+  return db
+    .prepare(
+      "SELECT " +
+        noteColumns +
+        " FROM global_notes WHERE deleted=0 ORDER BY updated_at DESC,id",
+    )
+    .all();
+}
+async function notesApi(request: Request, pathname: string, method: string) {
+  if (pathname === "/api/notes" && method === "GET")
+    return json({ notes: globalNotes() });
+  const match = pathname.match(/^\/api\/notes\/([^/]+)$/);
+  if (!match || !["POST", "DELETE"].includes(method))
+    return json({ error: "Не найдено" }, 404);
+  const id = decodeURIComponent(match[1]);
+  if (!/^[A-Za-z0-9_-]{1,100}$/.test(id))
+    return json({ error: "Недопустимый ID заметки" }, 400);
+  const input = await readBody(request);
+  if (
+    typeof input.revision !== "number" ||
+    !Number.isInteger(input.revision) ||
+    input.revision < 0
+  )
+    return json({ error: "Недопустимая версия заметки" }, 400);
+  const existing = db
+    .prepare("SELECT " + noteColumns + ",deleted FROM global_notes WHERE id=?")
+    .get(id) as (GlobalNote & { deleted: number }) | undefined;
+  if ((existing?.revision ?? 0) !== input.revision || existing?.deleted)
+    return json(
+      {
+        error:
+          "Заметка уже изменена или удалена другим пользователем. Ваш текст сохранён в редакторе; обновите запись перед повторным сохранением.",
+      },
+      409,
+    );
+  if (method === "DELETE") {
+    if (!existing) return json({ error: "Заметка не найдена" }, 404);
+    const changed = db
+      .prepare(
+        "UPDATE global_notes SET deleted=1,revision=revision+1,updated_at=? WHERE id=? AND revision=? AND deleted=0",
+      )
+      .run(Date.now(), id, input.revision);
+    if (!changed.changes)
+      return json(
+        { error: "Заметка изменена другим пользователем. Обновите запись." },
+        409,
+      );
+    return json({ ok: true });
+  }
+  if (typeof input.title !== "string" || typeof input.body !== "string")
+    return json({ error: "Недопустимые данные заметки" }, 400);
+  const note = {
+    id,
+    title: input.title,
+    body: input.body,
+    updatedAt: Date.now(),
+  };
+  if (!validSetting("vector.notes.v1", [note]))
+    return json({ error: "Недопустимые данные заметки" }, 400);
+  const size =
+    Number(
+      (
+        db
+          .prepare(
+            "SELECT COALESCE(SUM(length(title)+length(body)),0) AS size FROM global_notes WHERE deleted=0",
+          )
+          .get() as { size: number }
+      ).size,
+    ) -
+    (existing ? existing.title.length + existing.body.length : 0) +
+    note.title.length +
+    note.body.length;
+  if (
+    size > 32_000_000 ||
+    (!existing &&
+      Number(
+        (
+          db
+            .prepare("SELECT COUNT(*) AS n FROM global_notes WHERE deleted=0")
+            .get() as { n: number }
+        ).n,
+      ) >= 500)
+  )
+    return json({ error: "Достигнут лимит заметок" }, 413);
+  const changed = db
+    .prepare(
+      "INSERT INTO global_notes(id,title,body,updated_at,revision) VALUES(?,?,?,?,1) ON CONFLICT(id) DO UPDATE SET title=excluded.title,body=excluded.body,updated_at=excluded.updated_at,revision=global_notes.revision+1 WHERE global_notes.revision=? AND global_notes.deleted=0",
+    )
+    .run(id, note.title, note.body, note.updatedAt, input.revision);
+  if (!changed.changes)
+    return json(
+      {
+        error:
+          "Заметка изменена другим пользователем. Ваш текст сохранён в редакторе.",
+      },
+      409,
+    );
+  return json({
+    note: db
+      .prepare("SELECT " + noteColumns + " FROM global_notes WHERE id=?")
+      .get(id),
+  });
 }
 const passwordHash = (password: string, salt: Buffer) =>
   scryptSync(password, salt, 64, {
@@ -242,7 +394,8 @@ export async function handleProfileApi(request: Request): Promise<Response> {
   const method = request.method.toUpperCase();
   if (
     pathname.startsWith("/api/auth/") ||
-    pathname.startsWith("/api/profiles")
+    pathname.startsWith("/api/profiles") ||
+    pathname.startsWith("/api/notes")
   ) {
     if (
       ["POST", "PATCH", "DELETE"].includes(method) &&
@@ -333,6 +486,10 @@ export async function handleProfileApi(request: Request): Promise<Response> {
       return user
         ? json({ user: { username: user.username }, ...profilePayload(user) })
         : json({ error: "Требуется вход" }, 401);
+    if (pathname === "/api/notes" || pathname.startsWith("/api/notes/")) {
+      if (!user) return json({ error: "Требуется вход" }, 401);
+      return await notesApi(request, pathname, method);
+    }
     if (!pathname.startsWith("/api/profiles"))
       return json({ error: "Не найдено" }, 404);
     if (!user) return json({ error: "Требуется вход" }, 401);
@@ -400,6 +557,14 @@ export async function handleProfileApi(request: Request): Promise<Response> {
           user.id,
         );
       } else if (typeof body.key === "string" && allowKey(body.key)) {
+        if (body.key === "vector.notes.v1")
+          return json(
+            {
+              error:
+                "Обновите страницу: заметки теперь сохраняются отдельно и общие для всех профилей.",
+            },
+            409,
+          );
         if (!validSetting(body.key, body.value))
           return json({ error: "Формат настройки не прошёл проверку" }, 400);
         const value = JSON.stringify(body.value);
