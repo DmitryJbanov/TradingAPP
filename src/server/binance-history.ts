@@ -18,10 +18,11 @@ export async function loadBinanceHistory(
   interval: CandleInterval,
   count: number,
   json: (url: string) => Promise<unknown>,
+  before?: number,
 ): Promise<{ bars: Candle[]; warning?: string }> {
   const endpoint = binanceEndpoint(symbol),
     byTime = new Map<number, Candle>();
-  let endTime: number | undefined, warning: string | undefined;
+  let endTime: number | undefined = before === undefined ? undefined : before * 1000, warning: string | undefined;
   for (let page = 0; page < 12 && byTime.size < count; page++) {
     const limit = Math.min(1000, count - byTime.size),
       query = new URLSearchParams({

@@ -1,10 +1,18 @@
 import type { Candle, CandleResponse } from "../domain/market";
 // One LRU entry owns all cached timeframes and calculations for a pair.
 const pairs = new Map<string, Map<string, { value: unknown; at: number }>>();
+const candles = new Map<string, { value: CandleResponse; at: number }>();
+const pending = new Map<string, Promise<Response>>();
+let cacheEpoch = 0;
+let candleTotal = 0;
 const scopes = new WeakMap<Candle[], string>();
 const fingerprints = new WeakMap<Candle[], string>();
 export function clearPairCache() {
   pairs.clear();
+  candles.clear();
+  candleTotal = 0;
+  cacheEpoch++;
+  pending.clear();
 }
 function normalizePair(pair: string) {
   return pair.replace(/^FUTURES:/, "");
@@ -23,6 +31,12 @@ export function cachedPairValue<T>(
   key: string,
   maxAge = Infinity,
 ): T | undefined {
+  const candle = candles.get(key);
+  if (candle && Date.now() - candle.at <= maxAge) {
+    candles.delete(key);
+    candles.set(key, candle);
+    return candle.value as T;
+  }
   pair = normalizePair(pair);
   const values = pairs.get(pair);
   const hit = values?.get(key);
@@ -47,7 +61,15 @@ export function saveCandles(url: string, value: CandleResponse) {
   const pair = candleCachePair(url);
   if (!pair) return;
   scopes.set(value.data, pair);
-  savePairValue(pair, url, value);
+  candleTotal -= candles.get(url)?.value.data.length ?? 0;
+  candles.delete(url);
+  candles.set(url, { value, at: Date.now() });
+  candleTotal += value.data.length;
+  while (candles.size > 150 || candleTotal > 300000) {
+    const key = candles.keys().next().value!;
+    candleTotal -= candles.get(key)!.value.data.length;
+    candles.delete(key);
+  }
 }
 export async function fetchCandles(
   url: string,
@@ -56,10 +78,26 @@ export async function fetchCandles(
   const pair = candleCachePair(url);
   const cached = pair && cachedPairValue<CandleResponse>(pair, url, 60000);
   if (cached && !options?.signal?.aborted) return Response.json(cached);
-  const response = await fetch(url, options);
-  if (pair && response.ok && !options?.signal?.aborted)
-    saveCandles(url, await response.clone().json());
-  return response;
+  if (!pair) return fetch(url, options);
+  if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  let request = pending.get(url);
+  if (!request) {
+    const epoch = cacheEpoch;
+    // A shared request outlives a canceled preloader; consumers guard their generations.
+    request = fetch(url, { ...options, signal: undefined }).then(
+      async (response) => {
+        if (response.ok && epoch === cacheEpoch)
+          saveCandles(url, await response.clone().json());
+        return response;
+      },
+    );
+    pending.set(url, request);
+    const clear = () => {
+      if (pending.get(url) === request) pending.delete(url);
+    };
+    void request.then(clear, clear);
+  }
+  return (await request).clone();
 }
 export function candleFingerprint(bars: Candle[]) {
   const existing = fingerprints.get(bars);

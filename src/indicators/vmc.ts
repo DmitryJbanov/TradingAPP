@@ -144,6 +144,20 @@ export interface Divergence {
   hiddenBear: boolean;
   hiddenBull: boolean;
 }
+export function divergencePlotEndpoints(ds: Divergence, hidden: Divergence, bull: boolean, regular: boolean, showHidden: boolean) {
+  const visible = (regular && (bull ? ds.bull : ds.bear)) || (showHidden && (bull ? hidden.hiddenBull : hidden.hiddenBear));
+  const pivot = bull ? ds.bottom : ds.top;
+  const prev = bull ? ds.previousBottom : ds.previousTop;
+  return visible && pivot && prev ? { pivot, prev } : null;
+}
+/** Extend a regular divergence through an intermediate pivot only when the full
+ * three-pivot move also satisfies the same price and oscillator conditions. */
+export function divergenceChainStart(first: Pivot | null, middle: Pivot, last: Pivot, bull: boolean): Pivot | null {
+  if (!first) return null;
+  return bull
+    ? first.price > last.price && first.value < middle.value && middle.value < last.value ? first : null
+    : first.price < last.price && first.value > middle.value && middle.value > last.value ? first : null;
+}
 /** Five-bar strict fractals become known two bars after the pivot. valuewhen(...)[2] is preserved. */
 export function divergences(
   values: Values,
@@ -441,6 +455,7 @@ export function computeVmc(
     }
     function divSegments(
       ds: Divergence,
+      history: Divergence[],
       hidden: Divergence,
       regular: boolean,
       showHidden: boolean,
@@ -449,13 +464,16 @@ export function computeVmc(
       name: string,
     ) {
       for (const bull of [false, true]) {
-        const reg = bull ? ds.bull : ds.bear,
-          hid = bull ? hidden.hiddenBull : hidden.hiddenBear;
-        const selected =
-          regular && reg ? ds : showHidden && hid ? hidden : null;
-        const pivot = bull ? selected?.bottom : selected?.top,
-          prev = bull ? selected?.previousBottom : selected?.previousTop;
-        if (pivot && prev)
+        // Pine colors the limited plot using the unrestricted hidden signal;
+        // its plotted points remain the limited fractals.
+        const endpoints = divergencePlotEndpoints(ds, hidden, bull, regular, showHidden);
+        if (endpoints) {
+          const {pivot, prev} = endpoints;
+          const isRegular = regular && (bull ? ds.bull : ds.bear);
+          const earlier = history[prev.index + 2];
+          const first = isRegular && earlier ? divergenceChainStart(bull ? earlier.previousBottom : earlier.previousTop, prev, pivot, bull) : null;
+          if (first && !points[prev.index].segments.some(s => s.from === first.index && s.label === name + (bull ? " Bull" : " Bear")))
+            points[prev.index].segments.push({from:first.index,fromValue:first.value,toValue:prev.value,color:bull ? bullColor : bearColor,label:name + (bull ? " Bull" : " Bear"),confirmedAt:bars[i].time});
           points[pivot.index].segments.push({
             from: prev.index,
             fromValue: prev.value,
@@ -464,10 +482,12 @@ export function computeVmc(
             label: name + (bull ? " Bull" : " Bear"),
             confirmedAt: bars[i].time,
           });
+        }
       }
     }
     divSegments(
       wd[i],
+      wd,
       p.showHiddenDiv_nl ? wn[i] : wd[i],
       p.wtShowDiv,
       p.wtShowHiddenDiv,
@@ -477,6 +497,7 @@ export function computeVmc(
     );
     divSegments(
       wa[i],
+      wa,
       wa[i],
       p.wtShowDiv && p.wtDivOBLevel_addshow,
       p.wtShowHiddenDiv && p.wtDivOBLevel_addshow,
@@ -486,6 +507,7 @@ export function computeVmc(
     );
     divSegments(
       rd[i],
+      rd,
       p.showHiddenDiv_nl ? rn[i] : rd[i],
       p.rsiShowDiv,
       p.rsiShowHiddenDiv,
@@ -495,6 +517,7 @@ export function computeVmc(
     );
     divSegments(
       sd[i],
+      sd,
       sd[i],
       p.stochShowDiv,
       p.stochShowHiddenDiv,

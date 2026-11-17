@@ -291,9 +291,10 @@ export async function loadExchangeHistory(
   interval: CandleInterval,
   count: number,
   json: Json = exchangeJson,
+  before?: number,
 ): Promise<{ bars: Candle[]; warning?: string }> {
   if (exchange === "binance")
-    return loadBinanceHistory(`FUTURES:${contract.id}`, interval, count, json);
+    return loadBinanceHistory(`FUTURES:${contract.id}`, interval, count, json, before);
   const native = nativeIntervals[exchange][interval]
     ? interval
     : interval === "3m"
@@ -304,7 +305,7 @@ export async function loadExchangeHistory(
   const ratio = candleIntervals[interval] / candleIntervals[native],
     target = count * ratio + (ratio > 1 ? ratio : 0);
   const byTime = new Map<number, Candle>();
-  let end: number | undefined, warning: string | undefined;
+  let end: number | undefined = before, warning: string | undefined;
   for (
     let page = 0;
     page <
@@ -388,11 +389,12 @@ export async function exchangeCandles(
   interval: CandleInterval,
   count: number,
   force = false,
+  before?: number,
 ): Promise<CandleResponse> {
   if (!/^(?:FUTURES:|SPOT:)?[A-Z0-9]{3,40}$/.test(symbol))
     throw new SymbolError("Недопустимый инструмент", 400);
   return cached(
-    `candles:${exchange}:${symbol}:${interval}:${count}`,
+    `candles:${exchange}:${symbol}:${interval}:${count}:${before ?? "latest"}`,
     count === 2 ? 1500 : 15000,
     async () => {
       const contract = (await exchangeContracts(exchange)).find(
@@ -408,6 +410,8 @@ export async function exchangeCandles(
         contract,
         interval,
         count,
+        exchangeJson,
+        before,
       );
       const { id: _, tickSize, contractSize: __, ...instrument } = contract;
       return {

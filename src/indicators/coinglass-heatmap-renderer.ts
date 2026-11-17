@@ -9,6 +9,7 @@ import type {
 import {
   heatmapColumnIndex,
   heatmapColor,
+  heatmapColorStrength,
   type HeatmapParams,
 } from "../domain/heatmap";
 import type { Candle } from "../domain/market";
@@ -20,6 +21,7 @@ export interface CoinGlassHeatmapLayer {
   cells: [number, number, number][];
   intensity: (value: number) => number;
   threshold: number;
+  ceiling?: number;
   scheme: HeatmapParams["scheme"];
 }
 
@@ -295,16 +297,10 @@ export class CoinGlassHeatmapRenderer implements ISeriesPrimitive<Time> {
             let style = this.styles.get(index);
             if (!style) {
               const strength = layer.intensity(value);
-              const relative =
-                layer.threshold >= 1
-                  ? 1
-                  : Math.max(
-                      0,
-                      (strength - layer.threshold) / (1 - layer.threshold),
-                    );
+              const relative = heatmapColorStrength(strength, layer.threshold, layer.ceiling ?? 1);
               style = {
                 alpha: 0.18 + relative * 0.7,
-                color: heatmapColor(Math.min(1, strength * 1.12), layer.scheme),
+                color: heatmapColor(Math.min(1, relative), layer.scheme),
               };
               this.styles.set(index, style);
             }

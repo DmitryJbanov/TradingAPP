@@ -230,7 +230,10 @@ class WhaleTracker:
             return dict(profile=profile, loading=user in self.pending, error=self.errors.get(user),
                         tracked=any(w['address'] == user for w in self.watched))
 
-    def watchlist(self):
+    def watchlist(self, side='all', coin='', min_value=0):
+        if side not in ('all', 'Long', 'Short') or len(coin) > 40 or not math.isfinite(min_value) or min_value < 0:
+            raise ValueError('Некорректные фильтры сделок')
+        coin = coin.strip().casefold()
         with self.lock:
             users = list(self.watched)
             accounts = []
@@ -238,7 +241,10 @@ class WhaleTracker:
                 p = self.profiles.get(w['address'])
                 summary = {k: p[k] for k in ('address', 'collectedAt', 'accountValue', 'positionValue', 'positions', 'performance')} if p else None
                 if summary is not None:
-                    summary['fills'] = p.get('fills', [])[:20]
+                    summary['fills'] = [f for f in p.get('fills', []) if
+                                        (side == 'all' or side in f.get('action', '')) and
+                                        (not coin or coin in str(f.get('coin', '')).casefold()) and
+                                        (number(f.get('value')) or 0) >= min_value][:200]
                     summary['totalAccountValue'] = p.get('totalAccountValue')
                     summary['totalPerformance'] = p.get('totalPerformance')
                 accounts.append(dict(**w, profile=summary, loading=w['address'] in self.pending, error=self.errors.get(w['address'])))

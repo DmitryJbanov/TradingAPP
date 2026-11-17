@@ -1,4 +1,11 @@
 "use client";
+import { useFavoritePreload } from "../hooks/use-favorite-preload";
+import { useProfiles } from "./profile-provider";
+import {
+  chartStorageKey,
+  readChartStorage,
+  writeChartStorage,
+} from "../hooks/chart-viewport";
 import {
   saveCandles,
   cachedPairValue,
@@ -15,7 +22,7 @@ import { isSiteTheme, siteThemes } from "../domain/themes";
 import { heatmapDefaults } from "../domain/heatmap";
 import { useHeatmap } from "../hooks/use-heatmap";
 import { IndicatorPresets } from "./indicator-presets";
-import { HeatmapPanel, HeatmapSettings } from "./heatmap";
+import { HeatmapPanel, HeatmapSettings, HeatmapQuickSettings } from "./heatmap";
 import { IndicatorIcon, indicatorIcons } from "./indicator-icon";
 import {
   exchanges,
@@ -40,6 +47,8 @@ import {
   Layers3,
   LayoutGrid,
   ListTodo,
+  LockKeyhole,
+  LockKeyholeOpen,
   Maximize2,
   Palette,
   Plus,
@@ -414,6 +423,14 @@ export default function Terminal({ symbol }: { symbol?: string }) {
     [notes] = useStored<
       { id: string; title: string; body: string; updatedAt: number }[]
     >("vector.notes.v1", []);
+  const [preloadCount] = useStored("vector.candles.v1", DEFAULT_CANDLE_COUNT);
+  useFavoritePreload(
+    favorites,
+    exchange,
+    "4h",
+    candleCount(preloadCount),
+    !symbol,
+  );
   const baseRows = markets.data?.data ?? [];
   const missingFavorites = favorites.filter(
     (saved) =>
@@ -1244,17 +1261,54 @@ function PairWorkspace({
       return next;
     });
   }
-  const [tf, setTf] = useState<Timeframe>(
-      () => cachedPairValue<Timeframe>(symbol, `view:tf:${exchange}`) ?? "4h",
-    ),
+  const profileContext = useProfiles();
+  const viewScope = chartStorageKey(
+    profileContext?.username,
+    profileContext?.active,
+    exchange,
+    symbol,
+  );
+  const timeframeLockKey = chartStorageKey(
+    profileContext?.username, profileContext?.active, "all", "timeframe-lock",
+  );
+  const [timeframeLocked, setTimeframeLocked] = useState(() =>
+    !!readChartStorage<Timeframe>(timeframeLockKey),
+  );
+  const [tf, setTf] = useState<Timeframe>(() => {
+      const saved =
+        readChartStorage<Timeframe>(timeframeLockKey) ??
+        readChartStorage<Timeframe>(viewScope + ":timeframe") ??
+        cachedPairValue<Timeframe>(symbol, `view:tf:${exchange}`);
+      return saved && saved in candleIntervals && !["8h", "12h"].includes(saved)
+        ? saved
+        : "4h";
+    }),
     [query, setQuery] = useState(""),
     [onlyFavorites, setOnlyFavorites] = useState(true),
     [manager, setManager] = useState(false),
     [reset, setReset] = useState(0),
     [indicatorSearch, setIndicatorSearch] = useState("");
+  const previousViewScope = useRef(viewScope);
   useEffect(() => {
+    if (previousViewScope.current !== viewScope) {
+      previousViewScope.current = viewScope;
+      const locked = readChartStorage<Timeframe>(timeframeLockKey);
+      setTimeframeLocked(!!locked);
+      const saved = locked ?? readChartStorage<Timeframe>(viewScope + ":timeframe");
+      setTf(saved && saved in candleIntervals ? saved : "4h");
+      return;
+    }
     savePairValue(symbol, `view:tf:${exchange}`, tf);
-  }, [symbol, exchange, tf]);
+    writeChartStorage(viewScope + ":timeframe", tf);
+  }, [symbol, exchange, tf, viewScope, timeframeLockKey]);
+  function changeTimeframe(value: Timeframe) {
+    if (timeframeLocked) writeChartStorage(timeframeLockKey, value);
+    setTf(value);
+  }
+  function toggleTimeframeLock() {
+    writeChartStorage(timeframeLockKey, timeframeLocked ? null : tf);
+    setTimeframeLocked(!timeframeLocked);
+  }
   const [indicatorRefresh, setIndicatorRefresh] = useState(0);
   const indicatorClickTimer = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -1295,6 +1349,14 @@ function PairWorkspace({
   const [storedCount, setCount] = useStored(
     "vector.candles.v1",
     DEFAULT_CANDLE_COUNT,
+  );
+  useFavoritePreload(
+    favorites,
+    exchange,
+    tf,
+    candleCount(storedCount),
+    true,
+    symbol,
   );
   const whale = useWhaleChart(symbol);
   const whaleHistory = whale.selected?.time
@@ -1431,6 +1493,7 @@ function PairWorkspace({
       cells: heatmap.model.visible,
       intensity: heatmap.model.intensity,
       threshold: heatmap.settings.threshold,
+      ceiling: heatmap.settings.ceiling,
       scheme: heatmap.settings.scheme,
     };
   }, [
@@ -1438,6 +1501,7 @@ function PairWorkspace({
     heatmap.data,
     heatmap.model,
     heatmap.settings.threshold,
+    heatmap.settings.ceiling,
     heatmap.settings.scheme,
   ]);
   const bars = candleData?.data ?? [],
@@ -1624,7 +1688,18 @@ function PairWorkspace({
                 items={Object.entries(exchanges)}
               />
               <div className="chart-timeframes">
-                <Tabs value={tf} onValueChange={(v) => setTf(v as Timeframe)}>
+                <button
+                  type="button"
+                  className="button toolbar-button"
+                  aria-label="Фиксировать таймфрейм при смене монеты"
+                  aria-pressed={timeframeLocked}
+                  title={timeframeLocked ? "Таймфрейм закреплён при смене монеты" : "Закрепить таймфрейм при смене монеты"}
+                  onClick={toggleTimeframeLock}
+                  style={{ padding: "0 6px", opacity: timeframeLocked ? 1 : 0.55 }}
+                >
+                  {timeframeLocked ? <LockKeyhole size={14} /> : <LockKeyholeOpen size={14} />}
+                </button>
+                <Tabs value={tf} onValueChange={(v) => changeTimeframe(v as Timeframe)}>
                   <TabsList>
                     {[
                       ["15m", "15м"],
@@ -1642,7 +1717,7 @@ function PairWorkspace({
                   value={
                     ["15m", "1h", "4h", "1d"].includes(tf) ? undefined : tf
                   }
-                  onValueChange={(v) => setTf(v as Timeframe)}
+                  onValueChange={(v) => changeTimeframe(v as Timeframe)}
                 >
                   <SelectTrigger aria-label="Другой таймфрейм">
                     <SelectValue placeholder="Ещё" />
@@ -1820,6 +1895,8 @@ function PairWorkspace({
             <MarketChart
               key={`${exchange}:${symbol}`}
               symbol={symbol}
+              viewScope={viewScope}
+              exchange={exchange}
               bars={bars}
               whalePoints={whale.points}
               timeframe={tf}
@@ -1836,6 +1913,9 @@ function PairWorkspace({
               coinglass={coinglass.overlays}
               heatmapLevels={heatmap.levels}
               heatmapLayer={heatmapLayer}
+              heatmapControls={heatmap.visible && heatmap.instance ? (
+                <HeatmapQuickSettings state={heatmap} onChange={(params) => setIndicators(previous => previous.map(i => i.id === heatmap.instance?.id ? {...i, params} : i))} />
+              ) : undefined}
               pineResults={pine.results}
               indicatorNames={Object.fromEntries(
                 indicators
@@ -1895,7 +1975,13 @@ function PairWorkspace({
               errors={pine.errors}
             />
           )}
-          <PineStrategyReport results={pine.results} />
+          <PineStrategyReport
+            indicators={indicators}
+            symbol={symbol}
+            exchange={exchange}
+            candleSource={candleData?.source}
+            provider={candleData?.provider}
+          />
           {(coinglass.instances.length > 0 || heatmap.instance) && (
             <details className="chart-extra-panels">
               <summary>
@@ -2069,6 +2155,24 @@ function PairWorkspace({
                     )}
                   </div>
                 </a>
+                <button
+                  type="button"
+                  className="watch-favorite-toggle"
+                  aria-label={`${hasFavorite(favorites, x.symbol) ? "Убрать из избранного" : "В избранное"} ${x.base}`}
+                  title={
+                    hasFavorite(favorites, x.symbol)
+                      ? "Убрать из избранного"
+                      : "В избранное"
+                  }
+                  onClick={() => star(x.symbol)}
+                >
+                  <Star
+                    size={12}
+                    fill={
+                      hasFavorite(favorites, x.symbol) ? "currentColor" : "none"
+                    }
+                  />
+                </button>
                 {onlyFavorites && (
                   <details className="favorite-color-picker">
                     <summary

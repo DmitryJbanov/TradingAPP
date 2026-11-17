@@ -163,6 +163,7 @@ export function OrderBlocksSettingsDialog({
                   [
                     ["buy_alert", "Buy Signal"],
                     ["sell_alert", "Sell Signal"],
+                    ["show_historical_blocks", "Исторические блоки"],
                   ] as const
                 ).map(([key, label]) => (
                   <label

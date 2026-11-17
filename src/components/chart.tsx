@@ -1,7 +1,13 @@
 "use client";
+import type { MarketExchange } from "../domain/exchanges";
 import { bindCoinglassPriceCopy } from "./coinglass-price-copy";
 import type { CoinglassOverlay } from "../domain/coinglass";
 import { DrawingTools, type DrawingChart } from "./drawing-tools";
+import {
+  bindViewport,
+  restoreViewport,
+  writeChartStorage,
+} from "../hooks/chart-viewport";
 import { bindFutureTimeScale } from "./future-time-scale";
 import { WhaleChartOverlay } from "./whale-chart-overlay";
 import { whaleCandleTime, type WhaleChartPoint } from "../domain/whale-chart";
@@ -75,6 +81,8 @@ export const defaultPalette: ChartPalette = {
 export function MarketChart({
   bars,
   symbol,
+  viewScope = symbol,
+  exchange = "binance",
   palette,
   timeframe,
   timezone = "Europe/Moscow",
@@ -88,6 +96,7 @@ export function MarketChart({
   coinglass = [],
   heatmapLevels = [],
   heatmapLayer,
+  heatmapControls,
   mtmPanes = [],
   pineResults = [],
   indicatorNames = {},
@@ -95,6 +104,8 @@ export function MarketChart({
 }: {
   bars: Candle[];
   symbol: string;
+  viewScope?: string;
+  exchange?: MarketExchange;
   palette: ChartPalette;
   timeframe: Timeframe;
   timezone?: string;
@@ -108,6 +119,7 @@ export function MarketChart({
   coinglass?: CoinglassOverlay[];
   heatmapLevels?: { price: number; value: number }[];
   heatmapLayer?: CoinGlassHeatmapLayer;
+  heatmapControls?: React.ReactNode;
   mtmPanes?: {
     id: string;
     points: { time: number; value: number; average: number }[];
@@ -172,6 +184,8 @@ export function MarketChart({
   const heatmapRenderer = useRef<CoinGlassHeatmapRenderer | null>(null);
   const coinglassLevelsRenderer = useRef<CoinGlassLevelsRenderer | null>(null);
   const fitted = useRef("");
+  const viewportCleanup = useRef<(() => void) | null>(null);
+  const previousReset = useRef(resetKey);
   const selectedWhale = whalePoints.find((point) => point.selected);
   const whaleTime = selectedWhale?.time;
   const whaleId = selectedWhale?.id;
@@ -322,6 +336,8 @@ export function MarketChart({
       );
     });
     return () => {
+      viewportCleanup.current?.();
+      viewportCleanup.current = null;
       drawingContext.disposed = true;
       vmcSeries.current.clear();
       stochSeries.current.clear();
@@ -444,10 +460,13 @@ export function MarketChart({
     // projects coordinates; it must not race the chart's history/reset fit.
     const fitKey = hasWhaleTime
       ? `${timeframe}:${resetKey}:${whaleId}:${whaleTime}:${bars[0].time}`
-      : `${timeframe}:${historyCount}:${resetKey}`;
+      : `${viewScope}:${timeframe}:${historyCount}:${resetKey}`;
     const fitFrame = requestAnimationFrame(() => {
       if (fitted.current === fitKey || !chart.current || drawingApi?.disposed)
         return;
+      const manualReset = previousReset.current !== resetKey;
+      previousReset.current = resetKey;
+      if (manualReset) writeChartStorage(`${viewScope}:${timeframe}`, null);
       const entryIndex =
         entryTime !== null
           ? chart.current.timeScale().timeToIndex(entryTime as UTCTimestamp)
@@ -457,12 +476,27 @@ export function MarketChart({
           from: entryIndex - 50,
           to: entryIndex + 50,
         });
-      } else {
+      } else if (
+        !restoreViewport(
+          chart.current,
+          series.current!,
+          bars,
+          interval,
+          `${viewScope}:${timeframe}`,
+        )
+      ) {
+        series.current?.priceScale().setAutoScale(true);
         chart.current?.timeScale().setVisibleRange({
           from: bars[0].time as UTCTimestamp,
           to: (lastTime + interval * 8) as UTCTimestamp,
         });
       }
+      if (manualReset)
+        writeChartStorage(`${viewScope}:${timeframe}`, {
+          from: bars[0].time,
+          to: lastTime + interval * 8,
+          auto: true,
+        });
       if (!hasWhaleTime || entryIndex !== null) fitted.current = fitKey;
     });
     return () => {
@@ -478,8 +512,25 @@ export function MarketChart({
     resetKey,
     whaleTime,
     whaleId,
+    viewScope,
     drawingApi,
   ]);
+  useEffect(() => {
+    if (!drawingApi || drawingApi.disposed || !bars.length) return;
+    const cleanup = bindViewport(
+      drawingApi.chart,
+      drawingApi.series,
+      drawingApi.container,
+      bars,
+      candleIntervals[timeframe],
+      `${viewScope}:${timeframe}`,
+    );
+    viewportCleanup.current = cleanup;
+    return () => {
+      cleanup();
+      if (viewportCleanup.current === cleanup) viewportCleanup.current = null;
+    };
+  }, [drawingApi, bars, timeframe, viewScope]);
   useEffect(() => {
     priceOverlaysRenderer.current?.configure(priceOverlays, palette.text);
   }, [priceOverlays, palette.text]);
@@ -930,6 +981,7 @@ export function MarketChart({
           api={drawingApi}
           bars={bars}
           symbol={symbol}
+          exchange={exchange}
           timeframe={timeframe}
           tickSize={tickSize}
         />
@@ -967,6 +1019,7 @@ export function MarketChart({
           className="chart-indicator-values"
           aria-label="Значения индикаторов у курсора"
         >
+          {heatmapControls}
           {readouts
             .filter(
               (r) =>

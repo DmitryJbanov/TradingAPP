@@ -14,6 +14,7 @@ self.onmessage = async (event) => {
       mintick,
       settings,
       securityBars,
+      backtestPeriod,
     } = event.data;
     self.postMessage({
       result: await runPine(
@@ -25,6 +26,7 @@ self.onmessage = async (event) => {
         mintick,
         settings,
         securityBars,
+        backtestPeriod,
       ),
     });
   } catch (error) {

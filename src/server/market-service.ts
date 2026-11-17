@@ -551,6 +551,10 @@ export async function handleApi(
             { error: "Неизвестный symbol или interval" },
             { status: 400 },
           );
+        const beforeText = u.searchParams.get("before");
+        const before = beforeText === null ? undefined : Number(beforeText);
+        if (before !== undefined && (!Number.isSafeInteger(before) || before < 0 || before > Math.floor(Date.now() / 1000) + 86400))
+          return Response.json({ error: "Некорректная дата истории" }, { status: 400 });
         result = exchange
           ? await exchangeCandles(
               exchange,
@@ -558,6 +562,7 @@ export async function handleApi(
               tf as CandleInterval,
               count,
               force,
+              before,
             )
           : await candles(
               symbol,

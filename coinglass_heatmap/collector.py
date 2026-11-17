@@ -1,5 +1,7 @@
 """Production adapter for get_coinglass_liquidations.py (Model 3, symbol)."""
 import math
+from urllib.parse import urlsplit
+from .frontend import READY_JS, fetch_frontend
 
 RANGES = ('12h', '24h', '3d', '7d', '14d', '30d', '90d', '180d', '365d')
 RANGE_LABELS = ('12 часов', '24 часа', '3 дня', '7 дней', '2 недели', '30 дней', '90 дней', '180 дней', '365 дней')
@@ -15,6 +17,7 @@ class HeatmapApiError(RuntimeError):
         label = RANGE_LABELS[RANGES.index(range_value)]
         detail = ('Требуется вход в аккаунт CoinGlass. Проверьте сохранённую сессию.'
                   if self.api_code == '40000' else
+                  'Превышен лимит запросов CoinGlass. Повторите загрузку позже.' if self.api_code == '50001' else
                   'Причина не указана. Проверьте доступность монеты и периода на сайте CoinGlass в том же аккаунте.')
         super().__init__(f'CoinGlass отклонил запрос карты {asset} за период {label} (код {self.api_code}). {detail}')
 
@@ -55,25 +58,34 @@ def validate_map(data, asset, range_value='365d'):
     return result
 
 
+def open_heatmap_page(page, asset, *, force_reload=False):
+    paths=('/liquidation-heatmap-model3', '/ru/liquidation-heatmap-model3', '/pro/futures/LiquidationMap', '/ru/pro/futures/LiquidationMap', '/pro/futures/LiquidationHeatMap', '/')
+    if not force_reload and urlsplit(page.url).path in paths and page.evaluate(READY_JS) is True:
+        return None
+    response=page.goto('https://www.coinglass.com'+paths[0],
+                       wait_until='domcontentloaded',timeout=60000)
+    if response is not None and response.status==404:
+        # Same page client exports the Model 3 method; only bootstrap navigation changes.
+        response=page.goto('https://www.coinglass.com/pro/futures/LiquidationMap',
+                           wait_until='domcontentloaded',timeout=60000)
+    if response is not None and response.status==404:
+        response=page.goto('https://www.coinglass.com/pro/futures/LiquidationHeatMap',
+                           wait_until='domcontentloaded',timeout=60000)
+    if response is not None and response.status==404:
+        response=page.goto('https://www.coinglass.com/',
+                           wait_until='domcontentloaded',timeout=60000)
+    if response is not None and response.status>=400:
+        raise ValueError(f'Страница Model 3 вернула HTTP {response.status}')
+    return response
+
+
 def collect(page, asset, *, range_value='365d', reuse_frontend=False):
     validate_range(range_value)
     if not reuse_frontend:
-        page.goto('https://www.coinglass.com/ru/pro/futures/LiquidationHeatMapModel3?coin=' + asset + '&type=symbol', wait_until='domcontentloaded', timeout=60000)
-    page.wait_for_function('''() => {
-      const chunks = self.webpackChunk_N_E;
-      if (!Array.isArray(chunks) || chunks.push === Array.prototype.push) return false;
-      let req;
-      chunks.push([[`heatmap_ready_${Date.now()}_${Math.random()}`], {}, r => { req = r; }]);
-      return Boolean(req?.m?.[89390]);
-    }''', timeout=30000)
-    # Same frontend entry point as the supplied prototype. No guessed price axis.
-    response = page.evaluate('''async ({asset, range}) => {
-      let req;
-      self.webpackChunk_N_E.push([[Math.random()], {}, r => { req = r; }]);
-      const api = req(89390);
-      if (typeof api.Yxh !== 'function') throw new Error('Model 3 module changed');
-      return await api.Yxh({ merge: true, symbol: asset, range, cp: false });
-    }''', dict(asset=asset, range=range_value))
+        open_heatmap_page(page, asset)
+    # Same aggregate Model 3 method as the current symbol-mode page.
+    response = fetch_frontend(page, 'https://fapi.coinglass.com/api/index/v4/aggregate/liqHeatMap',
+                              dict(merge=True, symbol=asset, range=range_value, cp=False))
     if isinstance(response, dict) and str(response.get('code')) == '40003':
         label = RANGE_LABELS[RANGES.index(range_value)]
         raise SubscriptionRequired(f'Карта {asset} за период {label} доступна только с подпиской CoinGlass. Выберите другой период или используйте аккаунт с подпиской.')

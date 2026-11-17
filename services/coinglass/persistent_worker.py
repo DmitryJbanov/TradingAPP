@@ -64,6 +64,7 @@ class PersistentWorker:
             process.stdin.write(json.dumps(request) + '\n')
             process.stdin.flush()
             deadline = time.monotonic() + timeout
+            terminal = None
             while True:
                 if stopping():
                     raise RuntimeError('Задание остановлено')
@@ -78,9 +79,16 @@ class PersistentWorker:
                     raise RuntimeError('Фоновый браузер завершился; он будет перезапущен')
                 if item.get('request_id') != request['id']:
                     continue
-                yield item
                 if item.get('kind') in ('result', 'error'):
+                    terminal = item
+                elif item.get('kind') == 'released' and terminal is not None:
+                    # Release Python/Playwright allocations too, only after the
+                    # worker has persisted its session and closed Chromium.
+                    self.close()
+                    yield terminal
                     return
+                else:
+                    yield item
         except Exception:
             self.close()
             raise

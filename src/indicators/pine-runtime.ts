@@ -397,6 +397,7 @@ export async function runPine(
   mintick = 0.01,
   settings: PineInstanceSettings = {},
   securityBars: Partial<Record<Timeframe, Candle[]>> = {},
+  backtestPeriod?: { start: number; end: number },
 ): Promise<PineResult> {
   const version = script.source.match(
     /^\s*\/\/\s*@version\s*=\s*(\d+)\b/m,
@@ -577,7 +578,69 @@ export async function runPine(
   };
   const pine = new PineTS(provider, symbol, pineTimeframe);
   pine.setMaxLoops(10000);
-  const context = await pine.run(indicator);
+  // Observe the broker's actual equity writes, including fills processed after the script.
+  const equityCurve = new Map<number, number>();
+  const watched = new WeakSet<object>();
+  const guarded = new WeakSet<object>();
+  const prepared = indicator.prepare(),
+    execute = prepared.fn;
+  const record = (context: Context) => {
+    const state = context.strategy;
+    if (!state || context.isSecondaryContext) return;
+    const put = (value: number) => {
+      const time = bars[context.idx]?.time;
+      if (
+        time !== undefined &&
+        Number.isFinite(value) &&
+        (!backtestPeriod ||
+          (time >= backtestPeriod.start && time <= backtestPeriod.end))
+      )
+        equityCurve.set(time, value);
+    };
+    put(state.equity);
+    if (watched.has(state)) return;
+    watched.add(state);
+    let value = state.equity;
+    Object.defineProperty(state, "equity", {
+      enumerable: true,
+      configurable: true,
+      get: () => value,
+      set: (next: number) => {
+        value = next;
+        put(next);
+      },
+    });
+  };
+  if (kind === "strategy")
+    prepared.fn = Object.assign(async (ctx: Context) => {
+      if (!ctx.isSecondaryContext && backtestPeriod && !guarded.has(ctx)) {
+        guarded.add(ctx);
+        const api = ctx.pine.strategy;
+        for (const name of ["entry", "order", "exit", "close", "close_all"]) {
+          const call = api[name];
+          if (typeof call === "function")
+            api[name] = Object.assign((...args: unknown[]) => {
+              const time = bars[ctx.idx]?.time;
+              if (
+                time === undefined ||
+                time < backtestPeriod.start ||
+                time > backtestPeriod.end
+              )
+                return;
+              return call.apply(api, args);
+            }, call);
+        }
+      }
+      const output = await execute(ctx);
+      record(ctx);
+      return output;
+    }, execute);
+  let context: Context;
+  try {
+    context = await pine.run(indicator);
+  } finally {
+    prepared.fn = execute;
+  }
   const result: PineResult = {
     id: script.id,
     name: script.name,
@@ -616,9 +679,57 @@ export async function runPine(
       exitPrice: t.exit_price,
       size: t.size,
       profit: t.profit,
+      commission: t.commission,
     }));
+    const curve = [...equityCurve]
+      .map(([time, value]) => ({ time, value }))
+      .sort((a, b) => a.time - b.time);
+    if (curve.length) curve[curve.length - 1].value = s.equity;
+    let sharpe: number | undefined, sortino: number | undefined;
+    if (
+      curve.length &&
+      curve.at(-1)!.time - curve[0].time >= 60 * 86400 &&
+      s.initial_capital > 0
+    ) {
+      const months = new Map<string, number>();
+      for (const point of curve)
+        months.set(
+          new Date(point.time * 1000).toISOString().slice(0, 7),
+          point.value,
+        );
+      let previous = s.initial_capital;
+      const returns: number[] = [];
+      for (const value of months.values()) {
+        if (previous > 0) returns.push(value / previous - 1);
+        previous = value;
+      }
+      if (returns.length >= 2) {
+        const risk =
+          Math.pow(1 + (s.config.risk_free_rate ?? 2) / 100, 1 / 12) - 1;
+        const excess = returns.map((r) => r - risk),
+          mean = excess.reduce((a, b) => a + b, 0) / excess.length;
+        const sd = Math.sqrt(
+          excess.reduce((sum, r) => sum + (r - mean) ** 2, 0) / excess.length,
+        );
+        const downside = Math.sqrt(
+          excess.reduce((sum, r) => sum + Math.min(0, r) ** 2, 0) /
+            excess.length,
+        );
+        if (sd > 0) sharpe = (mean / sd) * Math.sqrt(12);
+        if (downside > 0) sortino = (mean / downside) * Math.sqrt(12);
+      }
+    }
     result.strategy = {
       initialCapital: s.initial_capital,
+      currency: s.account_currency,
+      equityCurve: curve,
+      grossProfit: s.grossprofit,
+      grossLoss: s.grossloss,
+      openProfit: s.openprofit,
+      maxDrawdownPercent: s.max_drawdown_percent_value,
+      sharpe,
+      sortino,
+      buyAndHold: s.buy_and_hold_pnl,
       equity: s.equity,
       netProfit: s.netprofit,
       maxDrawdown: s.max_drawdown,

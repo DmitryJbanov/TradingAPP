@@ -42,7 +42,7 @@ Standalone требует входа; регистрация открытая. S
 
 Реестр в `src/domain/workspace.ts` включает MTM, Stochastic RSI, CoinGlass Heatmap Model 3, CoinGlass liquidation levels, DRZ, SMC, VMC и Sonarlab Order Blocks. Иконка и цвет хранятся в экземпляре и настраиваются через UI. Нажатие на плашку Pine-индикатора открывает его настройки и оформление элементов. Список активных индикаторов отображается над графиком; кружок состояния переключает видимость.
 
-Fixed Range Volume Profile является инструментом разметки: пользователь задаёт два края диапазона, по умолчанию 150 строк и Value Area 70%. MTM показывает импульс `close − close[N]` и SMA этого ряда; значения N и N1 по умолчанию — 60.
+Fixed Range Volume Profile является инструментом разметки: пользователь задаёт два края диапазона, для новых профилей 400 строк, дельта, Value Area 70%, ширина 40% и продолжение вправо. MTM показывает импульс `close − close[N]` и SMA этого ряда; значения N и N1 по умолчанию — 60.
 
 ## CoinGlass
 
@@ -87,3 +87,7 @@ Pine Editor вынесен в правую панель с ручным изме
 Клиентский LRU-кеш свечей и расчётов последних 10 пар: `src/hooks/pair-cache.ts`. Управление фигурами, настройки FRVP и часового пояса описаны в [CHART_TOOLS.md](CHART_TOOLS.md).
 
 Общие заметки всех профилей: `global_notes` в `standalone/profiles.ts`, маршруты `/api/notes` в `standalone/server.ts`, отдельные записи с revision и сохранением черновиков в `src/components/notes-page.tsx`.
+
+Тестер стратегий: `src/components/pine-strategy-report.tsx` / `.css` и `src/hooks/use-strategy-backtest.ts`; капитал по свечам и ограничения периода — в `src/indicators/pine-runtime.ts`, контракт — `src/domain/pine-scripts.ts`.
+
+FRVP: вкладки настройки в `src/components/frvp-settings.tsx`; профиль и defaults — `src/domain/drawings.ts`; гистограмма и развивающиеся уровни — `drawings-renderer.ts`. Локальное сохранение обеих осей — `src/hooks/chart-viewport.ts`. Предзагрузка избранного — `src/hooks/use-favorite-preload.ts`, общий пул свечей и объединение запросов — `pair-cache.ts`. См. [CHART_TOOLS.md](CHART_TOOLS.md).

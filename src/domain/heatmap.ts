@@ -121,6 +121,7 @@ export interface HeatmapParams {
   showCandles: boolean;
   range: HeatmapRange;
   threshold: number;
+  ceiling: number;
   scale: "log" | "linear" | "percentile";
   scheme: keyof typeof heatmapSchemes;
   showLevels: boolean;
@@ -130,6 +131,7 @@ export const heatmapDefaults: HeatmapParams = {
   showCandles: true,
   range: "365d",
   threshold: 0.5,
+  ceiling: 1,
   scale: "log",
   scheme: "coinglass",
   showLevels: true,
@@ -139,13 +141,16 @@ export function heatmapParams(value: unknown): HeatmapParams {
   const p = (
     value && typeof value === "object" ? value : {}
   ) as Partial<HeatmapParams>;
+  const ceiling = typeof p.ceiling === "number" && Number.isFinite(p.ceiling)
+    ? Math.max(0, Math.min(1, p.ceiling)) : 1;
   return {
     showCandles: p.showCandles !== false,
     range: isHeatmapRange(p.range) ? p.range : "365d",
     threshold:
       typeof p.threshold === "number" && Number.isFinite(p.threshold)
-        ? Math.max(0, Math.min(1, p.threshold))
-        : 0.5,
+        ? Math.max(0, Math.min(ceiling, p.threshold))
+        : Math.min(0.5, ceiling),
+    ceiling,
     scale: ["linear", "percentile"].includes(p.scale ?? "") ? p.scale! : "log",
     scheme:
       p.scheme && Object.hasOwn(heatmapSchemes, p.scheme)
@@ -288,6 +293,11 @@ export function heatmapModel(
     .slice(0, params.limit)
     .map((c) => ({ price: data.y[c[1]], value: c[2] }));
   return { lastX, columns, max, visible, levels, intensity };
+}
+/** Relative color scale: values below the floor are filtered by heatmapModel. */
+export function heatmapColorStrength(value: number, floor: number, ceiling: number): number {
+  if (ceiling <= floor) return 1;
+  return Math.max(0, Math.min(1, (value - floor) / (ceiling - floor)));
 }
 export function heatmapColor(
   value: number,

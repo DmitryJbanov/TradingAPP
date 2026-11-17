@@ -275,6 +275,8 @@ class LoginFlow:
         self.navigate('/ru')
         if self.status == 404:
             self.navigate('/')
+        if self.status == 404:
+            self.navigate('/pro/futures/LiquidationHeatMap')
         if self.status is not None and self.status >= 400:
             raise LoginError(f'Главная CoinGlass недоступна: HTTP {self.status}.')
         self.stage = 'site_login_link'

@@ -154,6 +154,10 @@ test("Binance pagination and partial history do not lose recent candles", async 
     String(3000 * 3600000 - 1),
   );
   assert.ok(r.bars.every((b, i) => !i || b.time > r.bars[i - 1].time));
+  calls.length = 0;
+  const older = await loadBinanceHistory("HYPEUSDT", "1h", 300, get, 2500 * 3600);
+  assert.equal(calls[0].searchParams.get("endTime"), String(2500 * 3600000));
+  assert.equal(older.bars.at(-1)?.time, 2500 * 3600);
   let page = 0;
   const partial = await loadBinanceHistory(
     "BTCUSDT",

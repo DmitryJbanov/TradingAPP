@@ -143,6 +143,7 @@ export interface PineTrade {
   exitPrice?: number;
   size: number;
   profit?: number;
+  commission?: number;
 }
 export interface PineResult {
   id: string;
@@ -161,6 +162,15 @@ export interface PineResult {
   inputMeta: PineInputMeta[];
   strategy?: {
     initialCapital: number;
+    currency?: string;
+    equityCurve?: { time: number; value: number }[];
+    grossProfit?: number;
+    grossLoss?: number;
+    openProfit?: number;
+    maxDrawdownPercent?: number;
+    sharpe?: number;
+    sortino?: number;
+    buyAndHold?: number;
     equity: number;
     netProfit: number;
     maxDrawdown: number;
