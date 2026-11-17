@@ -11,6 +11,9 @@ import {
 } from "react";
 import {
   MousePointer2,
+  ArrowUpRight,
+  Slash,
+  Rows2,
   Brush,
   Minus,
   MoveVertical,
@@ -22,8 +25,10 @@ import {
   Ruler,
 } from "lucide-react";
 import { createPortal } from "react-dom";
-import type { IChartApi, ISeriesApi, Logical } from "lightweight-charts";
+import type { IChartApi, ISeriesApi, Logical, UTCTimestamp } from "lightweight-charts";
 import {
+  fractionalLogicalAtCoordinate,
+  coordinateAtFractionalLogical,
   drawingTools,
   drawingHandles,
   resizedDrawingPoints,
@@ -35,10 +40,13 @@ import {
   type DrawingPoint,
 } from "../domain/drawings";
 import { candleIntervals, type Candle, type Timeframe } from "../domain/market";
-import { Choice } from "./controls";
+import { FrvpSettings } from "./frvp-settings";
+import { defaultProfile } from "../domain/drawings";
 import { DrawingsRenderer } from "./drawings-renderer";
 import { useProfiles } from "./profile-provider";
-import { useStored } from "../hooks/use-resource";
+import { useStored, useResource } from "../hooks/use-resource";
+import type { MarketExchange } from "../domain/exchanges";
+import type { CandleResponse } from "../domain/market";
 export interface DrawingChart {
   disposed?: boolean;
   chart: IChartApi;
@@ -49,23 +57,26 @@ export function DrawingTools({
   api,
   bars,
   symbol,
+  exchange = "binance",
   timeframe,
   tickSize = 0.01,
 }: {
   api: DrawingChart;
   bars: Candle[];
   symbol: string;
+  exchange?: MarketExchange;
   timeframe: Timeframe;
   tickSize?: number;
 }) {
-  const profileId = useProfiles()?.active;
+  const profileContext = useProfiles();
+  const profileId = profileContext?.active;
   useEffect(() => {
     undoStack.current = [];
     setUndoCount(0);
     cancel();
     setSelectedId(undefined);
     setObjectEditor(undefined);
-  }, [profileId]);
+  }, [profileId, symbol, timeframe]);
   const [tool, setTool] = useState<DrawingTool | "navigate">("navigate");
   const [color, setColor] = useState("#ffffff");
   const [width, setWidth] = useState<1 | 2 | 3 | 4>(2);
@@ -76,14 +87,95 @@ export function DrawingTools({
     x: number;
     y: number;
   }>();
-  const [storedDrawings, setStoredDrawings] = useStored<Drawing[]>(
-    `vector.drawings.v1:${symbol}:${timeframe}`,
-    [],
+  const legacyProfiles = useMemo(() => {
+    const byId = new Map<string, Drawing>();
+    for (const tf of [
+      "1m",
+      "3m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "4h",
+      "1d",
+      "1w",
+    ]) {
+      const key = `vector.drawings.v1:${symbol}:${tf}`;
+      let raw: unknown = [];
+      if (profileContext) raw = profileContext.getValue(key, []);
+      else {
+        try {
+          raw = JSON.parse(localStorage.getItem(key) ?? "[]");
+        } catch {}
+      }
+      for (const d of readDrawings(raw))
+        byId.set(d.id, d);
+    }
+    const oldShared = `vector.drawings.v1:${symbol}:frvp`;
+    let raw: unknown = [];
+    if (profileContext) raw = profileContext.getValue(oldShared, []);
+    else { try { raw = JSON.parse(localStorage.getItem(oldShared) ?? "[]"); } catch {} }
+    for (const d of readDrawings(raw)) byId.set(d.id, d);
+    return [...byId.values()].slice(-200);
+  }, [symbol, profileContext?.active, profileContext?.settings]);
+  const [storedDrawings, updateStoredDrawings] = useStored<Drawing[]>(
+    `vector.drawings.v1:${symbol}:all`, legacyProfiles,
+  );
+  const currentDrawings = useRef(storedDrawings);
+  currentDrawings.current = storedDrawings;
+  const setStoredDrawings = useCallback<Dispatch<SetStateAction<Drawing[]>>>(
+    (next) => {
+      const resolved = typeof next === "function" ? next(currentDrawings.current) : next;
+      currentDrawings.current = resolved;
+      updateStoredDrawings(resolved);
+    }, [updateStoredDrawings],
   );
   const drawings = useMemo(
     () => readDrawings(storedDrawings),
     [storedDrawings],
   );
+  const profiles = drawings.filter(
+    (d) =>
+      d.tool === "volume-profile" &&
+      (!d.profile?.timeframes || d.profile.timeframes.includes(timeframe)),
+  );
+  const profileStart = profiles.length
+    ? Math.min(...profiles.flatMap((d) => d.points.map((p) => p.time)))
+    : 0;
+  // Keep the URL stable during the current minute while still including the open bar.
+  const profileNow = Math.floor(Date.now() / 60000) * 60 + 60;
+  const profileEnd = profiles.length ? Math.min(profileNow, Math.max(...profiles.map(d =>
+    d.profile?.autoExtendRight ? profileNow : Math.max(...d.points.map(p => p.time)) + (d.profile?.endInterval ?? candleIntervals[timeframe])
+  ))) : 0;
+  const lowerFrame = (
+    Object.entries(candleIntervals) as [Timeframe, number][]
+  ).find(
+    ([tf, seconds]) =>
+      !["8h", "12h"].includes(tf) &&
+      seconds < candleIntervals[timeframe] &&
+      profileStart > 0 &&
+      Math.ceil((profileEnd - profileStart) / seconds) + 2 <= 5000 &&
+      profileStart <= (bars.at(-1)?.time ?? 0),
+  )?.[0];
+  const lowerCount = lowerFrame
+    ? Math.max(
+        300,
+        Math.min(
+          12000,
+          Math.ceil(
+            (profileEnd - profileStart) / candleIntervals[lowerFrame],
+          ) + 2,
+        ),
+      )
+    : 300;
+  const lower = useResource<CandleResponse>(
+    `/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${lowerFrame ?? timeframe}&count=${lowerCount}&exchange=${exchange}&before=${Math.max(0, Math.floor(profileEnd - 1))}`,
+    60000,
+    Boolean(lowerFrame),
+  );
+  const profileBars =
+    lowerFrame && lower.data?.source !== "demo" ? lower.data?.data : undefined;
   const undoStack = useRef<Drawing[][]>([]);
   const [undoCount, setUndoCount] = useState(0);
   const setDrawings = useCallback<Dispatch<SetStateAction<Drawing[]>>>(
@@ -113,6 +205,7 @@ export function DrawingTools({
   }
   const [draft, setDraft] = useState<Drawing>();
   const active = useRef<Drawing | undefined>(undefined);
+  const channelSecondPointPlaced = useRef(false);
   const pointer = useRef<number | null>(null);
   const measuring = useRef(false);
   const drag = useRef<
@@ -162,15 +255,32 @@ export function DrawingTools({
   }, [api, drawings, bars, timeframe]);
   useEffect(() => {
     renderer.current.configure(
-      draft ? [...drawings.filter((d) => d.id !== draft.id), draft] : drawings,
+      (draft
+        ? [...drawings.filter((d) => d.id !== draft.id), draft]
+        : drawings
+      ).filter(
+        (d) =>
+          !d.profile?.timeframes || d.profile.timeframes.includes(timeframe),
+      ),
       bars,
       candleIntervals[timeframe],
       selectedId,
       hoverId,
       tickSize,
+      profileBars ?? bars,
     );
-  }, [drawings, draft, bars, timeframe, selectedId, hoverId, tickSize]);
+  }, [
+    drawings,
+    draft,
+    bars,
+    timeframe,
+    selectedId,
+    hoverId,
+    tickSize,
+    profileBars,
+  ]);
   function cancel() {
+    channelSecondPointPlaced.current = false;
     measuring.current = false;
     drag.current = undefined;
     active.current = undefined;
@@ -218,7 +328,7 @@ export function DrawingTools({
       if (
         (e.ctrlKey || e.metaKey) &&
         !e.shiftKey &&
-        e.key.toLowerCase() === "z"
+        (e.code === "KeyZ" || e.key.toLowerCase() === "z")
       ) {
         if (undoStack.current.length) {
           e.preventDefault();
@@ -262,7 +372,7 @@ export function DrawingTools({
       y > api.series.getPane().getHeight()
     )
       return;
-    const logical = api.chart.timeScale().coordinateToLogical(x),
+    const logical = fractionalLogicalAtCoordinate(api.chart.timeScale(), x),
       price = api.series.coordinateToPrice(y);
     if (logical === null || price === null) return;
     return {
@@ -276,16 +386,11 @@ export function DrawingTools({
     const x = e.clientX - rect.left,
       y = e.clientY - rect.top;
     return [...drawings].reverse().find((d) => {
+      if (d.profile?.timeframes && !d.profile.timeframes.includes(timeframe))
+        return false;
       const projected = d.points.map((anchor) => ({
-        x: api.chart
-          .timeScale()
-          .logicalToCoordinate(
-            logicalAtTime(
-              bars,
-              anchor.time,
-              candleIntervals[timeframe],
-            ) as Logical,
-          ),
+        x: coordinateAtFractionalLogical(api.chart.timeScale(),
+            logicalAtTime(bars, anchor.time, candleIntervals[timeframe])),
         y: api.series.priceToCoordinate(anchor.price),
       }));
       if (projected.some((v) => v.x === null || v.y === null)) return false;
@@ -331,7 +436,12 @@ export function DrawingTools({
         const [a, b] = pts;
         if (cornerAt(d, e) !== undefined) return true;
         const left = Math.min(a.x, b.x),
-          right = Math.max(a.x, b.x),
+          lastX = api.chart
+            .timeScale()
+            .logicalToCoordinate((bars.length - 1) as Logical),
+          right = d.profile?.autoExtendRight
+            ? Math.max(a.x, b.x, lastX ?? b.x)
+            : Math.max(a.x, b.x),
           top = Math.min(a.y, b.y),
           bottom = Math.max(a.y, b.y);
         const nearFrame =
@@ -374,6 +484,7 @@ export function DrawingTools({
             (magnitude / (maximum || 1)),
           rowLeft = d.profile?.placement === "right" ? right - rowWidth : left;
         if (
+          d.profile?.showHistogram !== false &&
           data.bins[row] > 0 &&
           y1 !== null &&
           y2 !== null &&
@@ -404,17 +515,23 @@ export function DrawingTools({
         )
           return true;
         if (
-          d.profile?.showValueArea !== false &&
-          (levelHit(
-            data.low + (data.vaLow / data.rows) * (data.high - data.low),
-          ) ||
-            levelHit(
-              data.low +
-                ((data.vaHigh + 1) / data.rows) * (data.high - data.low),
-            ))
+          (d.profile?.showVal ?? d.profile?.showValueArea) !== false &&
+          levelHit(data.low + (data.vaLow / data.rows) * (data.high - data.low))
+        )
+          return true;
+        if (
+          (d.profile?.showVah ?? d.profile?.showValueArea) !== false &&
+          levelHit(
+            data.low + ((data.vaHigh + 1) / data.rows) * (data.high - data.low),
+          )
         )
           return true;
         return false;
+      }
+      if (d.tool === "trend" || d.tool === "arrow") return segmentDistance(pts[0], pts[1]) < 9;
+      if (d.tool === "channel") {
+        const [a,b,c] = pts, offset = c.y - a.y;
+        return segmentDistance(a,b) < 9 || segmentDistance({x:a.x,y:a.y+offset},{x:b.x,y:b.y+offset}) < 9;
       }
       if (d.tool === "brush")
         return pts.slice(1).some((v, i) => segmentDistance(pts[i], v) < 9);
@@ -435,11 +552,8 @@ export function DrawingTools({
     const rect = api.container.getBoundingClientRect();
     const corners = drawingHandles(drawing);
     const index = corners.findIndex((p) => {
-      const x = api.chart
-        .timeScale()
-        .logicalToCoordinate(
-          logicalAtTime(bars, p.time, candleIntervals[timeframe]) as Logical,
-        );
+      const x = coordinateAtFractionalLogical(api.chart.timeScale(),
+          logicalAtTime(bars, p.time, candleIntervals[timeframe]));
       const y = api.series.priceToCoordinate(p.price);
       return (
         x !== null &&
@@ -480,7 +594,7 @@ export function DrawingTools({
       e.button !== 0 ||
       pointer.current !== null ||
       (e.target as Element)?.closest(
-        ".frvp-context-panel, .whale-chart-overlay",
+        ".frvp-context-panel, .whale-chart-overlay, .heatmap-quick",
       )
     )
       return;
@@ -529,7 +643,14 @@ export function DrawingTools({
     if (drawings.length >= 200) return;
     e.preventDefault();
     if (active.current) {
+      const isChannelSecond = active.current.tool === "channel" && !channelSecondPointPlaced.current;
       move(e);
+      if (isChannelSecond && active.current.points.length === 2) {
+        channelSecondPointPlaced.current = true;
+        active.current = {...active.current, points:[...active.current.points, p]};
+        setDraft(active.current);
+        return;
+      }
       const d = active.current;
       if (readDrawings([d]).length) {
         setDrawings((prev) => [...prev, d]);
@@ -551,18 +672,27 @@ export function DrawingTools({
       ...(tool === "volume-profile"
         ? {
             profile: {
-              rows: 150,
-              valueArea: 70,
-              showPoc: true,
-              showValueArea: true,
-              autoExtendRight: false,
+              ...defaultProfile,
+              endInterval: candleIntervals[timeframe],
             },
           }
         : {}),
     };
+    if (tool === "brush") {
+      pointer.current = e.pointerId;
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
     setDraft(active.current);
   }
   function move(e: PointerEvent<HTMLDivElement> | globalThis.PointerEvent) {
+    if (tool !== "navigate" && !api.disposed) {
+      const anchor = point(e);
+      const x = e.clientX - api.container.getBoundingClientRect().left;
+      const index = api.chart.timeScale().coordinateToLogical(x);
+      const bar = index === null ? undefined : bars[Math.round(index)];
+      if (anchor && bar) api.chart.setCrosshairPosition(anchor.price, bar.time as UTCTimestamp, api.series);
+      else api.chart.clearCrosshairPosition();
+    }
     if (tool === "navigate" && pointer.current === null) {
       const hit = hitAt(e);
       setHoverId(hit?.id);
@@ -592,16 +722,21 @@ export function DrawingTools({
       return;
     }
     const d = active.current;
-    if (!d) return;
+    if (!d || (d.tool === "brush" && pointer.current !== e.pointerId)) return;
     const p = point(e);
     if (!p) return;
     const points =
       d.tool === "volume-profile"
         ? profilePoints(d.points[0], p)
+        : d.tool === "channel" && d.points.length >= 3
+          ? [d.points[0], d.points[1], p]
         : d.tool === "brush"
-          ? d.points.length < 2000
-            ? [...d.points, p]
-            : d.points
+          ? (() => {
+              const native = "nativeEvent" in e ? e.nativeEvent : e;
+              const samples = native.getCoalescedEvents?.() ?? [];
+              const additions = [...samples, native].map(point).filter((v): v is DrawingPoint => !!v);
+              return [...d.points, ...additions].slice(0, 2000);
+            })()
           : d.tool === "horizontal" ||
               d.tool === "vertical" ||
               d.tool === "text"
@@ -626,6 +761,9 @@ export function DrawingTools({
     if (target.hasPointerCapture(e.pointerId))
       target.releasePointerCapture(e.pointerId);
   }
+  useEffect(() => {
+    if (tool === "navigate" && !api.disposed) api.chart.clearCrosshairPosition();
+  }, [api, tool]);
   useEffect(() => {
     if (tool !== "navigate" || api.disposed) return;
     const container = api.container;
@@ -685,7 +823,10 @@ export function DrawingTools({
             title={
               id === "ruler"
                 ? "Линейка · Shift + ЛКМ, два клика"
-                : `${label} · два клика`
+                : id === "channel" ? `${label} · три клика`
+                : id === "brush"
+                  ? `${label} · удерживайте левую кнопку мыши`
+                  : `${label} · два клика`
             }
             aria-label={label}
             disabled={!bars.length}
@@ -698,6 +839,9 @@ export function DrawingTools({
             {(() => {
               const Icon = {
                 brush: Brush,
+                trend: Slash,
+                arrow: ArrowUpRight,
+                channel: Rows2,
                 ruler: Ruler,
                 horizontal: Minus,
                 vertical: MoveVertical,
@@ -770,13 +914,6 @@ export function DrawingTools({
             (drawing) => drawing.id === objectEditor.id,
           );
           if (!profile) return null;
-          const values: NonNullable<Drawing["profile"]> = profile.profile ?? {
-            rows: 150,
-            valueArea: 70,
-            showPoc: true,
-            showValueArea: true,
-            autoExtendRight: false,
-          };
           return createPortal(
             <section
               className="frvp-context-panel"
@@ -795,35 +932,39 @@ export function DrawingTools({
                   ×
                 </button>
               </header>
-              <label>
-                <span>Цвет</span>
-                <input
-                  type="color"
-                  aria-label="Цвет объекта"
-                  value={profile.color}
-                  onChange={(event) =>
-                    updateObject(profile.id, { color: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                <span>Толщина</span>
-                <select
-                  aria-label="Толщина объекта"
-                  value={profile.width ?? 2}
-                  onChange={(event) =>
-                    updateObject(profile.id, {
-                      width: Number(event.target.value) as 1 | 2 | 3 | 4,
-                    })
-                  }
-                >
-                  {[1, 2, 3, 4].map((value) => (
-                    <option key={value} value={value}>
-                      {value}px
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {profile.tool !== "volume-profile" && (
+                <>
+                  <label>
+                    <span>Цвет</span>
+                    <input
+                      type="color"
+                      aria-label="Цвет объекта"
+                      value={profile.color}
+                      onChange={(event) =>
+                        updateObject(profile.id, { color: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Толщина</span>
+                    <select
+                      aria-label="Толщина объекта"
+                      value={profile.width ?? 2}
+                      onChange={(event) =>
+                        updateObject(profile.id, {
+                          width: Number(event.target.value) as 1 | 2 | 3 | 4,
+                        })
+                      }
+                    >
+                      {[1, 2, 3, 4].map((value) => (
+                        <option key={value} value={value}>
+                          {value}px
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
               {profile.tool === "horizontal" && (
                 <>
                   <label>
@@ -870,236 +1011,12 @@ export function DrawingTools({
                 </label>
               )}
               {profile.tool === "volume-profile" && (
-                <>
-                  <label>
-                    <span>Размер строк</span>
-                    <Choice
-                      label="Размер строк FRVP"
-                      value={values.rowLayout ?? "rows"}
-                      onChange={(v) =>
-                        updateProfile(profile.id, {
-                          rowLayout: v as "rows" | "ticks",
-                        })
-                      }
-                      items={[
-                        ["rows", "Количество строк"],
-                        ["ticks", "Тиков в строке"],
-                      ]}
-                    />
-                  </label>
-                  {values.rowLayout === "ticks" && (
-                    <label>
-                      <span>Тиков в строке</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={1000000}
-                        value={values.ticksPerRow ?? 1}
-                        onChange={(e) =>
-                          updateProfile(profile.id, {
-                            ticksPerRow: Math.max(
-                              1,
-                              Math.min(
-                                1000000,
-                                Math.round(Number(e.target.value) || 1),
-                              ),
-                            ),
-                          })
-                        }
-                      />
-                    </label>
-                  )}
-                  <label>
-                    <span>Количество строк</span>
-                    <input
-                      type="number"
-                      min={10}
-                      max={500}
-                      value={values.rows}
-                      onChange={(event) =>
-                        updateProfile(profile.id, {
-                          rows: Math.max(
-                            10,
-                            Math.min(500, Number(event.target.value) || 10),
-                          ),
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Область стоимости, %</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={values.valueArea}
-                      onChange={(event) =>
-                        updateProfile(profile.id, {
-                          valueArea: Math.max(
-                            1,
-                            Math.min(100, Number(event.target.value) || 1),
-                          ),
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Показывать POC</span>
-                    <input
-                      type="checkbox"
-                      checked={values.showPoc}
-                      onChange={(event) =>
-                        updateProfile(profile.id, {
-                          showPoc: event.target.checked,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Показывать VAH / VAL</span>
-                    <input
-                      type="checkbox"
-                      checked={values.showValueArea}
-                      onChange={(event) =>
-                        updateProfile(profile.id, {
-                          showValueArea: event.target.checked,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Продолжать расчёт вправо</span>
-                    <input
-                      type="checkbox"
-                      checked={values.autoExtendRight === true}
-                      onChange={(event) =>
-                        updateProfile(profile.id, {
-                          autoExtendRight: event.target.checked,
-                        })
-                      }
-                    />
-                  </label>
-                </>
-              )}
-              {profile.tool === "volume-profile" && (
-                <>
-                  <label>
-                    <span>Объём</span>
-                    <Choice
-                      label="Объём FRVP"
-                      value={values.volume ?? "up-down"}
-                      onChange={(v) =>
-                        updateProfile(profile.id, {
-                          volume: v as "total" | "up-down" | "delta",
-                        })
-                      }
-                      items={[
-                        ["total", "Общий"],
-                        ["up-down", "Покупки / продажи"],
-                        ["delta", "Дельта"],
-                      ]}
-                    />
-                  </label>
-                  <label>
-                    <span>Расположение</span>
-                    <Choice
-                      label="Расположение FRVP"
-                      value={values.placement ?? "left"}
-                      onChange={(v) =>
-                        updateProfile(profile.id, {
-                          placement: v as "left" | "right",
-                        })
-                      }
-                      items={[
-                        ["left", "Слева"],
-                        ["right", "Справа"],
-                      ]}
-                    />
-                  </label>
-                  <label>
-                    <span>Ширина, % диапазона</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={values.widthPercent ?? 100}
-                      onChange={(e) =>
-                        updateProfile(profile.id, {
-                          widthPercent: Math.max(
-                            1,
-                            Math.min(100, Number(e.target.value) || 1),
-                          ),
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Непрозрачность, %</span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={values.opacity ?? 50}
-                      onChange={(e) =>
-                        updateProfile(profile.id, {
-                          opacity: Math.max(
-                            0,
-                            Math.min(100, Number(e.target.value) || 0),
-                          ),
-                        })
-                      }
-                    />
-                  </label>
-                  {(
-                    [
-                      ["upColor", "Покупки", profile.color],
-                      ["downColor", "Продажи", "#ef7185"],
-                      ["valueAreaUpColor", "VA: покупки", "#42a5f5"],
-                      ["valueAreaDownColor", "VA: продажи", "#90caf9"],
-                      ["pocColor", "POC", "#ffb74d"],
-                      ["valueAreaColor", "VAH / VAL", "#42a5f5"],
-                    ] as const
-                  ).map(([key, label, fallback]) => (
-                    <label key={key}>
-                      <span>{label}</span>
-                      <input
-                        type="color"
-                        value={values[key] ?? fallback}
-                        onChange={(e) =>
-                          updateProfile(profile.id, { [key]: e.target.value })
-                        }
-                      />
-                    </label>
-                  ))}
-                  <label>
-                    <span>Подписи POC / VAH / VAL</span>
-                    <input
-                      type="checkbox"
-                      checked={values.showLabels !== false}
-                      onChange={(e) =>
-                        updateProfile(profile.id, {
-                          showLabels: e.target.checked,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Продлевать линии вправо</span>
-                    <input
-                      type="checkbox"
-                      checked={values.extendLevels === true}
-                      onChange={(e) =>
-                        updateProfile(profile.id, {
-                          extendLevels: e.target.checked,
-                        })
-                      }
-                    />
-                  </label>
-                  <small>
-                    Объём распределяется по OHLCV загруженных свечей. Режим
-                    тиков ограничен 500 строками.
-                  </small>
-                </>
+                <FrvpSettings
+                  drawing={profile}
+                  onProfile={(values) => updateProfile(profile.id, values)}
+                  onPoints={(points) => updateObject(profile.id, { points })}
+                  timeframe={timeframe}
+                />
               )}
               <button
                 type="button"
@@ -1127,6 +1044,7 @@ export function DrawingTools({
             onPointerMove={move}
             onPointerUp={up}
             onPointerCancel={cancel}
+            onPointerLeave={() => api.chart.clearCrosshairPosition()}
             onLostPointerCapture={() => {
               if (pointer.current !== null) cancel();
             }}

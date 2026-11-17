@@ -14,7 +14,7 @@ from service import Manager, HeatmapManager, Handler
 
 root = Path(__file__).resolve()
 sys.path.insert(0, str(root.parents[2] if len(root.parents) > 2 else root.parent))
-from coinglass_heatmap.collector import validate_map, collect, SubscriptionRequired, HeatmapApiError, RANGES
+from coinglass_heatmap.collector import validate_map, collect, SubscriptionRequired, HeatmapApiError, RANGES, open_heatmap_page
 
 
 class HeatmapTests(unittest.TestCase):
@@ -51,7 +51,7 @@ class HeatmapTests(unittest.TestCase):
                 runtime.data = Path(folder)
                 runtime.ensure.return_value = (MagicMock(), MagicMock())
                 with patch('heatmap_worker.collect', side_effect=[HeatmapApiError('40001', 'BTC', '7d'), second]) as fetch, \
-                        patch('heatmap_worker.open_frontend_map', return_value=None) as navigate, \
+                        patch('heatmap_worker.open_heatmap_page', return_value=None) as navigate, \
                         patch('heatmap_worker.save_session'):
                     request = dict(id='a'*32, asset='BTC', params={'range': '7d'})
                     if isinstance(second, Exception):
@@ -61,18 +61,18 @@ class HeatmapTests(unittest.TestCase):
                         self.assertEqual(result['range'], '7d')
                         self.assertEqual(snapshot['range'], '7d')
                     self.assertEqual(fetch.call_count, 2)
-                    navigate.assert_called_with(runtime.ensure.return_value[1], force_reload=True)
+                    navigate.assert_called_with(runtime.ensure.return_value[1], 'BTC', force_reload=True)
                     runtime.close.assert_not_called()
 
     def test_periods_and_subscription(self):
         page = MagicMock()
-        prices = [[1722676500, '100', '110', '99', '105']]
+        prices = [[1722676500, '100', '110', '99', '105'],[1722677400, '105', '110', '99', '106']]
         for period in RANGES:
             page.evaluate.return_value = dict(data=dict(y=[100,110], liq=[[0,1,5]], prices=prices))
             result = collect(page, 'BTC', range_value=period, reuse_frontend=True)
             self.assertEqual(result['range'], period)
             self.assertEqual(result['prices'], prices)
-            self.assertEqual(page.evaluate.call_args.args[1], dict(asset='BTC', range=period))
+            self.assertEqual(page.evaluate.call_args.args[1], {'path':'https://fapi.coinglass.com/api/index/v4/aggregate/liqHeatMap', 'params':dict(merge=True,symbol='BTC',range=period,cp=False)})
         for code in ('40003', 40003):
             page.evaluate.return_value = dict(code=code, msg='40003', success=False)
             with self.assertRaisesRegex(SubscriptionRequired, 'ETH.*7 дней.*только с подпиской'):
@@ -136,7 +136,7 @@ class HeatmapTests(unittest.TestCase):
             context, page = MagicMock(), MagicMock()
             runtime.ensure.return_value = (context, page)
             data = dict(symbol='BTC', range='365d', y=[100,110], liquidation_levels=[[0,1,5]])
-            with patch('heatmap_worker.collect', return_value=data) as collect, patch('heatmap_worker.save_session') as save, patch('heatmap_worker.open_frontend_map', return_value=None):
+            with patch('heatmap_worker.collect', return_value=data) as collect, patch('heatmap_worker.save_session') as save, patch('heatmap_worker.open_heatmap_page', return_value=None):
                 result, snapshot = run(dict(id='a'*32, asset='BTC'), runtime, Path(folder))
                 collect.assert_called_once_with(page, 'BTC', range_value='365d', reuse_frontend=True)
                 save.assert_called_once_with(context, Path(folder)/'session.json')
@@ -144,6 +144,45 @@ class HeatmapTests(unittest.TestCase):
                 self.assertEqual(snapshot['snapshotId'], 'a'*32)
                 runtime.close.assert_not_called()
                 context.close.assert_not_called()
+
+    def test_heatmap_restores_expired_session_once(self):
+        from heatmap_worker import run
+        data=dict(symbol='BTC',range='7d',y=[100,110],liquidation_levels=[[0,1,5]])
+        with tempfile.TemporaryDirectory() as folder:
+            credentials=Path(folder)/'credentials.txt'
+            credentials.write_text('fixture',encoding='utf-8')
+            runtime=MagicMock(); runtime.data=Path(folder)
+            runtime.ensure.return_value=(MagicMock(),MagicMock())
+            with patch.dict('os.environ',{'COINGLASS_CREDENTIALS':str(credentials)}), patch('heatmap_worker.collect',side_effect=[HeatmapApiError('40000','BTC','7d'),data]) as fetch, patch('heatmap_worker.open_heatmap_page',return_value=None), patch('heatmap_worker.authenticate') as login, patch('heatmap_worker.save_session'):
+                result,_=run(dict(id='a'*32,asset='BTC',params={'range':'7d'}),runtime,Path(folder))
+                self.assertEqual(result['range'],'7d')
+                self.assertEqual(fetch.call_count,2)
+                login.assert_called_once()
+
+    def test_model3_page_falls_back_to_existing_client_on_404(self):
+        page=MagicMock();page.url='about:blank'
+        missing=MagicMock();missing.status=404
+        ready=MagicMock();ready.status=200
+        page.goto.side_effect=[missing,ready]
+        self.assertIs(open_heatmap_page(page,'BTC'),ready)
+        self.assertEqual([call.args[0] for call in page.goto.call_args_list],[
+            'https://www.coinglass.com/liquidation-heatmap-model3',
+            'https://www.coinglass.com/pro/futures/LiquidationMap'])
+        page.goto.reset_mock();denied=MagicMock();denied.status=403
+        page.goto.side_effect=[denied]
+        with self.assertRaises(ValueError):open_heatmap_page(page,'BTC')
+        self.assertEqual(page.goto.call_count,1)
+
+    def test_model3_bootstraps_home_client_after_both_routes_disappear(self):
+        page=MagicMock();page.url='about:blank'
+        missing=MagicMock();missing.status=404
+        ready=MagicMock();ready.status=200
+        page.goto.side_effect=[missing,missing,ready]
+        self.assertIs(open_heatmap_page(page,'PUMP'),ready)
+        self.assertEqual(page.goto.call_args.args[0], 'https://www.coinglass.com/pro/futures/LiquidationHeatMap')
+        page.goto.side_effect=[missing,missing,missing,ready]
+        self.assertIs(open_heatmap_page(page,'BTC'),ready)
+        self.assertEqual(page.goto.call_args.args[0], 'https://www.coinglass.com/')
 
     def test_validation(self):
         data = dict(symbol='BTC', y=[100, 110], liquidation_levels=[[0, 1, 50]])

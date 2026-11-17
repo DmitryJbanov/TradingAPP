@@ -566,8 +566,12 @@ export function WhalesPage({
   watchlistOnly?: boolean;
 }) {
   const valid = !address || validWhaleAddress(address);
+  const [side, setSide] = useState("all"),
+    [coin, setCoin] = useState(""),
+    [minValue, setMinValue] = useState("0");
+  const tradeFilters = new URLSearchParams({side, coin: coin.slice(0,40), minValue: String(Math.max(0, Number(minValue) || 0))});
   const watchlist = useResource<WhaleWatchlist>(
-    "/api/coinglass/whales-watchlist",
+    `/api/coinglass/whales-watchlist?${tradeFilters}`,
     5000,
   );
   const overview = useResource<WhaleOverview>(
@@ -588,9 +592,6 @@ export function WhalesPage({
   const [input, setInput] = useState(""),
     [label, setLabel] = useState(""),
     [query, setQuery] = useState("");
-  const [side, setSide] = useState("all"),
-    [coin, setCoin] = useState(""),
-    [minValue, setMinValue] = useState("0");
   const [tab, setTab] = useState("positions"),
     [period, setPeriod] = useState("perpMonth");
   const [portfolioScope, setPortfolioScope] = useState("all");

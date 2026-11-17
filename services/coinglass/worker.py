@@ -8,7 +8,7 @@ import threading
 from pathlib import Path
 from types import SimpleNamespace
 from collector import collect_symbol, UnsupportedSymbol, CollectionError
-from auth import LoginError
+from auth import LoginError, save_session
 from browser_runtime import launch_browser, context_options, create_page, BrowserStartError
 
 
@@ -97,8 +97,10 @@ class BrowserRuntime:
         if self.context is None:
             opts = context_options()
             imported = Path(os.environ.get('COINGLASS_SESSION_FILE', str(self.data / 'imported-session.json')))
-            session = imported if imported.is_file() else self.data / 'session.json'
-            if session.exists(): opts['storage_state'] = str(session)
+            candidates=[path for path in (imported,self.data/'session.json') if path.is_file()]
+            # A renewed session must not be replaced with an older imported file on restart.
+            session=max(candidates,key=lambda path:path.stat().st_mtime_ns) if candidates else None
+            if session is not None: opts['storage_state'] = str(session)
             self.context, self.page = create_page(self.browser, opts, diagnostics_dir=folder)
             self.page.set_default_timeout(60000)
         elif self.page is None or self.page.is_closed():
@@ -139,19 +141,14 @@ def serve():
     with sync_playwright() as pw:
         runtime = BrowserRuntime(pw, data)
         try:
-            runtime.ensure()
+            # Browser allocation belongs to a job, never to idle status polling.
             emit('ready')
             while True:
                 try: request = requests.get_nowait()
                 except queue.Empty:
-                    # Pump Playwright on its owning thread, and recover a closed
-                    # browser/page even while there are no collection requests.
-                    try:
-                        _, page = runtime.ensure()
-                        page.wait_for_timeout(200)
-                    except Exception:
-                        runtime.close()
-                        raise  # Manager restarts a crashed worker with backoff.
+                    # No page remains alive between jobs: external timers, sockets
+                    # and decoded heatmaps must not accumulate in Chromium.
+                    threading.Event().wait(.2)
                     continue
                 if request is None:
                     break
@@ -160,11 +157,16 @@ def serve():
                 try:
                     run(request, runtime)
                 except Exception as exc:
-                    # A rejected API response or auth error does not invalidate
-                    # the browser. ensure() recovers disconnected sessions;
-                    # the manager terminates the process on a job timeout.
                     report_error(exc)
                 finally:
+                    try:
+                        if runtime.context is not None:
+                            save_session(runtime.context, data / 'session.json')
+                    except Exception:
+                        emit('log', message='Не удалось обновить сохранённую сессию CoinGlass')
+                    finally:
+                        runtime.close()
+                    emit('released')
                     request_id = None
         finally:
             runtime.close()

@@ -12,6 +12,7 @@ export interface OrderBlock {
   createdAt: number;
   top: number;
   bottom: number;
+  endTime?: number;
 }
 export interface OrderBlockEvent {
   time: number;
@@ -21,12 +22,13 @@ export interface OrderBlockEvent {
 }
 export interface OrderBlockResult {
   blocks: OrderBlock[];
+  historicalBlocks?: OrderBlock[];
   events: OrderBlockEvent[];
   roc: (number | null)[];
 }
 
 /** Replay the supplied history; rebuilding also rolls back an evolving last bar.
- * Deleted zones disappear from the whole chart, as with Pine box.delete(). */
+ * Historical zones end on the candle that removes them. */
 export function computeOrderBlocks(
   bars: Candle[],
   raw: unknown = {},
@@ -48,6 +50,7 @@ export function computeOrderBlocks(
   let crossIndex: number | null = null;
   let blocks: OrderBlock[] = [];
   const events: OrderBlockEvent[] = [];
+  const historicalBlocks: OrderBlock[] = [];
   bars.forEach((bar, index) => {
     const pc = roc[index],
       previous = roc[index - 1];
@@ -89,7 +92,11 @@ export function computeOrderBlocks(
             bottom: source.low,
           });
           // Pine's max_boxes_count applies to both directions together, oldest first.
-          if (blocks.length > maxOrderBlocks) blocks.shift();
+          if (blocks.length > maxOrderBlocks) {
+            const oldest = blocks.shift();
+            if (oldest && p.show_historical_blocks)
+              historicalBlocks.push({ ...oldest, endTime: bar.time });
+          }
         }
       }
     }
@@ -130,8 +137,11 @@ export function computeOrderBlocks(
         }
       }
     }
+    if (p.show_historical_blocks)
+      for (const block of blocks)
+        if (removed.has(block.id)) historicalBlocks.push({ ...block, endTime: bar.time });
     blocks = blocks.filter((block) => !removed.has(block.id));
     if (event) events.push(event);
   });
-  return { blocks, events, roc };
+  return { blocks, historicalBlocks, events, roc };
 }

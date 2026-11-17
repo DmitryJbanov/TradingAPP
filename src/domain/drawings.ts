@@ -1,6 +1,10 @@
-import type { Candle } from "./market";
+import type { ITimeScaleApi, Logical, Time } from "lightweight-charts";
+import type { Candle, Timeframe } from "./market";
 export const drawingTools = {
   brush: "Кисть",
+  trend: "Линия тренда",
+  arrow: "Стрелка",
+  channel: "Параллельный канал",
   ruler: "Линейка",
   horizontal: "Горизонтальная линия",
   vertical: "Вертикальная линия",
@@ -28,6 +32,7 @@ export interface Drawing {
     showPoc: boolean;
     showValueArea: boolean;
     autoExtendRight?: boolean;
+    endInterval?: number;
     rowLayout?: "rows" | "ticks";
     ticksPerRow?: number;
     volume?: "total" | "up-down" | "delta";
@@ -42,9 +47,73 @@ export interface Drawing {
     valueAreaColor?: string;
     showLabels?: boolean;
     extendLevels?: boolean;
+    showHistogram?: boolean;
+    showValues?: boolean;
+    valuesColor?: string;
+    showVah?: boolean;
+    showVal?: boolean;
+    vahColor?: string;
+    valColor?: string;
+    pocStyle?: "solid" | "dashed" | "dotted";
+    vahStyle?: "solid" | "dashed" | "dotted";
+    valStyle?: "solid" | "dashed" | "dotted";
+    developingPoc?: boolean;
+    developingVa?: boolean;
+    developingPocColor?: string;
+    developingVaColor?: string;
+    boxColor?: string;
+    showBox?: boolean;
+    colorOpacity?: Record<string, number>;
+    levelWidths?: Record<string, number>;
+    timeframes?: Timeframe[];
   };
 }
+export const defaultProfile: NonNullable<Drawing["profile"]> = {
+  rows: 400,
+  valueArea: 70,
+  showPoc: true,
+  showValueArea: true,
+  autoExtendRight: true,
+  rowLayout: "rows",
+  volume: "delta",
+  placement: "left",
+  widthPercent: 40,
+  opacity: 85,
+  upColor: "#006064",
+  downColor: "#880e4f",
+  valueAreaUpColor: "#00acc1",
+  valueAreaDownColor: "#e91e63",
+  pocColor: "#2962ff",
+  vahColor: "#f23645",
+  valColor: "#4caf50",
+  pocStyle: "dotted",
+  vahStyle: "dotted",
+  valStyle: "dotted",
+  showLabels: false,
+  showHistogram: true,
+  showVah: true,
+  showVal: true,
+  showBox: false,
+  developingPoc: false,
+  developingVa: false,
+};
 export const fibLevels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+/** Lightweight Charts rounds coordinateToLogical to a candle; interpolate between candle centers. */
+export function fractionalLogicalAtCoordinate(scale: ITimeScaleApi<Time>, x: number): number | null {
+  const index = scale.coordinateToLogical(x);
+  if (index === null) return null;
+  const center = scale.logicalToCoordinate(index);
+  const next = scale.logicalToCoordinate((index + 1) as Logical);
+  if (center === null || next === null || next === center) return null;
+  return index + (x - center) / (next - center);
+}
+export function coordinateAtFractionalLogical(scale: ITimeScaleApi<Time>, value: number): number | null {
+  const index = Math.floor(value);
+  const center = scale.logicalToCoordinate(index as Logical);
+  const next = scale.logicalToCoordinate((index + 1) as Logical);
+  if (center === null || next === null) return null;
+  return center + (next - center) * (value - index);
+}
 /** Interpolate in candle space, preserving anchors as timestamps across history updates. */
 export function timeAtLogical(
   bars: Candle[],
@@ -89,8 +158,7 @@ export function readDrawings(raw: unknown): Drawing[] {
         Array.isArray(d.points) &&
         d.points.length >=
           (d.tool === "horizontal" || d.tool === "vertical" || d.tool === "text"
-            ? 1
-            : 2) &&
+            ? 1 : d.tool === "channel" ? 3 : 2) &&
         d.points.length <= 2000 &&
         (d.width === undefined || [1, 2, 3, 4].includes(d.width)) &&
         (d.text === undefined || typeof d.text === "string") &&
@@ -112,11 +180,25 @@ export function readDrawings(raw: unknown): Drawing[] {
               typeof d.profile.autoExtendRight === "boolean") &&
             validProfileStyle(d.profile))),
     )
-    .slice(-200);
+    .slice(-200)
+    .map((d) =>
+      d.tool !== "volume-profile"
+        ? d
+        : {
+            ...d,
+            profile: {
+              ...defaultProfile,
+              ...d.profile,
+              showVah: d.profile?.showVah ?? d.profile?.showValueArea ?? true,
+              showVal: d.profile?.showVal ?? d.profile?.showValueArea ?? true,
+            },
+          },
+    );
 }
 
 function validProfileStyle(p: NonNullable<Drawing["profile"]>) {
   return (
+    (p.endInterval === undefined || (Number.isFinite(p.endInterval) && p.endInterval > 0 && p.endInterval <= 604800)) &&
     (!p.rowLayout || ["rows", "ticks"].includes(p.rowLayout)) &&
     (!p.volume || ["total", "up-down", "delta"].includes(p.volume)) &&
     (!p.placement || ["left", "right"].includes(p.placement)) &&
@@ -137,10 +219,73 @@ function validProfileStyle(p: NonNullable<Drawing["profile"]>) {
       p.valueAreaDownColor,
       p.pocColor,
       p.valueAreaColor,
+      p.valuesColor,
+      p.vahColor,
+      p.valColor,
+      p.developingPocColor,
+      p.developingVaColor,
+      p.boxColor,
     ].every((v) => v === undefined || /^#[0-9a-f]{6}$/i.test(v)) &&
-    [p.showLabels, p.extendLevels].every(
-      (v) => v === undefined || typeof v === "boolean",
-    )
+    (p.colorOpacity === undefined ||
+      (!!p.colorOpacity &&
+        typeof p.colorOpacity === "object" &&
+        Object.entries(p.colorOpacity).every(
+          ([key, v]) =>
+            [
+              "upColor",
+              "downColor",
+              "valueAreaUpColor",
+              "valueAreaDownColor",
+              "valuesColor",
+              "pocColor",
+              "vahColor",
+              "valColor",
+              "developingPocColor",
+              "developingVaColor",
+              "boxColor",
+            ].includes(key) &&
+            Number.isFinite(v) &&
+            v >= 0 &&
+            v <= 100,
+        ))) &&
+    (p.levelWidths === undefined ||
+      (!!p.levelWidths &&
+        typeof p.levelWidths === "object" &&
+        Object.entries(p.levelWidths).every(
+          ([key, v]) =>
+            ["poc", "vah", "val"].includes(key) && [1, 2, 3, 4].includes(v),
+        ))) &&
+    [p.pocStyle, p.vahStyle, p.valStyle].every(
+      (v) => v === undefined || ["solid", "dashed", "dotted"].includes(v),
+    ) &&
+    (p.timeframes === undefined ||
+      (Array.isArray(p.timeframes) &&
+        p.timeframes.length <= 10 &&
+        p.timeframes.every((v) =>
+          [
+            "1m",
+            "3m",
+            "5m",
+            "15m",
+            "30m",
+            "1h",
+            "2h",
+            "4h",
+            "1d",
+            "1w",
+          ].includes(v),
+        ))) &&
+    [
+      p.showLabels,
+      p.extendLevels,
+      p.showHistogram,
+      p.showValues,
+      p.showVah,
+      p.showVal,
+      p.developingPoc,
+      p.developingVa,
+      p.showBox,
+    ].every((v) => v === undefined || typeof v === "boolean")
   );
 }
 export function drawingHandles(d: Drawing): DrawingPoint[] {
@@ -171,14 +316,14 @@ export function drawingHandles(d: Drawing): DrawingPoint[] {
       { time: a.time, price: b.price },
     ];
   }
-  return d.tool === "fibonacci" ? d.points.slice(0, 2) : [];
+  return ["fibonacci", "trend", "arrow", "channel"].includes(d.tool) ? d.points : [];
 }
 export function resizedDrawingPoints(
   d: Drawing,
   corner: number,
   p: DrawingPoint,
 ): DrawingPoint[] {
-  if (d.tool === "fibonacci")
+  if (["fibonacci", "trend", "arrow", "channel"].includes(d.tool))
     return d.points.map((v, i) => (i === corner ? p : v));
   const handles = drawingHandles(d),
     a = handles[0],

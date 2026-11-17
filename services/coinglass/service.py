@@ -123,10 +123,9 @@ class Manager:
         while not self.stopping:
             try: manager, job=self.queue.get(timeout=.5)
             except queue.Empty:
-                if self.browser_requested.is_set() and time.monotonic() >= self.next_browser_attempt:
-                    try: self.worker.ensure()
-                    except Exception:
-                        self.next_browser_attempt = time.monotonic() + 5
+                # Status polling must not keep a Playwright driver alive.
+                # collect() starts the worker only when an actual job arrives.
+                self.browser_requested.clear()
                 continue
             try: manager.execute(job)
             except Exception:
@@ -280,7 +279,7 @@ class Handler(BaseHTTPRequestHandler):
                     fill_id=query.get('fill', [''])[0]
                     if fill_id and not re.fullmatch(r'[A-Za-z0-9:._-]{1,180}',fill_id): raise ValueError('Некорректный ID сделки')
                     body=self.whale_tracker.profile(query.get('address', [''])[0], query.get('refresh', [''])[0]=='1', fill_id)
-                elif url.path == '/whales/watchlist': body=self.whale_tracker.watchlist()
+                elif url.path == '/whales/watchlist': body=self.whale_tracker.watchlist(query.get('side', ['all'])[0], query.get('coin', [''])[0], float(query.get('minValue', ['0'])[0]))
                 else: self.respond(404, {'error':'Not found'}); return
                 self.respond(200, body)
             except ValueError as e: self.respond(400, {'error':str(e)})

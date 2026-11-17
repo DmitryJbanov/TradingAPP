@@ -1,0 +1,102 @@
+.strategy-tester {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+.strategy-period {
+  padding: 16px;
+}
+.strategy-period h3,
+.pine-strategy-report h3 {
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+.strategy-period form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+.strategy-period label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+}
+.strategy-period input {
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color-scheme: dark light;
+}
+.strategy-summary-scroll {
+  overflow-x: auto;
+}
+.strategy-summary {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.strategy-summary th,
+.strategy-summary td {
+  padding: 10px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.strategy-summary th {
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.strategy-summary td small {
+  display: block;
+  max-width: 280px;
+  margin-top: 5px;
+}
+.strategy-details {
+  padding: 8px 0;
+}
+.strategy-details h4 {
+  margin: 12px 0;
+}
+.strategy-equity-chart {
+  width: 100%;
+  min-width: 300px;
+}
+.strategy-statistics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px 16px;
+  margin: 14px 0;
+}
+.strategy-statistics div {
+  padding: 8px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.strategy-statistics dt {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.strategy-statistics dd {
+  font:
+    600 14px ui-monospace,
+    monospace;
+  margin: 5px 0 0;
+}
+.strategy-summary .positive {
+  color: #26a69a;
+}
+.strategy-summary .negative {
+  color: #ef5350;
+}
+.strategy-period .muted,
+.strategy-details .muted {
+  font-size: 11px;
+  margin-top: 12px;
+}
+.strategy-summary .pine-trades td {
+  white-space: nowrap;
+}

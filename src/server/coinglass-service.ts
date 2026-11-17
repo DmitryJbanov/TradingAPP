@@ -53,6 +53,12 @@ export async function coinglassAsset(symbol: string, config: CoinglassConfig) {
     );
   return item.base;
 }
+/** Model 3 is collected by coin symbol, independently of exchange listings. */
+export function heatmapAsset(symbol: string): string {
+  const match = /^(?:(?:FUTURES|SPOT):)?([A-Z0-9]{1,20})(?:USDT|USDC|USD)$/.exec(symbol);
+  if (!match) throw new SymbolError("Для Model 3 нужна криптопара в USD, USDT или USDC", 400);
+  return match[1];
+}
 export async function handleCoinglass(
   request: Request,
   config: CoinglassConfig,
@@ -66,6 +72,14 @@ export async function handleCoinglass(
         ["overview", "profile", "watchlist", "market"].includes(action)
       ) {
         const query = new URLSearchParams();
+        if (action === "watchlist") {
+          const side = url.searchParams.get("side") ?? "all";
+          const coin = url.searchParams.get("coin") ?? "";
+          const minValue = Number(url.searchParams.get("minValue") ?? "0");
+          if (!["all", "Long", "Short"].includes(side) || coin.length > 40 || !Number.isFinite(minValue) || minValue < 0)
+            throw new SymbolError("Некорректные фильтры сделок", 400);
+          query.set("side", side); query.set("coin", coin); query.set("minValue", String(minValue));
+        }
         if (action === "overview" || action === "market") {
           const coin = url.searchParams.get("coin") ?? "all";
           if (coin.length > 40)
@@ -166,7 +180,7 @@ export async function handleCoinglass(
         : rsiHeatmap
           ? "TOP50"
           : symbol
-            ? await coinglassAsset(symbol, config)
+            ? heatmap ? heatmapAsset(symbol) : await coinglassAsset(symbol, config)
             : undefined;
       const snapshotId = url.searchParams.get("snapshotId");
       if (snapshotId && !/^[a-f0-9]{32}$/.test(snapshotId))
@@ -211,7 +225,7 @@ export async function handleCoinglass(
         ? "CMC"
         : rsiHeatmap
           ? "TOP50"
-          : await coinglassAsset(body.symbol, config);
+          : heatmap ? heatmapAsset(body.symbol) : await coinglassAsset(body.symbol, config);
       const normalized =
         fearGreed || rsiHeatmap
           ? {}

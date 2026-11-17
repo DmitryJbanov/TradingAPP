@@ -1,6 +1,7 @@
 """Collect the public RSI list through CoinGlass's own page client."""
 import json
 import re
+from coinglass_heatmap.frontend import CLIENT_JS, READY_JS
 from datetime import datetime, timezone
 
 
@@ -115,15 +116,15 @@ def run(request, runtime, folder):
                 continue
         if not page.evaluate('Boolean(self.webpackChunk_N_E)'):
             raise RsiHeatmapError(f'CoinGlass не загрузил клиент RSI (HTTP {status}, {page.url}).')
+    page.wait_for_function(READY_JS, timeout=45000)
     raw = page.evaluate(r'''async () => {
       try {
-        let req; self.webpackChunk_N_E.push([[Math.random()], {}, r => { req = r; }]);
-        const api=req(89390);
+        const {api,find}=__CG_CLIENT__();
         const mapEntry=Object.entries(api).find(([,fn])=>typeof fn==='function' && String(fn).includes('/api/index/rsiMap'));
         if (!mapEntry) return {ok:false,error:'RSI map endpoint is missing'};
         const response=await mapEntry[1]({});
         const capEntry=Object.entries(api).find(([,fn])=>typeof fn==='function' && String(fn).includes('/api/spot/marketCap/data'));
-        const rankEntry=Object.entries(api).find(([,fn])=>typeof fn==='function' && /url:\s*["']\/api\/marketCapRank["']/.test(String(fn)));
+        const rankEntry=['rank',find('/api/marketCapRank')];
         const capitalization=[];
         if (!capEntry || !rankEntry) return {ok:false,error:'Capitalization endpoints are missing'};
         const globalRanks=await rankEntry[1]({limit:1000,pageSize:1000,pageNum:1});
@@ -143,7 +144,7 @@ def run(request, runtime, folder):
         }
         return {ok:true,data:response?.data,capitalization};
       } catch (error) { return {ok:false,error:String(error),stack:String(error?.stack||'').slice(0,1200)}; }
-    }''')
+    }'''.replace('__CG_CLIENT__', '('+CLIENT_JS+')'))
     if not raw.get('ok'):
         raise RsiHeatmapError('Не удалось получить RSI через клиент CoinGlass: '+json.dumps(raw, ensure_ascii=False)[:1800])
     source = raw.get('data')

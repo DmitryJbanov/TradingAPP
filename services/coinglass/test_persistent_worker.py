@@ -20,17 +20,18 @@ for line in sys.stdin:
     if request['id'] == 'timeout': time.sleep(30)
     print(json.dumps({'kind': 'result', 'request_id': 'old', 'result': 'stale'}), flush=True)
     print(json.dumps({'kind': 'result', 'request_id': request['id'], 'result': request['id']}), flush=True)
+    print(json.dumps({'kind': 'released', 'request_id': request['id']}), flush=True)
 '''
 
 
 class PersistentWorkerTests(unittest.TestCase):
-    def test_failed_request_keeps_browser_for_next_request(self):
+    def test_every_job_releases_browser_even_after_error(self):
         from types import SimpleNamespace
         runtime = MagicMock()
         calls = []
         def run(request, owned):
             self.assertIs(owned, runtime)
-            runtime.close.assert_not_called()
+            self.assertEqual(runtime.close.call_count, len(calls))
             calls.append(request['id'])
             if request['id'] == 'first':
                 raise ValueError('Invalid API response')
@@ -41,11 +42,11 @@ class PersistentWorkerTests(unittest.TestCase):
                 patch('worker.BrowserRuntime', return_value=runtime), \
                 patch('worker.threading.Thread', side_effect=thread), \
                 patch('worker.sys.stdin', io.StringIO('{"id":"first"}\n{"id":"second"}\n')), \
-                patch('worker.run', side_effect=run), patch('worker.emit'):
+                patch('worker.run', side_effect=run), patch('worker.emit'), patch('worker.save_session'):
             serve()
         self.assertEqual(calls, ['first', 'second'])
-        runtime.ensure.assert_called_once()
-        runtime.close.assert_called_once()
+        runtime.ensure.assert_not_called()
+        self.assertEqual(runtime.close.call_count, 3)
 
     def test_reuses_process_filters_old_responses_and_recovers(self):
         original = subprocess.Popen
@@ -66,16 +67,16 @@ class PersistentWorkerTests(unittest.TestCase):
                 for name in ('first', 'second'):
                     result = list(worker.collect({'id': name}, 5, lambda: False))
                     self.assertEqual(result[0]['result'], name)
-                self.assertEqual(len(spawned), 1)
+                self.assertEqual(len(spawned), 2)
                 with self.assertRaises(RuntimeError):
                     list(worker.collect({'id': 'crash'}, 5, lambda: False))
                 self.assertEqual(list(worker.collect({'id': 'recovered'}, 5, lambda: False))[0]['result'], 'recovered')
-                self.assertEqual(len(spawned), 2)
+                self.assertEqual(len(spawned), 4)
                 with self.assertRaises(TimeoutError):
                     list(worker.collect({'id': 'timeout'}, .1, lambda: False))
                 self.assertIsNone(worker.process)
                 worker.ensure()
-                self.assertEqual(len(spawned), 3)
+                self.assertEqual(len(spawned), 6)
             finally:
                 worker.close()
 

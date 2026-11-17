@@ -5,6 +5,7 @@ import type { useHeatmap } from "../hooks/use-heatmap";
 import {
   heatmapColumnIndex,
   heatmapColor,
+  heatmapColorStrength,
   heatmapPriceIndex,
   heatmapRanges,
   heatmapRangeLabels,
@@ -33,6 +34,33 @@ import type { IndicatorInstance } from "../domain/workspace";
 import { heatmapParams } from "../domain/heatmap";
 type State = ReturnType<typeof useHeatmap>;
 
+export function HeatmapQuickSettings({state, onChange}: {state: State; onChange: (params: HeatmapParams) => void}) {
+  const p = state.settings;
+  return <details className="heatmap-quick">
+    <summary>Model 3 <span>{heatmapRangeLabels[p.range]}</span></summary>
+    <div className="heatmap-quick-panel">
+      <div className="heatmap-quick-title">Чувствительность</div>
+      <label>Нижняя граница: {Math.round(p.threshold * 100)}%
+        <input aria-label="Нижняя граница чувствительности" type="range" min="0" max="100" value={p.threshold * 100} onChange={e => onChange({...p,threshold: Math.min(p.ceiling, Number(e.target.value)/100)})}/>
+      </label>
+      <label>Верхняя граница: {Math.round(p.ceiling * 100)}%
+        <input aria-label="Верхняя граница чувствительности" type="range" min="0" max="100" value={p.ceiling * 100} onChange={e => onChange({...p,ceiling: Math.max(p.threshold,Number(e.target.value)/100)})}/>
+      </label>
+      <button type="button" className="button" onClick={() => onChange({...p,threshold:0,ceiling:1})}>Сбросить</button>
+      <label>Палитра
+        <Select value={p.scheme} onValueChange={scheme => onChange({...p,scheme:scheme as HeatmapParams["scheme"]})}>
+          <SelectTrigger aria-label="Палитра Model 3"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="coinglass">CoinGlass</SelectItem><SelectItem value="fire">Огонь</SelectItem><SelectItem value="ice">Лёд</SelectItem><SelectItem value="mono">Монохром</SelectItem></SelectContent>
+        </Select>
+      </label>
+      <div>Период</div>
+      <div className="heatmap-quick-ranges">{heatmapRanges.map(range => <button type="button" key={range} disabled={!state.longRanges && (range === "180d" || range === "365d")} aria-pressed={p.range === range} title={heatmapRangeLabels[range]} onClick={() => onChange({...p,range})}>{heatmapRangeLabels[range]} {state.loadedRanges.includes(range) && <span className="heatmap-ready" aria-label="Загружено">✓</span>}</button>)}</div>
+      {state.busy && <span>Загрузка: {state.job?.params?.range ?? p.range}</span>}
+      {state.error && <span role="alert">{state.error}</span>}
+    </div>
+  </details>;
+}
+
 export function HeatmapSettings({
   instance,
   state,
@@ -56,8 +84,7 @@ export function HeatmapSettings({
         <DialogHeader>
           <DialogTitle>CoinGlass Heatmap · Model 3</DialogTitle>
           <DialogDescription>
-            Настройки сохраняются сразу. Для нового периода загрузите карту
-            заново.
+            Настройки сохраняются сразу; выбранный период загружается первым.
           </DialogDescription>
         </DialogHeader>
         <IndicatorPresets
@@ -69,7 +96,6 @@ export function HeatmapSettings({
             Период карты
             <Select
               value={p.range}
-              disabled={state.busy}
               onValueChange={(range) =>
                 onChange({ ...p, range: range as HeatmapParams["range"] })
               }
@@ -79,7 +105,7 @@ export function HeatmapSettings({
               </SelectTrigger>
               <SelectContent>
                 {heatmapRanges.map((range) => (
-                  <SelectItem key={range} value={range}>
+                  <SelectItem key={range} value={range} disabled={!state.longRanges && (range === "180d" || range === "365d")}>
                     {heatmapRangeLabels[range]}
                   </SelectItem>
                 ))}
@@ -109,16 +135,21 @@ export function HeatmapSettings({
           </p>
         )}
         <label className="settings-row">
-          Порог {Math.round(p.threshold * 100)}%
+          Нижняя граница {Math.round(p.threshold * 100)}%
           <input
             type="range"
             min="0"
             max="100"
             value={p.threshold * 100}
             onChange={(e) =>
-              onChange({ ...p, threshold: Number(e.target.value) / 100 })
+              onChange({ ...p, threshold: Math.min(p.ceiling, Number(e.target.value) / 100) })
             }
           />
+        </label>
+        <label className="settings-row">
+          Верхняя граница {Math.round(p.ceiling * 100)}%
+          <input type="range" min="0" max="100" value={p.ceiling * 100}
+            onChange={(e) => onChange({ ...p, ceiling: Math.max(p.threshold, Number(e.target.value) / 100) })} />
         </label>
         <label className="settings-row">
           Шкала
@@ -285,13 +316,7 @@ export function HeatmapPanel({
         )
           continue;
         const strength = model.intensity(value);
-        const color =
-          settings.threshold === 1
-            ? 1
-            : Math.max(
-                0,
-                (strength - settings.threshold) / (1 - settings.threshold),
-              );
+        const color = heatmapColorStrength(strength, settings.threshold, settings.ceiling);
         ctx.fillStyle = heatmapColor(color, settings.scheme);
         ctx.fillRect(screenX, screenY, Math.max(1, cw), Math.max(1, ch));
       }
@@ -388,6 +413,7 @@ export function HeatmapPanel({
     model,
     settings.scheme,
     settings.threshold,
+    settings.ceiling,
     settings.showCandles,
     visible,
     view,

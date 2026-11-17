@@ -7,6 +7,17 @@ USER = '0x6859da14835424957a1e6b397d8026b1d9ff7e1e'
 
 
 class WhaleTests(unittest.TestCase):
+    def test_watchlist_filters_before_limiting_recent_fills(self):
+        with tempfile.TemporaryDirectory() as folder:
+            tracker = WhaleTracker(folder, start=False)
+            tracker.watched = [dict(address=USER, label='', addedAt='')]
+            trades = [dict(id=str(i), value=100, action='Open Long', coin='BTC') for i in range(50)]
+            trades += [dict(id='large', value=12000, action='Open Long', coin='BTC'), dict(id='other', value=15000, action='Open Short', coin='ETH')]
+            tracker.profiles[USER] = dict(address=USER, collectedAt='', accountValue=0, positionValue=0, positions=[], performance={}, fills=trades)
+            with patch.object(tracker, 'request_profile'):
+                result = tracker.watchlist('Long', 'btc', 10000)['data'][0]['profile']['fills']
+            self.assertEqual([r['id'] for r in result], ['large'])
+            tracker.close()
     def test_address_validation_and_case(self):
         self.assertEqual(address('  ' + USER.upper().replace('0X', '0x') + ' '), USER)
         for value in ('0x', USER + '/', '', None):

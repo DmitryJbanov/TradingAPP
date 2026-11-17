@@ -1,3 +1,4 @@
+import { loadHeatmapRanges, type HeatmapJob } from "../src/hooks/heatmap-loader";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -6,6 +7,7 @@ import {
   parseHeatmap,
   heatmapModel,
   heatmapColor,
+  heatmapColorStrength,
   heatmapRanges,
   parseHeatmapCandles,
   heatmapPriceIndex,
@@ -238,6 +240,90 @@ test("heatmap selects only latest-column levels and handles all scale endpoints"
   );
   assert.equal(heatmapParams({ scheme: "__proto__" }).scheme, "coinglass");
 });
+test("sensitivity maps the selected interval to the full palette", () => {
+  assert.equal(heatmapColorStrength(.1, .2, .8), 0);
+  assert.ok(Math.abs(heatmapColorStrength(.5, .2, .8) - .5) < 1e-9);
+  assert.equal(heatmapColorStrength(.9, .2, .8), 1);
+  assert.equal(heatmapColorStrength(.5, .5, .5), 1);
+  assert.equal(heatmapParams({}).ceiling, 1);
+  assert.equal(heatmapParams({ceiling: 2}).ceiling, 1);
+  assert.equal(heatmapParams({ceiling: .2, threshold: .8}).threshold, .2);
+});
+test("period loader prioritizes selected range, waits for an existing job and records each successful snapshot", async () => {
+  const started: string[] = [], loaded: string[] = [];
+  let job: HeatmapJob | undefined = {state:"running",message:"",params:{range:"7d"}};
+  let waits = 0;
+  const abort = new AbortController();
+  await loadHeatmapRanges({
+    asset:"BTC", selected:"90d", has:()=>false, force:false, signal:abort.signal,
+    status:async () => job,
+    start:async range => {started.push(range); job = {state:"running",message:"",params:{range}};},
+    wait:async () => {waits++; if (job) job = {...job,state:"done",result:{snapshotId:`id-${job.params?.range}`,collectedAt:"now"}};},
+    onJob:()=>{}, onLoaded:(range,id) => {loaded.push(`${range}:${id}`);},
+  });
+  assert.deepEqual(started, ["90d","14d","30d","180d","365d"]);
+  assert.deepEqual(loaded, started.map(r => `${r}:id-${r}`));
+  assert.ok(waits >= 4);
+});
+test("period loader retries when another client wins the collector queue", async () => {
+  let job: HeatmapJob | undefined;
+  let calls = 0;
+  const loaded: string[] = [];
+  await loadHeatmapRanges({
+    asset:"BTC", selected:"30d", has:r=>r!=="30d", force:false, signal:new AbortController().signal,
+    status:async()=>job,
+    start:async range=>{calls++; job={state:"running",message:"",params:{range:calls === 1 ? "7d" : range}};},
+    wait:async()=>{job={...job!,state:"done",result:{snapshotId:"snapshot",collectedAt:"now"}};},
+    onJob:()=>{},onLoaded:(range)=>loaded.push(range),
+  });
+  assert.equal(calls,2);
+  assert.deepEqual(loaded,["30d"]);
+});
+test("background periods exclude long maps for other assets", async () => {
+  const started: string[] = [];
+  let job: HeatmapJob | undefined;
+  const options = {asset:"SOL", selected:"90d" as const, has:()=>false, force:false, signal:new AbortController().signal,
+    status:async()=>job, start:async (range: string)=>{started.push(range); job={state:"running",message:"",params:{range}};},
+    wait:async()=>{job={...job!,state:"done",result:{snapshotId:"id",collectedAt:new Date().toISOString()}};},
+    onJob:()=>{}, onLoaded:()=>{}};
+  await loadHeatmapRanges(options);
+  assert.deepEqual(started,["90d","14d","30d"]);
+  await assert.rejects(loadHeatmapRanges({...options,selected:"180d"}), /только для BTC и ETH/);
+  assert.deepEqual(started,["90d","14d","30d"]);
+});
+test("period loader reuses only recent matching snapshots", async () => {
+  let calls = 0;
+  let job: HeatmapJob | undefined = {state:"done",message:"",params:{range:"30d"},result:{snapshotId:"old",collectedAt:"2020-01-01T00:00:00Z"}};
+  const loaded: string[] = [];
+  const opts = {asset:"BTC",selected:"30d" as const,has:(r:string)=>r!=="30d",force:false,signal:new AbortController().signal,
+    status:async()=>job,start:async (range:string)=>{calls++; job={state:"running",message:"",params:{range}};},
+    wait:async()=>{job={...job!,state:"done",result:{snapshotId:"new",collectedAt:new Date().toISOString()}};},
+    onJob:()=>{},onLoaded:(_range:string,id:string)=>loaded.push(id)};
+  await loadHeatmapRanges(opts);
+  assert.equal(calls,1); assert.deepEqual(loaded,["new"]);
+  loaded.length=0; await loadHeatmapRanges(opts);
+  assert.equal(calls,1); assert.deepEqual(loaded,["new"]);
+});
+test("period loader stops submitting work after cancellation", async () => {
+  const abort = new AbortController();
+  const started: string[] = [];
+  await loadHeatmapRanges({
+    asset:"BTC",selected:"90d",has:()=>false,force:false,signal:abort.signal,
+    status:async()=>undefined,start:async range=>{started.push(range);abort.abort();},
+    wait:async()=>{},onJob:()=>{},onLoaded:()=>{assert.fail("cancelled task reported loaded");},
+  });
+  assert.deepEqual(started,["90d"]);
+});
+test("period loader stops after an authentication or rate limit error", async () => {
+  const started: string[] = [];
+  let job: HeatmapJob | undefined;
+  await assert.rejects(loadHeatmapRanges({
+    asset:"BTC",selected:"30d",has:()=>false,force:false,signal:new AbortController().signal,
+    status:async()=>job,start:async range=>{started.push(range); job={state:"running",message:"",params:{range}};},
+    wait:async()=>{job={...job!,state:"error",message:"код 40000: Требуется вход"};},onJob:()=>{},onLoaded:()=>{},
+  }), /40000/);
+  assert.deepEqual(started,["30d"]);
+});
 test("heatmap proxy uses isolated endpoints and preserves origin and symbol validation", async () => {
   const original = globalThis.fetch;
   const paths: string[] = [];
@@ -274,6 +360,10 @@ test("heatmap proxy uses isolated endpoints and preserves origin and symbol vali
     assert.equal((await run("BTCUSDT", "http://local", "invalid")).status, 400);
     assert.equal((await run("BTCUSDT", "http://evil")).status, 403);
     assert.equal((await run("AAPL")).status, 400);
+    assert.equal((await run("FUTURES:OKBUSDT", "http://local", "90d")).status, 202);
+    assert.equal(payloads.at(-1).asset, "OKB");
+    assert.equal((await run("FUTURES:OKBETH")).status, 400);
+    assert.equal((await run("FUTURES:../OKBUSDT")).status, 400);
     assert.equal(
       (
         await handleApi(
@@ -289,6 +379,10 @@ test("heatmap proxy uses isolated endpoints and preserves origin and symbol vali
       paths.at(-1),
       "http://collector:8090/heatmap/status?asset=BTC",
     );
+    assert.equal((await handleApi(new Request("http://local/api/coinglass/heatmap-status?symbol=FUTURES%3AOKBUSDT"), cfg)).status, 200);
+    assert.equal(paths.at(-1), "http://collector:8090/heatmap/status?asset=OKB");
+    assert.equal((await handleApi(new Request("http://local/api/coinglass/heatmap-snapshot?symbol=FUTURES%3AOKBUSDT&snapshotId=0123456789abcdef0123456789abcdef"), cfg)).status, 200);
+    assert.equal(paths.at(-1), "http://collector:8090/heatmap/snapshot?asset=OKB&snapshotId=0123456789abcdef0123456789abcdef");
     assert.equal(
       (
         await handleApi(

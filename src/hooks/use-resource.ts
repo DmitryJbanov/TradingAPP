@@ -11,6 +11,7 @@ import {
   candleCachePair,
   cachedPairValue,
   saveCandles,
+  fetchCandles,
   clearPairCache,
 } from "./pair-cache";
 import type { CandleResponse } from "../domain/market";
@@ -35,7 +36,7 @@ export function useResource<T>(url: string, period = 30000, enabled = true) {
       inFlight.current = true;
       setLoading(true);
       try {
-        const r = await fetch(
+        const r = await (pair ? fetchCandles : fetch)(
           url + (force ? (url.includes("?") ? "&" : "?") + "refresh=1" : ""),
           { signal: abort.signal },
         );

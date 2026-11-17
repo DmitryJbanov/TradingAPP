@@ -157,6 +157,20 @@ test("Sonarlab Close mitigation uses previous close; Wick uses current extreme i
   }
 });
 
+test("historical blocks stop on mitigation and preserve active results", () => {
+  for (const side of ["bullish", "bearish"] as const) {
+    const bars = fixture(side);
+    bars[12] = { ...bars[12], close: side === "bullish" ? 89 : 111, low: 88, high: 112 };
+    const plain = computeOrderBlocks(bars.slice(0, 14), { sens: 100 });
+    const history = computeOrderBlocks(bars.slice(0, 14), { sens: 100, show_historical_blocks: true });
+    assert.equal(plain.historicalBlocks?.length, 0);
+    assert.equal(history.historicalBlocks?.length, 1);
+    assert.equal(history.historicalBlocks?.[0].endTime, bars[13].time);
+    assert.deepEqual(history.blocks, plain.blocks);
+    assert.deepEqual(history.events, plain.events);
+  }
+});
+
 test("Sonarlab signals honor switches and only the first alert call per bar", () => {
   const values = Array<number>(21).fill(0);
   values[5] = -2;
@@ -216,7 +230,7 @@ test("Sonarlab caps boxes globally, evicts the oldest and replays the current ca
 });
 
 test("Sonarlab handles missing history, zero opens and invalid stored parameters", () => {
-  assert.deepEqual(computeOrderBlocks([]), { blocks: [], events: [], roc: [] });
+  assert.deepEqual(computeOrderBlocks([]), { blocks: [], historicalBlocks: [], events: [], roc: [] });
   const bars = fixture();
   bars[0].open = 0;
   bars[5].open = NaN;
@@ -302,3 +316,4 @@ test("Sonarlab primitive extends right, follows price/time transforms and clears
   assert.equal(rectangles.length, 0);
   assert.equal(updates, 3);
 });
+

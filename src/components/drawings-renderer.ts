@@ -7,6 +7,7 @@ import type {
   Logical,
 } from "lightweight-charts";
 import {
+  coordinateAtFractionalLogical,
   drawingHandles,
   fibLevels,
   logicalAtTime,
@@ -24,11 +25,13 @@ type ProfileData = {
   poc: number;
   vaLow: number;
   vaHigh: number;
+  developing: { time: number; poc: number; vah: number; val: number }[];
 };
 export class DrawingsRenderer implements ISeriesPrimitive<Time> {
   private attachment: SeriesAttachedParameter<Time> | null = null;
   private drawings: Drawing[] = [];
   private bars: Candle[] = [];
+  private profileBars: Candle[] = [];
   private interval = 3600;
   private tickSize = 0.01;
   private profileCache = new WeakMap<
@@ -52,11 +55,8 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
         c.clip();
         for (const d of this.drawings) {
           const points = d.points.map((p) => ({
-            x: a.chart
-              .timeScale()
-              .logicalToCoordinate(
-                logicalAtTime(this.bars, p.time, this.interval) as Logical,
-              ),
+            x: coordinateAtFractionalLogical(a.chart.timeScale(),
+              logicalAtTime(this.bars, p.time, this.interval)),
             y: a.series.priceToCoordinate(p.price),
           }));
           if (points.some((p) => p.x === null || p.y === null)) continue;
@@ -91,11 +91,38 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
             c.fillText(d.text ?? "Текст", p.x, p.y);
           }
           if (d.tool === "brush") {
+            const strokePoints = points as { x: number; y: number }[];
+            c.save();
             c.beginPath();
-            points.forEach((v, i) =>
-              i ? c.lineTo(v.x!, v.y!) : c.moveTo(v.x!, v.y!),
-            );
+            c.moveTo(strokePoints[0].x, strokePoints[0].y);
+            for (let i = 1; i < strokePoints.length - 1; i++) {
+              const current = strokePoints[i], next = strokePoints[i + 1];
+              c.quadraticCurveTo(current.x, current.y, (current.x + next.x) / 2, (current.y + next.y) / 2);
+            }
+            const last = strokePoints[strokePoints.length - 1];
+            c.lineTo(last.x, last.y);
+            // A light outer stroke softens the edge like a marker without hiding candles.
+            c.globalAlpha = 0.18;
+            c.lineWidth = (d.width ?? 2) + 2;
             c.stroke();
+            c.globalAlpha = 1;
+            c.lineWidth = d.width ?? 2;
+            c.stroke();
+            c.restore();
+          }
+          if (d.tool === "trend" || d.tool === "arrow") {
+            line(p.x, p.y, q.x, q.y);
+            if (d.tool === "arrow") {
+              const angle = Math.atan2(q.y - p.y, q.x - p.x), size = 10 + (d.width ?? 2);
+              c.beginPath(); c.moveTo(q.x - size * Math.cos(angle - Math.PI / 6), q.y - size * Math.sin(angle - Math.PI / 6));
+              c.lineTo(q.x, q.y); c.lineTo(q.x - size * Math.cos(angle + Math.PI / 6), q.y - size * Math.sin(angle + Math.PI / 6)); c.stroke();
+            }
+          }
+          if (d.tool === "channel" && points.length >= 3) {
+            const third = points[2] as {x:number;y:number}, offset = third.y - p.y;
+            line(p.x, p.y, q.x, q.y); line(p.x, p.y + offset, q.x, q.y + offset);
+            c.save(); c.globalAlpha = 0.07; c.beginPath(); c.moveTo(p.x,p.y); c.lineTo(q.x,q.y);
+            c.lineTo(q.x,q.y+offset); c.lineTo(p.x,p.y+offset); c.closePath(); c.fill(); c.restore();
           }
           if (d.tool === "ruler") {
             c.fillStyle =
@@ -151,10 +178,19 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
             c.strokeRect(p.x, p.y, q.x - p.x, q.y - p.y);
           }
           if (d.tool === "volume-profile") {
+            const data = this.profileData(d);
             const { low, high, rows, bins, up, down, max, poc, vaLow, vaHigh } =
-              this.profileData(d);
+              data;
             if (high <= low) continue;
-            const width = Math.max(0, Math.abs(q.x - p.x));
+            const endX = d.profile?.autoExtendRight
+              ? (a.chart
+                  .timeScale()
+                  .logicalToCoordinate((this.bars.length - 1) as Logical) ??
+                q.x)
+              : q.x;
+            const rangeLeft = Math.min(p.x, q.x),
+              rangeRight = Math.max(p.x, q.x, endX);
+            const width = rangeRight - rangeLeft;
             if (!max) {
               if (d.id === this.selectedId || d.id === this.hoverId)
                 c.strokeRect(
@@ -167,71 +203,133 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
             }
             const settings = d.profile;
             const fullWidth = width * ((settings?.widthPercent ?? 100) / 100),
-              right = Math.max(p.x, q.x),
-              anchor =
-                settings?.placement === "right" ? right : Math.min(p.x, q.x);
+              right = rangeRight,
+              anchor = settings?.placement === "right" ? right : rangeLeft;
             const deltaMax = Math.max(
               ...up.map((v, i) => Math.abs(v - down[i])),
             );
-            c.globalAlpha = (settings?.opacity ?? 50) / 100;
-            bins.forEach((value, i) => {
-              const y1 = a.series.priceToCoordinate(
-                  low + ((i + 1) / rows) * (high - low),
-                ),
-                y2 = a.series.priceToCoordinate(
-                  low + (i / rows) * (high - low),
-                );
-              if (y1 === null || y2 === null || !value) return;
-              const delta = up[i] - down[i],
-                magnitude =
-                  settings?.volume === "delta" ? Math.abs(delta) : value;
-              const w =
-                  (fullWidth * magnitude) /
-                  (settings?.volume === "delta" ? deltaMax || 1 : max),
-                left = settings?.placement === "right" ? anchor - w : anchor,
-                h = Math.max(1, Math.abs(y2 - y1)),
-                top = Math.min(y1, y2);
-              const va =
-                settings?.showValueArea !== false && i >= vaLow && i <= vaHigh;
-              const upColor = va
-                  ? (settings?.valueAreaUpColor ?? "#42a5f5")
-                  : (settings?.upColor ?? d.color),
-                downColor = va
-                  ? (settings?.valueAreaDownColor ?? "#90caf9")
-                  : (settings?.downColor ?? "#ef7185");
-              if (
-                settings?.volume === "delta" ||
-                settings?.volume === "total"
-              ) {
-                c.fillStyle =
-                  settings.volume === "delta" && delta < 0
-                    ? downColor
-                    : upColor;
-                c.fillRect(left, top, w, h);
-              } else {
-                c.fillStyle = upColor;
-                c.fillRect(left, top, (w * up[i]) / value, h);
-                c.fillStyle = downColor;
+            const alpha = (key: string) =>
+              ((settings?.opacity ?? 50) / 100) *
+              ((settings?.colorOpacity?.[key] ?? 100) / 100);
+            c.globalAlpha = alpha("boxColor");
+            if (settings?.showBox) {
+              c.fillStyle = settings.boxColor ?? "#000000";
+              const yHigh = a.series.priceToCoordinate(high),
+                yLow = a.series.priceToCoordinate(low);
+              if (yHigh !== null && yLow !== null)
                 c.fillRect(
-                  left + (w * up[i]) / value,
-                  top,
-                  (w * down[i]) / value,
-                  h,
+                  rangeLeft,
+                  Math.min(yHigh, yLow),
+                  width,
+                  Math.abs(yLow - yHigh),
                 );
-              }
-            });
+            }
+            if (settings?.showHistogram !== false)
+              bins.forEach((value, i) => {
+                const y1 = a.series.priceToCoordinate(
+                    low + ((i + 1) / rows) * (high - low),
+                  ),
+                  y2 = a.series.priceToCoordinate(
+                    low + (i / rows) * (high - low),
+                  );
+                if (y1 === null || y2 === null || !value) return;
+                const delta = up[i] - down[i],
+                  magnitude =
+                    settings?.volume === "delta" ? Math.abs(delta) : value;
+                const w =
+                    (fullWidth * magnitude) /
+                    (settings?.volume === "delta" ? deltaMax || 1 : max),
+                  left = settings?.placement === "right" ? anchor - w : anchor,
+                  h = Math.max(0.5, Math.abs(y2 - y1) * 0.85),
+                  top = Math.min(y1, y2);
+                const va =
+                  settings?.showValueArea !== false &&
+                  i >= vaLow &&
+                  i <= vaHigh;
+                const upColor = va
+                    ? (settings?.valueAreaUpColor ?? "#42a5f5")
+                    : (settings?.upColor ?? d.color),
+                  downColor = va
+                    ? (settings?.valueAreaDownColor ?? "#90caf9")
+                    : (settings?.downColor ?? "#ef7185");
+                if (
+                  settings?.volume === "delta" ||
+                  settings?.volume === "total"
+                ) {
+                  c.globalAlpha = alpha(
+                    settings.volume === "delta" && delta < 0
+                      ? va
+                        ? "valueAreaDownColor"
+                        : "downColor"
+                      : va
+                        ? "valueAreaUpColor"
+                        : "upColor",
+                  );
+                  c.fillStyle =
+                    settings.volume === "delta" && delta < 0
+                      ? downColor
+                      : upColor;
+                  c.fillRect(left, top, w, h);
+                } else {
+                  c.globalAlpha = alpha(va ? "valueAreaUpColor" : "upColor");
+                  c.fillStyle = upColor;
+                  c.fillRect(left, top, (w * up[i]) / value, h);
+                  c.globalAlpha = alpha(
+                    va ? "valueAreaDownColor" : "downColor",
+                  );
+                  c.fillStyle = downColor;
+                  c.fillRect(
+                    left + (w * up[i]) / value,
+                    top,
+                    (w * down[i]) / value,
+                    h,
+                  );
+                }
+                if (settings?.showValues && h >= 9 && w >= 20) {
+                  c.save();
+                  c.globalAlpha =
+                    (settings?.colorOpacity?.valuesColor ?? 100) / 100;
+                  c.font = "10px ui-monospace,monospace";
+                  c.fillStyle = settings.valuesColor ?? "#999999";
+                  const format = new Intl.NumberFormat("en", {
+                    notation: "compact",
+                    maximumFractionDigits: 1,
+                  });
+                  const text =
+                    settings.volume === "delta"
+                      ? format.format(delta)
+                      : settings.volume === "total"
+                        ? format.format(value)
+                        : `${format.format(up[i])} / ${format.format(down[i])}`;
+                  c.fillText(text, left + 3, top + h - 1, Math.max(1, w - 6));
+                  c.restore();
+                }
+              });
             c.globalAlpha = 1;
-            const left = Math.min(p.x, q.x),
+            const left = rangeLeft,
               lineEnd =
                 d.profile?.extendLevels === true ? size.width : left + width;
-            const line = (price: number, label: string, color: string) => {
+            const line = (
+              price: number,
+              label: string,
+              color: string,
+              style?: string,
+            ) => {
               const y = a.series.priceToCoordinate(price);
               if (y === null) return;
+              c.globalAlpha =
+                (settings?.colorOpacity?.[label.toLowerCase() + "Color"] ??
+                  100) / 100;
               c.strokeStyle = color;
+              c.lineWidth = settings?.levelWidths?.[label.toLowerCase()] ?? 1;
+              c.setLineDash(
+                style === "dotted" ? [1, 4] : style === "dashed" ? [6, 4] : [],
+              );
               c.beginPath();
               c.moveTo(left, y);
               c.lineTo(lineEnd, y);
               c.stroke();
+              c.setLineDash([]);
               c.font = "10px ui-monospace, monospace";
               c.fillStyle = color;
               if (d.profile?.showLabels === false) return;
@@ -248,19 +346,65 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
                 low + ((poc + 0.5) / rows) * (high - low),
                 "POC",
                 d.profile?.pocColor ?? "#ffb74d",
+                d.profile?.pocStyle,
               );
-            if (d.profile?.showValueArea !== false) {
-              line(
-                low + (vaLow / rows) * (high - low),
-                "VAL",
-                d.profile?.valueAreaColor ?? "#42a5f5",
-              );
-              line(
-                low + ((vaHigh + 1) / rows) * (high - low),
-                "VAH",
-                d.profile?.valueAreaColor ?? "#42a5f5",
-              );
+            {
+              if ((d.profile?.showVal ?? d.profile?.showValueArea) !== false)
+                line(
+                  low + (vaLow / rows) * (high - low),
+                  "VAL",
+                  d.profile?.valColor ?? d.profile?.valueAreaColor ?? "#4caf50",
+                  d.profile?.valStyle,
+                );
+              if ((d.profile?.showVah ?? d.profile?.showValueArea) !== false)
+                line(
+                  low + ((vaHigh + 1) / rows) * (high - low),
+                  "VAH",
+                  d.profile?.vahColor ?? d.profile?.valueAreaColor ?? "#f23645",
+                  d.profile?.vahStyle,
+                );
             }
+            for (const [enabled, field, color] of [
+              [
+                settings?.developingPoc,
+                "poc",
+                settings?.developingPocColor ?? "#999999",
+              ],
+              [
+                settings?.developingVa,
+                "vah",
+                settings?.developingVaColor ?? "#147c88",
+              ],
+              [
+                settings?.developingVa,
+                "val",
+                settings?.developingVaColor ?? "#147c88",
+              ],
+            ] as const) {
+              if (!enabled) continue;
+              c.globalAlpha =
+                (settings?.colorOpacity?.[
+                  field === "poc" ? "developingPocColor" : "developingVaColor"
+                ] ?? 100) / 100;
+              c.strokeStyle = color;
+              c.lineWidth = 1;
+              c.setLineDash([]);
+              c.beginPath();
+              let previous: { x: number; y: number } | undefined;
+              for (const point of data.developing) {
+                const x = coordinateAtFractionalLogical(a.chart.timeScale(),
+                  logicalAtTime(this.bars, point.time, this.interval));
+                const y = a.series.priceToCoordinate(point[field]);
+                if (x === null || y === null) continue;
+                if (previous) {
+                  c.lineTo(x, previous.y);
+                  c.lineTo(x, y);
+                } else c.moveTo(x, y);
+                previous = { x, y };
+              }
+              c.stroke();
+            }
+            c.globalAlpha = 1;
             if (d.id === this.selectedId || d.id === this.hoverId)
               c.strokeRect(
                 Math.min(p.x, q.x),
@@ -284,15 +428,8 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
             c.fillStyle = "#ffffff";
             const handles = drawingHandles(d)
               .map((point) => ({
-                x: a.chart
-                  .timeScale()
-                  .logicalToCoordinate(
-                    logicalAtTime(
-                      this.bars,
-                      point.time,
-                      this.interval,
-                    ) as Logical,
-                  ),
+                x: coordinateAtFractionalLogical(a.chart.timeScale(),
+                  logicalAtTime(this.bars, point.time, this.interval)),
                 y: a.series.priceToCoordinate(point.price),
               }))
               .filter((p) => p.x !== null && p.y !== null)
@@ -328,7 +465,10 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
     selectedId?: string,
     hoverId?: string,
     tickSize = 0.01,
+    profileBars: Candle[] = bars,
   ) {
+    if (this.profileBars !== profileBars || this.interval !== interval) this.profileCache = new WeakMap();
+    this.profileBars = profileBars;
     this.drawings = drawings;
     this.bars = bars;
     this.interval = interval;
@@ -367,16 +507,54 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
     const bins = Array.from({ length: rows }, () => 0);
     const up = Array.from({ length: rows }, () => 0);
     const down = Array.from({ length: rows }, () => 0);
+    const developing: ProfileData["developing"] = [];
+    const bounds = () => {
+      const max = Math.max(...bins),
+        poc = max ? bins.indexOf(max) : 0;
+      const target =
+        bins.reduce((sum, v) => sum + v, 0) *
+        ((drawing.profile?.valueArea ?? 70) / 100);
+      let area = bins[poc],
+        vaLow = poc,
+        vaHigh = poc;
+      while (area < target && (vaLow > 0 || vaHigh < rows - 1)) {
+        const below = vaLow > 0 ? bins[vaLow - 1] : -1;
+        const above = vaHigh < rows - 1 ? bins[vaHigh + 1] : -1;
+        const addAbove =
+          above > below || (above === below && vaHigh - poc <= poc - vaLow);
+        const next = addAbove ? above : below;
+        if (area + next > target) break;
+        area += next;
+        if (addAbove) vaHigh++;
+        else vaLow--;
+      }
+      return { max, poc, vaLow, vaHigh };
+    };
     if (high > low) {
       const start = Math.min(drawing.points[0].time, drawing.points[1].time);
       const end =
         drawing.profile?.autoExtendRight === true
           ? Infinity
-          : Math.max(drawing.points[0].time, drawing.points[1].time);
-      for (const bar of this.bars) {
+          : Math.max(drawing.points[0].time, drawing.points[1].time) +
+            (drawing.profile?.endInterval ?? this.interval);
+      const lowerStep =
+        this.profileBars.length > 1
+          ? this.profileBars[1].time - this.profileBars[0].time
+          : this.interval;
+      const covered =
+        this.profileBars.length > 0 &&
+        this.profileBars[0].time <= start &&
+        this.profileBars.at(-1)!.time + lowerStep >=
+          Math.min(
+            end,
+            this.bars.at(-1)!.time + this.interval,
+            Date.now() / 1000,
+          );
+      const source = covered ? this.profileBars : this.bars;
+      for (const bar of source) {
         if (
           bar.time < start ||
-          bar.time > end ||
+          bar.time >= end ||
           bar.high < low ||
           bar.low > high
         )
@@ -398,29 +576,45 @@ export class DrawingsRenderer implements ISeriesPrimitive<Time> {
           ),
         );
         for (let i = first; i <= last; i++) {
-          const volume = bar.volume / (last - first + 1);
+          const rowLow = low + (i / rows) * (high - low),
+            rowHigh = low + ((i + 1) / rows) * (high - low);
+          const volume =
+            bar.high > bar.low
+              ? (bar.volume *
+                  Math.max(
+                    0,
+                    Math.min(rowHigh, bar.high) - Math.max(rowLow, bar.low),
+                  )) /
+                (bar.high - bar.low)
+              : bar.volume;
           bins[i] += volume;
           (bar.close >= bar.open ? up : down)[i] += volume;
         }
+        if (drawing.profile?.developingPoc || drawing.profile?.developingVa) {
+          const state = bounds();
+          developing.push({
+            time: bar.time,
+            poc: low + ((state.poc + 0.5) / rows) * (high - low),
+            vah: low + ((state.vaHigh + 1) / rows) * (high - low),
+            val: low + (state.vaLow / rows) * (high - low),
+          });
+        }
       }
     }
-    const max = Math.max(...bins);
-    const poc = max ? bins.indexOf(max) : 0;
-    const target =
-      bins.reduce((sum, value) => sum + value, 0) *
-      ((drawing.profile?.valueArea ?? 70) / 100);
-    let valueArea = bins[poc],
-      vaLow = poc,
-      vaHigh = poc;
-    while (valueArea < target && (vaLow > 0 || vaHigh < rows - 1)) {
-      if (
-        vaLow === 0 ||
-        (vaHigh < rows - 1 && bins[vaHigh + 1] > bins[vaLow - 1])
-      )
-        valueArea += bins[++vaHigh];
-      else valueArea += bins[--vaLow];
-    }
-    const data = { low, high, rows, bins, up, down, max, poc, vaLow, vaHigh };
+    const { max, poc, vaLow, vaHigh } = bounds();
+    const data = {
+      low,
+      high,
+      rows,
+      bins,
+      up,
+      down,
+      max,
+      poc,
+      vaLow,
+      vaHigh,
+      developing,
+    };
     this.profileCache.set(drawing, { bars: this.bars, data });
     return data;
   }

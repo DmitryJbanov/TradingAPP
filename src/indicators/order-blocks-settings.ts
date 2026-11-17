@@ -10,6 +10,7 @@ export interface OrderBlockParams {
   bearishTransparency: number;
   buy_alert: boolean;
   sell_alert: boolean;
+  show_historical_blocks: boolean;
 }
 
 export const orderBlockDefaults: OrderBlockParams = {
@@ -24,6 +25,7 @@ export const orderBlockDefaults: OrderBlockParams = {
   bearishTransparency: 85,
   buy_alert: true,
   sell_alert: true,
+  show_historical_blocks: false,
 };
 
 export function normalizeOrderBlockParams(raw: unknown): OrderBlockParams {
@@ -48,7 +50,7 @@ export function normalizeOrderBlockParams(raw: unknown): OrderBlockParams {
     if (typeof value === "number" && Number.isFinite(value))
       result[key] = Math.max(0, Math.min(100, value));
   }
-  for (const key of ["buy_alert", "sell_alert"] as const)
+  for (const key of ["buy_alert", "sell_alert", "show_historical_blocks"] as const)
     if (typeof input[key] === "boolean") result[key] = input[key];
   return result;
 }

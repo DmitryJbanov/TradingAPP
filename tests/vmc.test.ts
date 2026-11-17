@@ -5,6 +5,8 @@ import { sma, ema, rma, rsi, stochastic } from "../src/indicators/pine-math";
 import {
   computeVmc,
   divergences,
+  divergencePlotEndpoints,
+  divergenceChainStart,
   alignValues,
   heikinAshiDirection,
   waveTrend,
@@ -32,6 +34,22 @@ const candle = (time: number, close = 10): Candle => ({
 });
 const near = (a: number | null | undefined, b: number) =>
   assert.ok(typeof a === "number" && Math.abs(a - b) < 1e-9, `${a} != ${b}`);
+
+test("unrestricted hidden divergence only colors the limited plot endpoints", () => {
+  const base = {top:null, bottom:null, previousTop:null, previousBottom:null, bear:false, bull:false, hiddenBear:false, hiddenBull:false};
+  const prior = {index:2,value:-50,price:100}, current = {index:8,value:-46,price:110};
+  const limited = {...base,bottom:current,previousBottom:prior};
+  const unrestricted = {...base,bottom:{index:8,value:-46,price:110},previousBottom:{index:5,value:-30,price:105},hiddenBull:true};
+  assert.deepEqual(divergencePlotEndpoints(limited, unrestricted, true, false, true), {pivot:current,prev:prior});
+  assert.equal(divergencePlotEndpoints({...limited,bottom:null}, unrestricted, true, false, true), null);
+  assert.equal(divergencePlotEndpoints(limited, unrestricted, true, false, false), null);
+});
+test("three-pivot regular divergence extends only when the complete move qualifies", () => {
+  const first = {index:1,value:-57,price:79526}, middle = {index:2,value:-56,price:79638}, last = {index:3,value:-50,price:79477};
+  assert.equal(divergenceChainStart(first,middle,last,true),first);
+  assert.equal(divergenceChainStart({...first,price:79000},middle,last,true),null);
+  assert.equal(divergenceChainStart({...first,value:-55},middle,last,true),null);
+});
 
 test("Pine averages seed correctly and na never becomes a zero observation", () => {
   assert.deepEqual(sma([1, 2, null, 3, 4], 3), [null, null, null, 2, 3]);

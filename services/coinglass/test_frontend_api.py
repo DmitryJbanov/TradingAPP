@@ -99,14 +99,14 @@ class FrontendTests(unittest.TestCase):
         page = MagicMock()
         page.url = 'about:blank'
         fetch_liquidation_map(page, 'BTC')
-        self.assertEqual(page.evaluate.call_args.args[1],
+        self.assertEqual(page.evaluate.call_args.args[1]['params'],
                          {'merge': True, 'symbol': 'BTC', 'interval': '90d', 'limit': 1440})
         fetch_liquidation_map(page, 'BTC', 30, 720)
-        self.assertEqual(page.evaluate.call_args.args[1],
+        self.assertEqual(page.evaluate.call_args.args[1]['params'],
                          {'merge': True, 'symbol': 'BTC', 'interval': 30, 'limit': 720})
         for days, interval in [(1, 1), (7, 5), (30, 30), (90, '90d'), (180, '180d'), (365, '365d')]:
             fetch_liquidation_map(page, 'ETH', days)
-            self.assertEqual(page.evaluate.call_args.args[1]['interval'], interval)
+            self.assertEqual(page.evaluate.call_args.args[1]['params']['interval'], interval)
         for days, limit in ((0, 720), (True, 720), (90, 0), (90, 1441), (90, 1.5)):
             with self.assertRaises(ValueError):
                 fetch_liquidation_map(page, 'BTC', days, limit)
@@ -228,24 +228,31 @@ class FrontendBrowserTests(unittest.TestCase):
             try:
                 page = browser.new_page()
                 page.set_content('<html><body>Frontend fixture</body></html>')
+                for module_id, export_name in ((89390, 'old_name'), (42707, 'changed_name')):
+                    page.evaluate("""({id,name}) => {
+                      const req = key => {
+                        if (String(key)!==String(id)) throw new Error('Wrong module');
+                        return {[name]: async params => {
+                          const path='/api/index/2/exLiqMap';
+                          return {code:'0',success:true,params};
+                        }};
+                      };
+                      req.m = {[id]: function(){return '/api/index/v4/aggregate/liqHeatMap /api/liquidationLevels/v2';}};
+                      window.webpackChunk_N_E=[];
+                      window.webpackChunk_N_E.push=chunk=>chunk[2](req);
+                    }""", {'id':module_id,'name':export_name})
+                    result=fetch_liquidation_map(page,'BTC')
+                    self.assertEqual(result, {'code':'0','success':True,'params':{
+                        'merge':True,'symbol':'BTC','interval':'90d','limit':1440}})
                 page.evaluate("""() => {
-                  const req = id => {
-                    if (id !== 89390) throw new Error('Wrong module');
-                    return {bvP: async params => ({code: '0', success: true, params})};
-                  };
-                  req.m = {89390: true};
-                  window.webpackChunk_N_E = [];
-                  window.webpackChunk_N_E.push = chunk => chunk[2](req);
+                  const req=()=>({renamed:async params=>{
+                    const path='/api/index/2/exLiqMap';
+                    throw new Error('decode failed');
+                  }});
+                  req.m={12345:function(){return '/api/index/v4/aggregate/liqHeatMap /api/liquidationLevels/v2';}};
+                  window.webpackChunk_N_E.push=chunk=>chunk[2](req);
                 }""")
-                result = fetch_liquidation_map(page, 'BTC')
-                self.assertEqual(result, {'code': '0', 'success': True, 'params': {
-                    'merge': True, 'symbol': 'BTC', 'interval': '90d', 'limit': 1440}})
-                page.evaluate("""() => {
-                  const req = () => ({bvP: async () => { throw new Error('decode failed'); }});
-                  req.m = {89390: true};
-                  window.webpackChunk_N_E.push = chunk => chunk[2](req);
-                }""")
-                with self.assertRaisesRegex(Exception, 'decode failed'):
-                    fetch_liquidation_map(page, 'BTC')
+                with self.assertRaisesRegex(Exception,'decode failed'):
+                    fetch_liquidation_map(page,'BTC')
             finally:
                 browser.close()

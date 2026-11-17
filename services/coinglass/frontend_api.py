@@ -2,31 +2,7 @@
 from decimal import Decimal, InvalidOperation
 
 
-READY_JS = """() => {
-  const chunks = window.webpackChunk_N_E;
-  if (!Array.isArray(chunks) || chunks.push === Array.prototype.push) return false;
-  let req;
-  chunks.push([[`cg_ready_${Date.now()}_${Math.random()}`], {}, r => { req = r; }]);
-  return Boolean(req?.m?.[89390]);
-}"""
-
-FETCH_JS = """async params => {
-  let req;
-  const chunks = window.webpackChunk_N_E;
-  chunks.push([[`cg_reader_${Date.now()}_${Math.random()}`], {}, r => { req = r; }]);
-  if (!req) throw new Error('CoinGlass webpack runtime unavailable');
-  const client = req(89390);
-  if (typeof client?.bvP !== 'function') throw new Error('CoinGlass bvP unavailable');
-  let timer;
-  try {
-    return await Promise.race([
-      client.bvP(params),
-      new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error('CoinGlass request timeout')), 60000);
-      })
-    ]);
-  } finally { clearTimeout(timer); }
-}"""
+from coinglass_heatmap.frontend import CLIENT_JS, READY_JS, fetch_frontend
 
 
 RANGE_DAYS = (1, 7, 14, 30, 90, 180, 365)
@@ -51,9 +27,9 @@ def fetch_liquidation_map(page, symbol, range_days=90, request_limit=1440):
         raise ValueError('Invalid liquidation period')
     if type(request_limit) is not int or not 1 <= request_limit <= 1440:
         raise ValueError('Invalid liquidation request limit')
-    page.wait_for_function(READY_JS, timeout=60000)
-    response = page.evaluate(FETCH_JS, {'merge': True, 'symbol': symbol,
-                                       'interval': INTERVALS[range_days], 'limit': request_limit})
+    response = fetch_frontend(page, '/api/index/2/exLiqMap',
+                              {'merge': True, 'symbol': symbol,
+                               'interval': INTERVALS[range_days], 'limit': request_limit})
     if range_days == 14 and isinstance(response, dict) and str(response.get('code')) == '40001':
         raise ValueError('CoinGlass не предоставляет уровни ликвидаций за 14 дней (код 40001). Данные за другой период не подставляются. Выберите поддерживаемый период; прямой период 2 недели доступен для Heatmap Model 3.')
     return response

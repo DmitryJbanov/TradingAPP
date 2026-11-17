@@ -27,14 +27,18 @@ export class OrderBlocksRenderer implements ISeriesPrimitive<Time> {
         ctx.clip();
         for (const overlay of this.overlays) {
           const p = overlay.params;
-          for (const block of overlay.result.blocks) {
+          for (const block of [...(overlay.result.historicalBlocks ?? []), ...overlay.result.blocks]) {
             const x = attachment.chart
               .timeScale()
               .timeToCoordinate(block.startTime as UTCTimestamp);
+            const end = block.endTime === undefined ? size.width : attachment.chart
+              .timeScale().timeToCoordinate(block.endTime as UTCTimestamp);
             const top = attachment.series.priceToCoordinate(block.top);
             const bottom = attachment.series.priceToCoordinate(block.bottom);
             if (
               x === null ||
+              end === null ||
+              end < 0 ||
               top === null ||
               bottom === null ||
               ![x, top, bottom].every(Number.isFinite) ||
@@ -43,21 +47,23 @@ export class OrderBlocksRenderer implements ISeriesPrimitive<Time> {
               continue;
             const left = Math.max(0, x),
               y = Math.min(top, bottom),
-              height = Math.abs(bottom - top);
+              height = Math.abs(bottom - top),
+              right = Math.min(size.width, end);
+            if (right <= left) continue;
             const bullish = block.side === "bullish";
             ctx.globalAlpha =
               1 -
               (bullish ? p.bullishTransparency : p.bearishTransparency) / 100;
             ctx.fillStyle = bullish ? p.col_bullish_ob : p.col_bearish_ob;
-            ctx.fillRect(left, y, size.width - left, height);
+            ctx.fillRect(left, y, right - left, height);
             ctx.globalAlpha = 1;
             ctx.strokeStyle = bullish ? p.col_bullish : p.col_bearish;
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(left, y);
-            ctx.lineTo(size.width, y);
+            ctx.lineTo(right, y);
             ctx.moveTo(left, y + height);
-            ctx.lineTo(size.width, y + height);
+            ctx.lineTo(right, y + height);
             if (x >= 0) {
               ctx.moveTo(x, y);
               ctx.lineTo(x, y + height);

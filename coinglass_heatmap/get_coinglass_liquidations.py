@@ -13,11 +13,14 @@ import json
 from pathlib import Path
 
 from playwright.async_api import async_playwright
+try:
+    from .frontend import CLIENT_JS, READY_JS
+except ImportError:
+    from frontend import CLIENT_JS, READY_JS
 
 
 URL = (
-    "https://www.coinglass.com/ru/pro/futures/"
-    "LiquidationHeatMapModel3?coin=BTC&type=symbol"
+    "https://www.coinglass.com/liquidation-heatmap-model3?coin=BTC&type=symbol"
 )
 OUT = Path(__file__).with_name("coinglass_btc_liquidation_levels_365d.json")
 
@@ -30,15 +33,14 @@ async def main() -> None:
         )
         page = await browser.new_page()
         await page.goto(URL, wait_until="domcontentloaded")
-        await page.wait_for_timeout(4000)
+        await page.wait_for_function(READY_JS, timeout=45000)
 
         # Use the same internal frontend function as the chart. It generates
         # the temporary request token and decrypts the response in-page.
         result = await page.evaluate(
             """async () => {
-                let req;
-                self.webpackChunk_N_E.push([[Math.random()], {}, r => { req = r; }]);
-                const response = await req(89390).Yxh({
+                const {call}=__CG_CLIENT__();
+                const response = await call('https://fapi.coinglass.com/api/index/v4/aggregate/liqHeatMap', {
                     merge: true,
                     symbol: "BTC",
                     range: "365d",
@@ -59,7 +61,7 @@ async def main() -> None:
                     updateTime: response.data.updateTime,
                     y: response.data.y
                 };
-            }"""
+            }""".replace('__CG_CLIENT__', '('+CLIENT_JS+')')
         )
 
         OUT.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")

@@ -1,6 +1,6 @@
 """Public CoinGlass whale positions, trader distribution and published history."""
 from datetime import datetime, timezone
-from frontend_api import READY_JS, CoinglassApiError
+from frontend_api import READY_JS, CLIENT_JS, CoinglassApiError
 from whales import number
 
 
@@ -13,20 +13,14 @@ def run(request, runtime, folder):
         page.wait_for_function(READY_JS, timeout=30000)
     params = request['params']
     raw = page.evaluate('''async params => {
-      let req; self.webpackChunk_N_E.push([[Math.random()], {}, r => { req = r; }]);
-      const api = req(89390);
-      const call = async (path, args) => {
-        const entry = Object.entries(api).find(([,fn]) => typeof fn === 'function' && String(fn).includes('url:"'+path+'"'));
-        if (!entry) throw Error('CoinGlass endpoint unavailable: '+path);
-        return await entry[1](args);
-      };
+      const {call}=__CG_CLIENT__();
       const [positions, coins, history] = await Promise.all([
         call('/api/hyperliquid/topPosition', {}),
         call('https://fapi.coinglass.com/api/hyperliquid/position/symbol/shortAndLong', {}),
         call('/api/hyperliquid/position/user/count', {coin:params.coin, interval:params.interval})
       ]);
       return {positions, coins, history};
-    }''', params)
+    }'''.replace('__CG_CLIENT__', '('+CLIENT_JS+')'), params)
     for response in raw.values():
         if response.get('code') not in ('0', 0): raise CoinglassApiError(response.get('code'))
         if not isinstance(response.get('data'), list): raise ValueError('CoinGlass: неверный формат данных китов')
