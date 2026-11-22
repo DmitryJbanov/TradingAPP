@@ -11,6 +11,7 @@ services:
       TRUST_PROXY: ${TRUST_PROXY:-false}
       DATA_MODE: ${DATA_MODE:-auto}
       TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
+      FINAM_SECRET: ${FINAM_SECRET:-}
       COINGLASS_SERVICE_URL: http://coinglass:8090
       COINGLASS_TOKEN: ${COINGLASS_TOKEN:-}
     depends_on:

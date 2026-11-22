@@ -245,7 +245,7 @@ export function aggregateExchangeBars(
   return [...result.values()];
 }
 const nativeIntervals: Record<
-  Exclude<MarketExchange, "binance">,
+  Exclude<MarketExchange, "binance" | "finam">,
   Partial<Record<CandleInterval, string>>
 > = {
   okx: {
@@ -295,6 +295,7 @@ export async function loadExchangeHistory(
 ): Promise<{ bars: Candle[]; warning?: string }> {
   if (exchange === "binance")
     return loadBinanceHistory(`FUTURES:${contract.id}`, interval, count, json, before);
+  if (exchange === "finam") throw new SymbolError("Используйте источник Финам", 400);
   const native = nativeIntervals[exchange][interval]
     ? interval
     : interval === "3m"

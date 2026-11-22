@@ -7,7 +7,9 @@ interface Result {
   symbol: string;
   base: string;
   quote: string;
-  market: "spot" | "futures";
+  name?: string;
+  sector?: string;
+  market: "spot" | "futures" | "finam";
 }
 interface Results {
   data: Result[];
@@ -66,13 +68,13 @@ export function SymbolSearch({
     <div className="symbol-search chart-symbol-search">
       <div className="symbol-search-controls">
         <label>
-          Найти фьючерс
+          {exchange === "finam" ? "Найти инструмент Финама" : "Найти фьючерс"}
           <input
             type="search"
             value={query}
             maxLength={40}
             onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Поиск фьючерса…"
+            placeholder={exchange === "finam" ? "Тикер или название…" : "Поиск фьючерса…"}
           />
         </label>
       </div>
@@ -84,7 +86,7 @@ export function SymbolSearch({
           <p>
             {results.total
               ? `Найдено: ${results.total}${results.total > results.data.length ? ". Показаны первые 60 — уточните запрос." : ""}`
-              : "Активные пары не найдены."}
+              : "Инструменты не найдены."}
           </p>
         )}
       </div>
@@ -95,9 +97,9 @@ export function SymbolSearch({
               <a href={`/pair/${encodeURIComponent(row.symbol)}`}>
                 <CoinIcon base={row.base} />
                 <span>
-                  {row.base} / {row.quote}
+                  {row.market === "finam" ? row.name || row.base : `${row.base} / ${row.quote}`}
                   <small>
-                    {row.market === "spot" ? "Spot" : "USDⓈ-M Perpetual"}
+                    {row.market === "finam" ? `${row.base} · ${row.sector || "Финам"}` : row.market === "spot" ? "Spot" : "USDⓈ-M Perpetual"}
                   </small>
                 </span>
               </a>

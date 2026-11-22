@@ -18,7 +18,10 @@ export function mergeLatestCandles(
   const additions = latest.data.filter((bar) => bar.time > lastTime);
   let expected = lastTime + intervalSeconds;
   for (const bar of additions) {
-    if (bar.time !== expected) return { response: history, needsReload: true };
+    // Exchange-traded instruments have overnight and weekend gaps. Accept those
+    // only when the short response overlaps our existing history.
+    if (bar.time !== expected && !(history.exchange === "finam" && latest.data.some(b => b.time === lastTime)))
+      return { response: history, needsReload: true };
     expected += intervalSeconds;
   }
   const byTime = new Map<number, Candle>(

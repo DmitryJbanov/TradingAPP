@@ -59,6 +59,9 @@ const server = createServer(async (req, res) => {
         if (!validProfileOrigin(incoming)) { res.writeHead(403); res.end("Forbidden"); return; }
         if (!requireProfileUser(incoming)) { res.writeHead(401); res.end("Authentication required"); return; }
       }
+      if (url.searchParams.get("exchange") === "finam" && !requireProfileUser(new Request(requestUrl, { headers: requestHeaders }))) {
+        res.writeHead(401, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Требуется вход в профиль" })); return;
+      }
       let body: Buffer | undefined;
       if (
         req.method === "POST" &&
@@ -95,6 +98,7 @@ const server = createServer(async (req, res) => {
           COINGLASS_TOKEN: process.env.COINGLASS_TOKEN,
           DATA_MODE: process.env.DATA_MODE,
           TWELVE_DATA_API_KEY: process.env.TWELVE_DATA_API_KEY,
+          FINAM_SECRET: process.env.FINAM_SECRET,
         },
       );
       res.writeHead(response.status, Object.fromEntries(response.headers));

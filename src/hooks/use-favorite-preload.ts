@@ -17,7 +17,7 @@ export function useFavoritePreload(
     if (!enabled) return;
     let stopped = false,
       index = 0;
-    const pairs = [...new Set(favorites)].filter((pair) => pair !== current);
+    const pairs = [...new Set(favorites)].filter((pair) => pair !== current && (exchange === "finam" ? pair.startsWith("FINAM:") : !pair.startsWith("FINAM:")));
     const worker = async () => {
       // Give the active chart and its indicators priority on first render.
       await new Promise((resolve) => setTimeout(resolve, 1200));
@@ -33,7 +33,7 @@ export function useFavoritePreload(
         try {
           await fetchCandles(url, { priority: "low" });
         } catch {}
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) => setTimeout(resolve, exchange === "finam" ? 2000 : 250));
       }
     };
     void worker();

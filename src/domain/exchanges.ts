@@ -3,6 +3,7 @@ export const exchanges = {
   okx: "OKX",
   bybit: "Bybit",
   mexc: "MEXC",
+  finam: "Финам",
 } as const;
 export type MarketExchange = keyof typeof exchanges;
 export const isMarketExchange = (value: unknown): value is MarketExchange =>

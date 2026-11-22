@@ -1,4 +1,5 @@
 import { isMarketExchange, marketSymbol } from "../domain/exchanges";
+import { finamService } from "./finam-service";
 import {
   exchangeCandles,
   exchangeMarkets,
@@ -30,6 +31,7 @@ import {
 export interface Config extends CoinglassConfig {
   DATA_MODE?: string;
   TWELVE_DATA_API_KEY?: string;
+  FINAM_SECRET?: string;
 }
 const logs: LogEntry[] = [];
 let sequence = 0;
@@ -493,7 +495,7 @@ export async function handleApi(
     let result: unknown;
     switch (u.pathname) {
       case "/api/symbols":
-        result = exchange
+        result = exchange === "finam" ? await finamService(config.FINAM_SECRET).search(u.searchParams.get("q") ?? "") : exchange
           ? await exchangeSearch(exchange, u.searchParams.get("q") ?? "")
           : await searchSymbols(
               u.searchParams.get("q") ?? "",
@@ -502,7 +504,7 @@ export async function handleApi(
             );
         break;
       case "/api/markets":
-        result = exchange
+        result = exchange === "finam" ? await finamService(config.FINAM_SECRET).markets([]) : exchange
           ? await exchangeMarkets(exchange, force)
           : await markets(config, force);
         break;
@@ -513,6 +515,10 @@ export async function handleApi(
             { error: "Максимум 100 избранных пар" },
             { status: 400 },
           );
+        if (exchange === "finam") {
+          result = await finamService(config.FINAM_SECRET).markets(symbols);
+          break;
+        }
         if (exchange) {
           if (
             symbols.some((s) => !/^(?:FUTURES:|SPOT:)?[A-Z0-9]{3,40}$/.test(s))
@@ -555,7 +561,7 @@ export async function handleApi(
         const before = beforeText === null ? undefined : Number(beforeText);
         if (before !== undefined && (!Number.isSafeInteger(before) || before < 0 || before > Math.floor(Date.now() / 1000) + 86400))
           return Response.json({ error: "Некорректная дата истории" }, { status: 400 });
-        result = exchange
+        result = exchange === "finam" ? await finamService(config.FINAM_SECRET).candles(symbol, tf as CandleInterval, count, before) : exchange
           ? await exchangeCandles(
               exchange,
               symbol,
@@ -583,7 +589,7 @@ export async function handleApi(
             { error: "Неизвестный symbol или interval" },
             { status: 400 },
           );
-        result = exchange
+        result = exchange === "finam" ? await finamService(config.FINAM_SECRET).candles(symbol, tf as CandleInterval, 2) : exchange
           ? await exchangeCandles(
               exchange,
               symbol,

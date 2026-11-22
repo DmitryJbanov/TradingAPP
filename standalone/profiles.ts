@@ -37,7 +37,7 @@ const cookieName = secureCookie
 const allowKey = (key: string) =>
   /^vector\.(exchange|timezone|theme|accent|chart|favorites|favorite-colors|indicators\.shared|indicator-presets|pine\.library|pine\.draft|candles|notes)\.v1$/.test(
     key,
-  ) || /^vector\.drawings\.v1:[A-Za-z0-9._:/%^-]{1,160}$/.test(key);
+  ) || /^vector\.drawings\.v1:[A-Za-z0-9._:/%@^-]{1,160}$/.test(key);
 const color = (value: unknown) =>
   typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
 function validSetting(key: string, value: unknown) {
@@ -47,7 +47,7 @@ function validSetting(key: string, value: unknown) {
   if (key === "vector.exchange.v1")
     return (
       typeof value === "string" &&
-      ["binance", "okx", "bybit", "mexc"].includes(value)
+      ["binance", "okx", "bybit", "mexc", "finam"].includes(value)
     );
   if (key === "vector.theme.v1")
     return [
@@ -81,7 +81,7 @@ function validSetting(key: string, value: unknown) {
       Array.isArray(value) &&
       value.length <= 500 &&
       value.every(
-        (x) => typeof x === "string" && /^[A-Za-z0-9._:/^%-]{1,48}$/.test(x),
+        (x) => typeof x === "string" && /^[A-Za-z0-9._:/^%@-]{1,64}$/.test(x),
       )
     );
   if (key === "vector.favorite-colors.v1")

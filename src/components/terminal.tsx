@@ -206,6 +206,7 @@ const hasIndicatorSettings = (id: string) =>
   ].includes(id);
 
 function Change({ value }: { value: number }) {
+  if (!Number.isFinite(value)) return <span>—</span>;
   return (
     <span className={value >= 0 ? "positive" : "negative"}>
       {value >= 0 ? "+" : ""}
@@ -368,6 +369,13 @@ export default function Terminal({ symbol }: { symbol?: string }) {
   const exchange = isMarketExchange(storedExchange)
     ? storedExchange
     : "binance";
+  const lastOpenedSymbol = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!symbol || lastOpenedSymbol.current === symbol) return;
+    lastOpenedSymbol.current = symbol;
+    if (symbol.startsWith("FINAM:")) setExchange("finam");
+    else setExchange((current) => current === "finam" ? "binance" : current);
+  }, [symbol, setExchange]);
   const markets = useResource<MarketResponse>(
     symbol ? `/api/markets?exchange=${exchange}` : "/api/markets",
     30000,
@@ -438,15 +446,22 @@ export default function Terminal({ symbol }: { symbol?: string }) {
         (quote) => favoriteKey(quote.symbol) === favoriteKey(saved),
       ),
   );
+  const missingCryptoFavorites = missingFavorites.filter((saved) => !saved.startsWith("FINAM:"));
+  const missingFinamFavorites = missingFavorites.filter((saved) => saved.startsWith("FINAM:"));
   const favoriteMarkets = useResource<MarketResponse>(
     "/api/markets/favorites?symbols=" +
-      encodeURIComponent(missingFavorites.join(",")) +
+      encodeURIComponent(missingCryptoFavorites.join(",")) +
       "&exchange=" +
-      exchange,
+      (exchange === "finam" ? "binance" : exchange),
     15000,
-    !symbol && missingFavorites.length > 0,
+    !symbol && missingCryptoFavorites.length > 0,
   );
-  const extraFavorites = favoriteMarkets.data?.data ?? [];
+  const finamFavoriteMarkets = useResource<MarketResponse>(
+    "/api/markets/favorites?symbols=" + encodeURIComponent(missingFinamFavorites.join(",")) + "&exchange=finam",
+    30000,
+    !symbol && missingFinamFavorites.length > 0,
+  );
+  const extraFavorites = [...(favoriteMarkets.data?.data ?? []), ...(finamFavoriteMarkets.data?.data ?? [])];
   const rows = [
     ...baseRows,
     ...extraFavorites.filter(
@@ -1457,7 +1472,7 @@ function PairWorkspace({
     historyCount,
     indicatorRefresh,
   );
-  const coinglass = useCoinglass(symbol, indicators, tf);
+  const coinglass = useCoinglass(symbol, exchange === "finam" || symbol.startsWith("FINAM:") ? [] : indicators, tf);
   const pine = usePineScripts(symbol, tf, candleData, indicators);
   const editingIndicator = indicators.find((i) => i.id === settingsId);
   function openIndicatorSettings(id: string) {
@@ -1475,6 +1490,7 @@ function PairWorkspace({
       candleData?.instrument ??
       q ??
       catalog.find((x) => x.symbol === symbol) ??
+      (/^FINAM:[A-Z0-9._-]+@[A-Z0-9_]{2,8}$/.test(symbol) ? {symbol, base:symbol.slice(6).split("@")[0], quote:"", name:symbol.slice(6), category:"stocks" as const, sector:"Финам", seed:0} : undefined) ??
       (/^[A-Z0-9]+(?:USDT|USDC)$/.test(cleanSymbol)
         ? {
             symbol,
@@ -1483,7 +1499,7 @@ function PairWorkspace({
             name: cleanSymbol.slice(0, -4),
           }
         : undefined);
-  const heatmap = useHeatmap(symbol, item?.base ?? "", indicators, tf);
+  const heatmap = useHeatmap(symbol, exchange === "finam" ? "" : item?.base ?? "", exchange === "finam" ? [] : indicators, tf);
   const heatmapLayer = useMemo(() => {
     if (!heatmap.visible || !heatmap.data || !heatmap.model) return undefined;
     return {
@@ -1506,8 +1522,9 @@ function PairWorkspace({
   ]);
   const bars = candleData?.data ?? [],
     last = bars.at(-1);
-  const coins = rows.filter((x) => x.category === "crypto");
-  const missingFavorites = favorites.filter((saved) => {
+  const coins = rows.filter((x) => exchange === "finam" ? x.symbol.startsWith("FINAM:") : x.category === "crypto");
+  const visibleFavorites = favorites.filter((saved) => exchange === "finam" ? saved.startsWith("FINAM:") : !saved.startsWith("FINAM:"));
+  const missingFavorites = visibleFavorites.filter((saved) => {
     const clean = saved.replace(/^(FUTURES|SPOT):/, "");
     return !coins.some((item) => marketSymbol(item.symbol) === clean);
   });
@@ -1524,7 +1541,7 @@ function PairWorkspace({
   );
   const list = (
     onlyFavorites
-      ? favorites.map((saved) => {
+      ? visibleFavorites.map((saved) => {
           const clean = saved.replace(/^(FUTURES|SPOT):/, "");
           const quote =
             ["USDT", "USDC", "FDUSD", "BUSD", "BTC", "ETH"].find((suffix) =>
@@ -1540,11 +1557,11 @@ function PairWorkspace({
               ? { ...fetched, symbol: saved }
               : {
                   symbol: saved,
-                  base: clean.slice(0, clean.length - quote.length) || clean,
+                  base: exchange === "finam" ? clean.slice(6).split("@")[0] : clean.slice(0, clean.length - quote.length) || clean,
                   quote,
                   name: clean,
-                  category: "crypto" as const,
-                  sector: "Perpetual",
+                  category: (exchange === "finam" ? "stocks" : "crypto") as "stocks" | "crypto",
+                  sector: exchange === "finam" ? "Финам" : "Perpetual",
                   seed: 0,
                   price: Number.NaN,
                   change: Number.NaN,
@@ -1642,7 +1659,7 @@ function PairWorkspace({
               <div className="pair-instrument-title">
                 <h1>
                   {item.base}
-                  <small> / {item.quote}</small>
+                  {item.quote && <small> / {item.quote}</small>}
                 </h1>
                 <div className="pair-price">
                   <strong className="mono">
@@ -1660,7 +1677,7 @@ function PairWorkspace({
                     ? candleData.provider
                     : candleData?.source === "stale"
                       ? `${candleData.provider} · устарели`
-                      : `${exchanges[exchange]} Futures`}
+                      : exchange === "finam" ? "Финам" : `${exchanges[exchange]} Futures`}
                 </span>
               </p>
             </div>
@@ -2141,7 +2158,7 @@ function PairWorkspace({
                   <div className="watch-item-instrument">
                     <CoinIcon base={x.base} />
                     <b>
-                      {x.base} / {x.quote}
+                      {x.base}{x.quote ? ` / ${x.quote}` : ""}
                     </b>
                   </div>
                   <div className="mono watch-item-quote">

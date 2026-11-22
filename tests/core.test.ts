@@ -118,3 +118,4 @@ test("provider success mapping and failure fallback do not mislabel data", async
   }
 });
 import "./exchanges.test";
+import "./finam.test";
